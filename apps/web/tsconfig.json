@@ -6,6 +6,7 @@
         "name": "next"
       }
     ],
+     "jsx": "react-jsx",
     "strictNullChecks": true,
     "baseUrl": ".",
     "paths": {

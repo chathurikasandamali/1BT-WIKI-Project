@@ -34,7 +34,7 @@ export function RoleGuard({ allowedRoles, children, fallback }: RoleGuardProps) 
           You don&apos;t have permission to view this page
         </h2>
         <Link 
-          href="/" 
+          href="/"
           data-testid="roleguard-home-link"
           className="text-brand-red hover:text-brand-red-hover underline font-medium"
         >
