@@ -17,6 +17,7 @@ jest.mock('@/lib/api/reviewer.api', () => ({
 }));
 
 import ReviewerApprovalsPage from '../page';
+const FIXED_SUBMITTED_DATE = '2026-01-10T00:00:00.000Z';
 
 function makePendingArticle(overrides: Partial<PendingArticleListItem> = {}): PendingArticleListItem {
   return {
@@ -27,8 +28,8 @@ function makePendingArticle(overrides: Partial<PendingArticleListItem> = {}): Pe
     authorEmail: 'jane@1billiontech.com',
     tags: ['engineering'],
     status: 'Pending',
-    createdAt: '2026-01-10T00:00:00.000Z',
-    updatedAt: '2026-01-10T00:00:00.000Z',
+    createdAt: FIXED_SUBMITTED_DATE,
+    updatedAt: FIXED_SUBMITTED_DATE,
     likeCount: 0,
     commentCount: 0,
     ...overrides,
