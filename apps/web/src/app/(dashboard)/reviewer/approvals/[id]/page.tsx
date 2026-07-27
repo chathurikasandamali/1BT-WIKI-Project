@@ -12,18 +12,7 @@ import { Toast } from '@/components/shared/Toast';
 import { ArticleContent } from '@/components/article-detail/ArticleContent';
 import { useArticleForReview, approveArticle, rejectArticle } from '@/lib/hooks/useReviewer';
 import { useToast } from '@/lib/hooks/useToast';
-
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  } catch {
-    return '—';
-  }
-}
+import { formatDate } from '@/lib/utils/date';
 
 function ReviewArticleDetailContent(): React.JSX.Element {
   const params = useParams();

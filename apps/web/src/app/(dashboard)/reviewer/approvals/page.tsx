@@ -6,18 +6,7 @@ import { Eye } from 'lucide-react';
 import { RoleGuard } from '@/components/auth/RoleGuard';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { usePendingArticles } from '@/lib/hooks/useReviewer';
-
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  } catch {
-    return '—';
-  }
-}
+import { formatDate } from '@/lib/utils/date';
 
 function ReviewerApprovalsContent(): React.JSX.Element {
   const { articles, loading, error } = usePendingArticles();
