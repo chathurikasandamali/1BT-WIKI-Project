@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -9,6 +9,7 @@ import { BRAND_NAME, BRAND_SUB_NAME } from '@/lib/constants/brand';
 import { SearchIcon } from '@/components/shared/icons/SearchIcon';
 import { BellIcon } from '@/components/shared/icons/BellIcon';
 import { ChevronDownIcon } from '@/components/shared/icons/ChevronDownIcon';
+import { NotificationDropdown } from './NotificationDropdown';
 
 interface NavbarProps {
   notificationCount?: number;
@@ -27,6 +28,30 @@ export function Navbar({
 }: NavbarProps): React.JSX.Element {
   const containerRef = useRef<HTMLElement>(null);
   const bellRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node) &&
+        bellRef.current &&
+        !bellRef.current.contains(event.target as Node)
+      ) {
+        setIsNotificationOpen(false);
+      }
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsNotificationOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, []);
 
   useGSAP(
     () => {
@@ -151,23 +176,38 @@ export function Navbar({
       </div>
 
       <div className="flex items-center gap-4 flex-shrink-0">
-        <button
-          ref={bellRef}
-          type="button"
-          className="relative text-brand-text-secondary hover:text-brand-text-primary transition-colors"
-          data-testid="notification-bell"
-          aria-label="Notifications"
-        >
-          <BellIcon className="h-5 w-5" />
-          {notificationCount > 0 && (
-            <span
-              className="absolute -top-1.5 -right-1.5 bg-brand-red text-white text-[10px] font-bold
-                             rounded-full min-w-[16px] h-4 flex items-center justify-center px-0.5"
-            >
-              {notificationCount}
-            </span>
+        <div className="relative">
+          <button
+            ref={bellRef}
+            type="button"
+            onClick={() => setIsNotificationOpen((current) => !current)}
+            aria-label="Notifications"
+            aria-haspopup="dialog"
+            aria-expanded={isNotificationOpen}
+            aria-controls="notification-dropdown"
+            className="relative text-brand-text-secondary hover:text-brand-text-primary transition-colors block"
+            data-testid="notification-bell"
+          >
+            <BellIcon className="h-5 w-5" />
+            {notificationCount > 0 && (
+              <span
+                className="absolute -top-1.5 -right-1.5 bg-brand-red text-white text-[10px] font-bold
+                               rounded-full min-w-[16px] h-4 flex items-center justify-center px-0.5"
+              >
+                {notificationCount}
+              </span>
+            )}
+          </button>
+          
+          {isNotificationOpen && (
+            <div ref={dropdownRef} className="absolute right-0 top-full mt-2 z-50">
+              <NotificationDropdown
+                id="notification-dropdown"
+                onClose={() => setIsNotificationOpen(false)}
+              />
+            </div>
           )}
-        </button>
+        </div>
 
         <div className="w-px h-6 bg-brand-border" />
 
