@@ -9,3 +9,7 @@ export function formatDate(iso: string): string {
     return '—';
   }
 }
+
+export function getFormattedISODate(date: string, time: string = '00:00:00.000'): string {
+  return `${date}T${time}Z`;
+}

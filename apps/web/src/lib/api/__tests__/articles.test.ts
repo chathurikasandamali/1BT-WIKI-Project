@@ -5,6 +5,7 @@ jest.mock('@/lib/api/client', () => ({
 }));
 
 import { fetchMyArticles, type ListMineResult } from '@/lib/api/articles';
+import { getFormattedISODate } from '@/lib/utils/date';
 
 const sampleResult: ListMineResult = {
   articles: [
@@ -14,8 +15,8 @@ const sampleResult: ListMineResult = {
       authorId: 'u1',
       tags: ['tag1'],
       status: 'Published',
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-02T00:00:00.000Z',
+      createdAt: getFormattedISODate('2026-01-01'),
+      updatedAt: getFormattedISODate('2026-01-02'),
       likeCount: 3,
       commentCount: 1,
       rejectionFeedback: null,
