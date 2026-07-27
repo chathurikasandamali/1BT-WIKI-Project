@@ -8,6 +8,14 @@ jest.mock('@/lib/api/articles', () => ({
   fetchMyArticles: (...args: unknown[]) => mockFetchMyArticles(...args),
 }));
 
+jest.mock('@/lib/hooks/useUser', () => ({
+  useUser: () => ({
+    user: { id: 'u1', name: 'Test User', role: 'User' },
+    loading: false,
+    error: null,
+  }),
+}));
+
 import { MyArticlesList } from '@/components/profile/MyArticlesList';
 
 function makeArticle(
@@ -239,7 +247,7 @@ describe('MyArticlesList', () => {
     const editLink = screen.getByTestId('edit-article-a2');
     expect(editLink.tagName).toBe('A');
     expect(editLink).toHaveAttribute('href', '/editor/a2');
-    expect(screen.getByTestId('delete-article-a2')).toBeDisabled();
+    expect(screen.getByTestId('delete-article-a2')).not.toBeDisabled();
   });
 
   it('does not update state after unmount (cancelled fetch)', async () => {

@@ -19,6 +19,7 @@ interface NavItem {
 
 gsap.registerPlugin(useGSAP);
 
+import { CheckCircleIcon } from '@/components/shared/icons/CheckCircleIcon';
 import { HomeIcon } from '@/components/shared/icons/HomeIcon';
 import { ArticleIcon } from '@/components/shared/icons/ArticleIcon';
 import { TechTalkIcon } from '@/components/shared/icons/TechTalkIcon';
@@ -75,6 +76,7 @@ export function Sidebar(): React.JSX.Element {
   const sidebarRef = useRef<HTMLElement>(null);
   const { user } = useUser();
   const isAdmin = user?.role === 'Admin';
+  const isReviewerOrAdmin = user?.role === 'Reviewer' || user?.role === 'Admin';
 
   const isActive = (href: string): boolean =>
     href === '/' ? pathname === '/' : pathname.startsWith(href);
@@ -174,6 +176,20 @@ export function Sidebar(): React.JSX.Element {
             <span className="relative z-10">{item.label}</span>
           </Link>
         ))}
+        {isReviewerOrAdmin && (
+          <Link
+            href="/reviewer/approvals"
+            className={itemClasses('/reviewer/approvals')}
+            style={{ paddingLeft: '20px' }}
+            data-testid="nav-reviewer-approvals"
+          >
+            {isActive('/reviewer/approvals') && (
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-3/4 bg-brand-red active-indicator rounded-r-full" />
+            )}
+            <CheckCircleIcon className="w-4 h-4 relative z-10" />
+            <span className="relative z-10">Approvals</span>
+          </Link>
+        )}
       </nav>
       {isAdmin && (
         <>

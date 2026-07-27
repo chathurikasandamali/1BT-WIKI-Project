@@ -3,6 +3,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { SpinnerIcon } from '@/components/shared/icons/SpinnerIcon';
+import { formatDate } from '@/lib/utils/date';
 
 export type UserRole = 'Admin' | 'Reviewer' | 'User';
 
@@ -58,18 +59,6 @@ function UserInitialAvatar({
       {name.charAt(0).toUpperCase()}
     </div>
   );
-}
-
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  } catch {
-    return '—';
-  }
 }
 
 export function UserManagementTable({

@@ -9,20 +9,9 @@ import { ConfirmationModal } from '@/components/shared/ConfirmationModal';
 import { Toast } from '@/components/shared/Toast';
 import { useUser } from '@/lib/hooks/useUser';
 import { useToast } from '@/lib/hooks/useToast';
+import { formatDate } from '@/lib/utils/date';
 
 type SortOption = 'newest' | 'oldest' | 'title';
-
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  } catch {
-    return '—';
-  }
-}
 
 function ArticleCard({ article, onDeleteClick, isAdmin }: { article: ArticleListItem; onDeleteClick: (article: ArticleListItem) => void; isAdmin: boolean }): React.JSX.Element {
   const dateLabel = article.status === 'Published' ? 'Published' : 'Last updated';

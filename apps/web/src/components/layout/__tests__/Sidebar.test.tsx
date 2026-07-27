@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 const mockSignOut = jest.fn();
+const mockUseUser = jest.fn();
 
 jest.mock('next/navigation', () => ({
   usePathname: () => '/',
@@ -23,20 +24,7 @@ jest.mock('@/lib/auth/client', () => ({
 }));
 
 jest.mock('@/lib/hooks/useUser', () => ({
-  useUser: () => ({
-    user: {
-      id: 'u1',
-      name: 'Test User',
-      email: 'test@1billiontech.com',
-      role: 'User',
-      avatarUrl: null,
-      isActive: true,
-      createdAt: '',
-    },
-    loading: false,
-    error: null,
-    refetch: jest.fn(),
-  }),
+  useUser: () => mockUseUser(),
 }));
 
 import { Sidebar } from '@/components/layout/Sidebar';
@@ -44,6 +32,12 @@ import { Sidebar } from '@/components/layout/Sidebar';
 describe('Sidebar sign-out', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUseUser.mockReturnValue({
+      user: { id: 'u1', name: 'Test User', email: 'test@1billiontech.com', role: 'User', avatarUrl: null, isActive: true, createdAt: '' },
+      loading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
     window.location.assign('http://localhost/');
   });
 
@@ -75,6 +69,12 @@ describe('Sidebar sign-out', () => {
 describe('Sidebar navigation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUseUser.mockReturnValue({
+      user: { id: 'u1', name: 'Test User', email: 'test@1billiontech.com', role: 'User', avatarUrl: null, isActive: true, createdAt: '' },
+      loading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
   });
 
   it('renders a My Articles link pointing to /my-articles', () => {
@@ -83,5 +83,39 @@ describe('Sidebar navigation', () => {
     const link = screen.getByTestId('nav-my-articles');
     expect(link).toHaveAttribute('href', '/my-articles');
     expect(link).toHaveTextContent('My Articles');
+  });
+
+  it('does NOT render the Approvals link for a plain User role', () => {
+    mockUseUser.mockReturnValue({
+      user: { id: 'u1', name: 'Plain User', role: 'User' },
+      loading: false,
+    });
+
+    render(<Sidebar />);
+    expect(screen.queryByTestId('nav-reviewer-approvals')).not.toBeInTheDocument();
+  });
+
+  it('renders the Approvals link for Reviewer role', () => {
+    mockUseUser.mockReturnValue({
+      user: { id: 'u2', name: 'Reviewer User', role: 'Reviewer' },
+      loading: false,
+    });
+
+    render(<Sidebar />);
+    const link = screen.getByTestId('nav-reviewer-approvals');
+    expect(link).toHaveAttribute('href', '/reviewer/approvals');
+    expect(link).toHaveTextContent('Approvals');
+  });
+
+  it('renders the Approvals link for Admin role', () => {
+    mockUseUser.mockReturnValue({
+      user: { id: 'u3', name: 'Admin User', role: 'Admin' },
+      loading: false,
+    });
+
+    render(<Sidebar />);
+    const link = screen.getByTestId('nav-reviewer-approvals');
+    expect(link).toHaveAttribute('href', '/reviewer/approvals');
+    expect(link).toHaveTextContent('Approvals');
   });
 });

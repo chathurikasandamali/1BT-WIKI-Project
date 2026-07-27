@@ -1,5 +1,6 @@
 import { ArticleRepository } from '@repositories/articleRepository.js';
 import { ArticleReviewRepository } from '@repositories/articleReviewRepository.js';
+import UserRepository from '@repositories/userRepository.js';
 import { AppError } from '@errors/AppError.js';
 import type { Article } from '@models/article.types.js';
 import { ArticleStatusValue } from '@models/article.types.js';
@@ -10,24 +11,33 @@ import { NotificationBuilder } from '@v1/lib/NotificationBuilder.js';
 export class ReviewerService {
   constructor(
     private articleRepository: ArticleRepository = new ArticleRepository(),
-    private reviewRepository: ArticleReviewRepository = new ArticleReviewRepository()
+    private reviewRepository: ArticleReviewRepository = new ArticleReviewRepository(),
+    private userRepository: typeof UserRepository = UserRepository,
   ) {}
 
   async listPending(
     page: number = 1,
     limit: number = 20
-  ): Promise<{
-    articles: Article[];
-    total: number;
-    page: number;
-    limit: number;
-  }> {
+  ): Promise<{ articles: (Article & { authorName: string; authorEmail: string | null })[]; total: number; page: number; limit: number }> {
     const { articles, total } = await this.articleRepository.findByStatus(
       ArticleStatusValue.Pending,
       page,
       limit
     );
-    return { articles, total, page, limit };
+
+    // TODO: batch via a findManyByIds if UserRepository adds one, to avoid N+1 queries on larger pending lists
+    const enrichedArticles = await Promise.all(
+      articles.map(async (article) => {
+        const author = await this.userRepository.findById(article.authorId);
+        return {
+          ...article,
+          authorName: author?.name ?? 'Unknown',
+          authorEmail: author?.email ?? null,
+        };
+      })
+    );
+
+    return { articles: enrichedArticles, total, page, limit };
   }
 
   async approveArticle(
@@ -126,13 +136,20 @@ export class ReviewerService {
     return rejected;
   }
 
-  async getArticleForReview(articleId: string): Promise<Article> {
+  async getArticleForReview(articleId: string): Promise<Article & { authorName: string; authorEmail: string | null }> {
     const article = await this.articleRepository.findById(articleId);
     if (!article) throw new AppError('Article not found', 404);
     if (article.status !== 'Pending') {
       throw new AppError('Only Pending articles can be reviewed', 400);
     }
-    return article;
+
+    const author = await this.userRepository.findById(article.authorId);
+
+    return {
+      ...article,
+      authorName: author?.name ?? 'Unknown',
+      authorEmail: author?.email ?? null,
+    };
   }
 }
 
