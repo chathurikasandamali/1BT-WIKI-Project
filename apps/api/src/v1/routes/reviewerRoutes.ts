@@ -10,7 +10,7 @@ const { listPending, approveArticle, rejectArticle, getArticleForReview } = revi
 router.get(
   '/articles/pending',
   authenticate,
-  requireRole('Reviewer'),
+  requireRole('Reviewer', 'Admin'),
   listPending
 );
 router.get(
