@@ -684,7 +684,32 @@ describe('ArticleService.getArticleById', () => {
     jest.clearAllMocks();
   });
 
-  it('should return the article when it exists and is Published', async () => {
+  it('should return the article with mapped likeCount and likedByMe when it exists and is Published', async () => {
+    const article = {
+      id: articleId,
+      status: 'Published',
+      title: 'My Article',
+      authorId: 'user-1',
+      _count: { likes: 5, comments: 2 },
+      likes: [{ id: 'like-1' }],
+    };
+    mockRepo.findById.mockResolvedValue(article as never);
+
+    const result = await service.getArticleById(articleId, authorId);
+
+    expect(mockRepo.findById).toHaveBeenCalledWith(articleId, authorId);
+    expect(result).toEqual({
+      id: articleId,
+      status: 'Published',
+      title: 'My Article',
+      authorId: 'user-1',
+      likeCount: 5,
+      commentCount: 2,
+      likedByMe: true,
+    });
+  });
+
+  it('should return likeCount 0 and likedByMe false when no relations exist', async () => {
     const article = {
       id: articleId,
       status: 'Published',
@@ -695,8 +720,16 @@ describe('ArticleService.getArticleById', () => {
 
     const result = await service.getArticleById(articleId);
 
-    expect(mockRepo.findById).toHaveBeenCalledWith(articleId);
-    expect(result).toEqual(article);
+    expect(mockRepo.findById).toHaveBeenCalledWith(articleId, null);
+    expect(result).toEqual({
+      id: articleId,
+      status: 'Published',
+      title: 'My Article',
+      authorId: 'user-1',
+      likeCount: 0,
+      commentCount: 0,
+      likedByMe: false,
+    });
   });
 
   it('should throw 404 if article does not exist', async () => {
@@ -756,8 +789,18 @@ describe('ArticleService.getArticleById', () => {
 
     const result = await service.getArticleById(articleId, authorId);
 
-    expect(mockRepo.findById).toHaveBeenCalledWith(articleId);
-    expect(result).toEqual(article);
+    expect(mockRepo.findById).toHaveBeenCalledWith(articleId, authorId);
+    expect(result).toEqual({
+      id: articleId,
+      status: 'Draft',
+      title: 'My Draft',
+      authorId,
+      body: { type: 'doc' },
+      tags: ['test'],
+      likeCount: 0,
+      commentCount: 0,
+      likedByMe: false,
+    });
   });
 
   it('should return the article when the author requests their own Rejected article', async () => {
@@ -773,8 +816,18 @@ describe('ArticleService.getArticleById', () => {
 
     const result = await service.getArticleById(articleId, authorId);
 
-    expect(mockRepo.findById).toHaveBeenCalledWith(articleId);
-    expect(result).toEqual(article);
+    expect(mockRepo.findById).toHaveBeenCalledWith(articleId, authorId);
+    expect(result).toEqual({
+      id: articleId,
+      status: 'Rejected',
+      title: 'My Rejected',
+      authorId,
+      body: { type: 'doc' },
+      tags: [],
+      likeCount: 0,
+      commentCount: 0,
+      likedByMe: false,
+    });
   });
 
   it("should throw 403 when a different user requests someone else's Draft article", async () => {

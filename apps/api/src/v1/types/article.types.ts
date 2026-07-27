@@ -33,6 +33,12 @@ export interface Article {
   warnings?: string[];
 }
 
+export interface ArticleDetail extends Article {
+  likeCount: number;
+  commentCount: number;
+  likedByMe: boolean;
+}
+
 export interface ArticleListItem {
   id: string;
   title: string;

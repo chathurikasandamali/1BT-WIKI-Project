@@ -1,6 +1,9 @@
 import type { Request, Response, NextFunction } from 'express';
 import LikeService from '@services/likeService.js';
 import { successResponse } from '@models/article.types.js';
+import { AppError } from '@errors/AppError.js';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const like = async (
   req: Request,
@@ -9,6 +12,11 @@ const like = async (
 ): Promise<void> => {
   try {
     const { id: articleId } = req.params;
+
+    if (!UUID_REGEX.test(articleId)) {
+      throw new AppError('Invalid article ID format', 400);
+    }
+
     // req.user is guaranteed to exist because of authenticate middleware
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const userId = req.user!.userId;
@@ -30,6 +38,11 @@ const unlike = async (
 ): Promise<void> => {
   try {
     const { id: articleId } = req.params;
+
+    if (!UUID_REGEX.test(articleId)) {
+      throw new AppError('Invalid article ID format', 400);
+    }
+
     // req.user is guaranteed to exist because of authenticate middleware
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const userId = req.user!.userId;

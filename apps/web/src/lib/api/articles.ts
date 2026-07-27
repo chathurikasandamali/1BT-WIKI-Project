@@ -7,6 +7,20 @@ export type ArticleStatus =
   | 'Unpublished'
   | 'Rejected';
 
+export interface ArticleDetail {
+  id: string;
+  title: string;
+  body: any;
+  authorId: string;
+  tags: string[];
+  status: ArticleStatus;
+  createdAt: string;
+  updatedAt: string;
+  likeCount: number;
+  commentCount: number;
+  likedByMe: boolean;
+}
+
 export interface ArticleListItem {
   id: string;
   title: string;
@@ -46,4 +60,12 @@ export async function deleteArticle(id: string, hard = false): Promise<void> {
   if (!result.success) {
     throw new Error(result.error || 'Failed to delete article');
   }
+}
+
+export async function getArticle(id: string): Promise<ArticleDetail> {
+  const result = await apiFetch<ArticleDetail>(`/articles/${id}`);
+  if (!result.success || !result.data) {
+    throw new Error(result.error || 'Failed to fetch article');
+  }
+  return result.data;
 }

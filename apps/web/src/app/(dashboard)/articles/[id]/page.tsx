@@ -1,30 +1,80 @@
+'use client';
+
 /* eslint-disable @next/next/no-img-element */
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { mockArticles } from '@/components/article-detail/mock';
+import { getArticle, ArticleDetail } from '@/lib/api/articles';
 import { ArticleContent } from '@/components/article-detail/ArticleContent';
 import { LikeButton } from '@/components/article-detail/LikeButton';
 import { CommentsSection } from '@/components/article-detail/CommentsSection';
 import { ArrowLeftIcon } from '@/components/shared/icons/ArrowLeftIcon';
 
-// TODO(backend): replace mock lookup with a real GET /api/v1/articles/:id
-// call via apiFetch() from '@/lib/api/client' once the endpoint is
-// confirmed (Chathurika's KB-01 territory). Do not guess the DTO shape.
-
 interface ArticlePageProps {
   params: Promise<{ id: string }>;
 }
 
-export default async function ArticleDetailPage(props: ArticlePageProps) {
-  const params = await props.params;
-  // Fall back to a single mock article if id doesn't match
-  const article = mockArticles[params.id] || mockArticles['1']!;
+export default function ArticleDetailPage(props: ArticlePageProps) {
+  // In Next.js 15+, params is a Promise. We need to unwrap it in a Client Component.
+  const params = React.use(props.params);
+  
+  const [article, setArticle] = useState<ArticleDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  if (!article) {
-    return <div>Article not found</div>;
+  useEffect(() => {
+    let mounted = true;
+    async function loadArticle() {
+      try {
+        setLoading(true);
+        const data = await getArticle(params.id);
+        if (mounted) {
+          setArticle(data);
+          setError(null);
+        }
+      } catch (err: any) {
+        if (mounted) {
+          setError(err.message || 'Failed to load article');
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadArticle();
+    return () => {
+      mounted = false;
+    };
+  }, [params.id]);
+
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8 text-center text-brand-text-secondary" data-testid="loading-skeleton">
+        <div className="animate-pulse flex flex-col items-center">
+          <div className="h-8 w-64 bg-brand-border rounded mb-4"></div>
+          <div className="h-4 w-32 bg-brand-border rounded"></div>
+        </div>
+      </div>
+    );
   }
 
-  const formattedDate = new Date(article.publishedAt).toLocaleDateString(
+  if (error || !article) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8 text-center">
+        <p className="text-brand-red font-medium mb-4">{error || 'Article not found'}</p>
+        <Link
+          href="/articles"
+          className="inline-flex items-center text-sm font-medium text-brand-text-secondary hover:text-brand-red transition-colors"
+        >
+          <ArrowLeftIcon width="16" height="16" className="mr-1" />
+          Back to Articles
+        </Link>
+      </div>
+    );
+  }
+
+  const formattedDate = new Date(article.createdAt).toLocaleDateString(
     'en-US',
     {
       year: 'numeric',
@@ -64,14 +114,12 @@ export default async function ArticleDetailPage(props: ArticlePageProps) {
 
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-3">
-              <img
-                src={article.author.avatarUrl}
-                alt={article.author.name}
-                className="w-12 h-12 rounded-full object-cover bg-brand-border"
-              />
+              <div className="w-12 h-12 rounded-full bg-brand-border flex items-center justify-center text-brand-text-secondary">
+                <span className="text-sm font-medium">?</span>
+              </div>
               <div>
                 <p className="font-semibold text-brand-dark">
-                  {article.author.name}
+                  Unknown Author
                 </p>
                 <p className="text-sm text-brand-text-secondary">
                   {formattedDate}
