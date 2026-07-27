@@ -104,7 +104,7 @@ export class ReviewerService {
 
     const rejected = await this.articleRepository.updateStatus(
       articleId,
-      ArticleStatusValue.Unpublished
+      ArticleStatusValue.Draft
     );
 
     await this.reviewRepository.create({

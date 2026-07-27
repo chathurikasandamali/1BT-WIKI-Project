@@ -390,7 +390,7 @@ describe('Reviewer API Integration', () => {
       expect(response.body.success).toBe(true);
       expect(response.body.message).toBe('Article rejected');
       expect(response.body.data.status).toBe('Unpublished');
-      expect(mockUpdateStatus).toHaveBeenCalledWith(articleId, 'Unpublished');
+      expect(mockUpdateStatus).toHaveBeenCalledWith(articleId, 'Draft');
       expect(mockReviewCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           articleId,
