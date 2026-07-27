@@ -11,11 +11,17 @@ import type {
 const mockCreate = jest.fn<any>();
 const mockList = jest.fn<any>();
 const mockMarkAsRead = jest.fn<any>();
+const mockCountUnread = jest.fn<any>();
 
 await jest.unstable_mockModule(
   '@repositories/notificationRepository.js',
   () => ({
-    default: { create: mockCreate, list: mockList, markAsRead: mockMarkAsRead },
+    default: { 
+      create: mockCreate, 
+      list: mockList, 
+      markAsRead: mockMarkAsRead,
+      countUnread: mockCountUnread 
+    },
   })
 );
 
@@ -181,5 +187,38 @@ describe('NotificationService.markAsRead', () => {
     ).rejects.toThrow('Database is unavailable');
 
     expect(mockMarkAsRead).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('NotificationService.countUnread', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should delegate userId to repository.countUnread() and return its result unchanged', async () => {
+    // Arrange
+    const expectedCount = 5;
+    mockCountUnread.mockResolvedValue(expectedCount);
+
+    // Act
+    const result = await notificationService.countUnread('user-uuid-1');
+
+    // Assert
+    expect(mockCountUnread).toHaveBeenCalledTimes(1);
+    expect(mockCountUnread).toHaveBeenCalledWith('user-uuid-1');
+    expect(result).toBe(expectedCount);
+  });
+
+  it('should propagate repository errors', async () => {
+    // Arrange
+    const dbError = new Error('Database is unavailable');
+    mockCountUnread.mockRejectedValue(dbError);
+
+    // Act + Assert
+    await expect(notificationService.countUnread('user-uuid-1')).rejects.toThrow(
+      'Database is unavailable'
+    );
+
+    expect(mockCountUnread).toHaveBeenCalledTimes(1);
   });
 });

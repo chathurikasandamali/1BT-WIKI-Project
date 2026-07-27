@@ -120,6 +120,7 @@ await jest.unstable_mockModule(
       list: jest
         .fn<(...args: unknown[]) => Promise<unknown[]>>()
         .mockResolvedValue([]),
+      countUnread: jest.fn<(...args: unknown[]) => Promise<unknown>>(),
     },
   })
 );
@@ -140,6 +141,9 @@ const { default: NotificationRepository } =
 
 const mockedList = NotificationRepository.list as jest.Mock<
   (...args: unknown[]) => Promise<unknown[]>
+>;
+const mockedCountUnread = NotificationRepository.countUnread as jest.Mock<
+  (...args: unknown[]) => Promise<unknown>
 >;
 
 // ---------------------------------------------------------------------------
@@ -300,5 +304,68 @@ describe('Integration — GET /api/v1/notifications (NO-02)', () => {
       limit: 20,
       offset: 0,
     });
+  });
+});
+
+describe('Integration — GET /api/v1/notifications/unread-count', () => {
+  beforeEach(() => {
+    mockedCountUnread.mockReset();
+  });
+
+  it('should return 401 when no authentication headers are provided', async () => {
+    const response = await request(app).get('/api/v1/notifications/unread-count');
+
+    expect(response.status).toBe(401);
+    expect(response.body.success).toBe(false);
+  });
+
+  it('should return 200 with { success: true, data: { count: number } }', async () => {
+    mockedCountUnread.mockResolvedValueOnce(3);
+
+    const response = await request(app)
+      .get('/api/v1/notifications/unread-count')
+      .set('x-test-user-id', 'user-abc')
+      .set('x-test-user-email', 'malindu@1billiontech.com')
+      .set('x-test-user-role', 'User');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      success: true,
+      data: { count: 3 },
+    });
+    expect(mockedCountUnread).toHaveBeenCalledWith('user-abc');
+    expect(mockedCountUnread).toHaveBeenCalledTimes(1);
+  });
+
+  it('should return 200 with count: 0 when there are no unread notifications', async () => {
+    mockedCountUnread.mockResolvedValueOnce(0);
+
+    const response = await request(app)
+      .get('/api/v1/notifications/unread-count')
+      .set('x-test-user-id', 'user-abc')
+      .set('x-test-user-email', 'malindu@1billiontech.com')
+      .set('x-test-user-role', 'User');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      success: true,
+      data: { count: 0 },
+    });
+  });
+
+  it('should return only the correct unread, non-deleted count (mock returns filtered count)', async () => {
+    // The repository handles the SQL WHERE clause for read/unread/deleted.
+    // In this integration test, we just ensure whatever the repo returns
+    // is correctly passed through as the 'count' payload.
+    mockedCountUnread.mockResolvedValueOnce(2);
+
+    const response = await request(app)
+      .get('/api/v1/notifications/unread-count')
+      .set('x-test-user-id', 'user-abc')
+      .set('x-test-user-email', 'malindu@1billiontech.com')
+      .set('x-test-user-role', 'User');
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.count).toBe(2);
   });
 });

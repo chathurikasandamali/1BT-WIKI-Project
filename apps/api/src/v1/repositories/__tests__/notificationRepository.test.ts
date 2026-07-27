@@ -12,6 +12,7 @@ const mockCreate = jest.fn<any>();
 const mockFindFirst = jest.fn<any>();
 const mockFindMany = jest.fn<any>();
 const mockUpdate = jest.fn<any>();
+const mockCount = jest.fn<any>();
 
 await jest.unstable_mockModule('@repo/db', () => ({
   prisma: {
@@ -20,6 +21,7 @@ await jest.unstable_mockModule('@repo/db', () => ({
       findFirst: mockFindFirst,
       findMany: mockFindMany,
       update: mockUpdate,
+      count: mockCount,
     },
   },
 }));
@@ -257,5 +259,40 @@ describe('NotificationRepository.markAsRead', () => {
     await expect(
       NotificationRepository.markAsRead('notif-uuid-1', 'user-uuid-1')
     ).rejects.toThrow('Database is unavailable');
+  });
+});
+
+describe('NotificationRepository.countUnread', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should call prisma.notification.count with correct where clause and return the count', async () => {
+    // Arrange
+    const expectedCount = 5;
+    mockCount.mockResolvedValue(expectedCount);
+
+    // Act
+    const result = await NotificationRepository.countUnread('user-uuid-1');
+
+    // Assert
+    expect(mockCount).toHaveBeenCalledTimes(1);
+    const [countArgs] = mockCount.mock.calls[0] as [any];
+    expect(countArgs.where).toEqual({
+      recipientId: 'user-uuid-1',
+      isRead: false,
+      deletedAt: null,
+    });
+    expect(result).toBe(expectedCount);
+  });
+
+  it('should throw AppError(503) when the database query fails', async () => {
+    // Arrange
+    mockCount.mockRejectedValue(new Error('connection reset'));
+
+    // Act & Assert
+    await expect(NotificationRepository.countUnread('user-uuid-1')).rejects.toThrow(
+      'Database is unavailable'
+    );
   });
 });
