@@ -106,6 +106,11 @@ const mockUserFindById = MockUserRepository.findById as jest.Mock<any>;
 const mockUserFindManyByIds =
   MockUserRepository.findManyByIds as jest.Mock<any>;
 const mockDate = new Date().toISOString();
+const mockAuthor = {
+  id: 'user-1',
+  name: 'Author Name',
+  email: 'author@example.com',
+};
 
 const reviewerHeaders = {
   'x-test-user-id': 'reviewer-1',
@@ -130,18 +135,8 @@ describe('Reviewer API Integration', () => {
     mockFindById.mockResolvedValue(null);
     mockUpdateStatus.mockResolvedValue({});
     mockReviewCreate.mockResolvedValue({});
-    mockUserFindById.mockResolvedValue({
-      id: 'user-1',
-      name: 'Author Name',
-      email: 'author@example.com',
-    });
-    mockUserFindManyByIds.mockResolvedValue([
-      {
-        id: 'user-1',
-        name: 'Author Name',
-        email: 'author@example.com',
-      },
-    ]);
+    mockUserFindById.mockResolvedValue(mockAuthor);
+    mockUserFindManyByIds.mockResolvedValue([mockAuthor]);
   });
 
   describe('GET /api/v1/reviewer/articles/pending', () => {
