@@ -17,6 +17,7 @@ export interface ArticleListItem {
   updatedAt: string;
   likeCount: number;
   commentCount: number;
+  rejectionFeedback: string | null;
 }
 
 export interface ListMineResult {

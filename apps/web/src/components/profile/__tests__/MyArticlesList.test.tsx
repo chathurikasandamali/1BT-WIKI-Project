@@ -31,6 +31,7 @@ function makeArticle(
     updatedAt: '2026-01-05T00:00:00.000Z',
     likeCount: 0,
     commentCount: 0,
+    rejectionFeedback: null,
     ...overrides,
   };
 }
@@ -264,5 +265,130 @@ describe('MyArticlesList', () => {
     resolveFetch({ articles: [], total: 0, page: 1, limit: 20 });
 
     await waitFor(() => expect(mockFetchMyArticles).toHaveBeenCalledTimes(1));
+  });
+
+  describe('Rejection feedback', () => {
+    it('shows rejection feedback for Unpublished articles', async () => {
+      mockFetchMyArticles.mockResolvedValueOnce({
+        articles: [
+          makeArticle({
+            id: 'a1',
+            status: 'Unpublished',
+            rejectionFeedback: 'Needs more technical depth',
+          }),
+        ],
+        total: 1,
+        page: 1,
+        limit: 20,
+      });
+
+      render(<MyArticlesList />);
+      await screen.findByTestId('article-card-a1');
+
+      expect(screen.getByText('Reviewer feedback')).toBeInTheDocument();
+      expect(screen.getByText('Needs more technical depth')).toBeInTheDocument();
+    });
+
+    it('shows fallback message when Unpublished article has null feedback', async () => {
+      mockFetchMyArticles.mockResolvedValueOnce({
+        articles: [
+          makeArticle({
+            id: 'a1',
+            status: 'Unpublished',
+            rejectionFeedback: null,
+          }),
+        ],
+        total: 1,
+        page: 1,
+        limit: 20,
+      });
+
+      render(<MyArticlesList />);
+      await screen.findByTestId('article-card-a1');
+
+      expect(screen.getByText('Reviewer feedback')).toBeInTheDocument();
+      expect(screen.getByText('No reviewer feedback was provided.')).toBeInTheDocument();
+    });
+
+    it('shows fallback message when Unpublished article has empty or whitespace feedback', async () => {
+      mockFetchMyArticles.mockResolvedValueOnce({
+        articles: [
+          makeArticle({
+            id: 'a1',
+            status: 'Unpublished',
+            rejectionFeedback: '   \n  ',
+          }),
+        ],
+        total: 1,
+        page: 1,
+        limit: 20,
+      });
+
+      render(<MyArticlesList />);
+      await screen.findByTestId('article-card-a1');
+
+      expect(screen.getByText('Reviewer feedback')).toBeInTheDocument();
+      expect(screen.getByText('No reviewer feedback was provided.')).toBeInTheDocument();
+    });
+
+    it('hides feedback for Draft, Pending, and Published articles even with historical feedback string', async () => {
+      mockFetchMyArticles.mockResolvedValueOnce({
+        articles: [
+          makeArticle({ id: 'a1', status: 'Draft', rejectionFeedback: 'Old feedback 1' }),
+          makeArticle({ id: 'a2', status: 'Pending', rejectionFeedback: 'Old feedback 2' }),
+          makeArticle({ id: 'a3', status: 'Published', rejectionFeedback: 'Old feedback 3' }),
+        ],
+        total: 3,
+        page: 1,
+        limit: 20,
+      });
+
+      render(<MyArticlesList />);
+      await screen.findByTestId('article-card-a1');
+      await screen.findByTestId('article-card-a2');
+      await screen.findByTestId('article-card-a3');
+
+      expect(screen.queryByText('Reviewer feedback')).not.toBeInTheDocument();
+      expect(screen.queryByText(/Old feedback/)).not.toBeInTheDocument();
+    });
+
+    it('retains edit controls for Unpublished articles', async () => {
+      mockFetchMyArticles.mockResolvedValueOnce({
+        articles: [
+          makeArticle({ id: 'a1', status: 'Unpublished' }),
+        ],
+        total: 1,
+        page: 1,
+        limit: 20,
+      });
+
+      render(<MyArticlesList />);
+      await screen.findByTestId('article-card-a1');
+
+      const editLink = screen.getByTestId('edit-article-a1');
+      expect(editLink.tagName).toBe('A');
+      expect(editLink).toHaveAttribute('href', '/editor/a1');
+    });
+
+    it('renders HTML-like feedback as plain text', async () => {
+      mockFetchMyArticles.mockResolvedValueOnce({
+        articles: [
+          makeArticle({
+            id: 'a1',
+            status: 'Unpublished',
+            rejectionFeedback: '<script>alert(1)</script> <strong>bold</strong>',
+          }),
+        ],
+        total: 1,
+        page: 1,
+        limit: 20,
+      });
+
+      render(<MyArticlesList />);
+      await screen.findByTestId('article-card-a1');
+
+      expect(screen.getByText('<script>alert(1)</script> <strong>bold</strong>')).toBeInTheDocument();
+      expect(screen.queryByRole('strong')).not.toBeInTheDocument();
+    });
   });
 });

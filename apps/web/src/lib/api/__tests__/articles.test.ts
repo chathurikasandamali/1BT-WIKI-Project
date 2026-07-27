@@ -18,6 +18,7 @@ const sampleResult: ListMineResult = {
       updatedAt: '2026-01-02T00:00:00.000Z',
       likeCount: 3,
       commentCount: 1,
+      rejectionFeedback: null,
     },
   ],
   total: 1,
