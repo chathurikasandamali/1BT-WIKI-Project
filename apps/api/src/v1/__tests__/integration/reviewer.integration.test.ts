@@ -66,11 +66,14 @@ const MockArticleReviewRepository = {
 
 const MockUserRepository = {
   findById: jest.fn<() => Promise<unknown>>().mockResolvedValue(null),
+  findManyByIds: jest.fn<() => Promise<unknown>>().mockResolvedValue([]),
 };
 
-await jest.unstable_mockModule('@repositories/articleRepository.js', () => ({
-  ArticleRepository: jest.fn().mockImplementation(() => MockArticleRepository),
-}));
+const mockUserCtor = jest.fn().mockImplementation(() => MockUserRepository);
+const MockUserRepositoryImpl = Object.assign(
+  mockUserCtor,
+  MockUserRepository
+);
 
 await jest.unstable_mockModule('@repositories/articleRepository.js', () => ({
   ArticleRepository: jest.fn().mockImplementation(() => MockArticleRepository),
@@ -87,15 +90,10 @@ await jest.unstable_mockModule(
   })
 );
 
-await jest.unstable_mockModule(
-  '@repositories/articleReviewRepository.js',
-  () => ({
-    ArticleReviewRepository: jest
-      .fn()
-      .mockImplementation(() => MockArticleReviewRepository),
-    default: jest.fn().mockImplementation(() => MockArticleReviewRepository),
-  })
-);
+await jest.unstable_mockModule('@repositories/userRepository.js', () => ({
+  UserRepository: MockUserRepositoryImpl,
+  default: MockUserRepositoryImpl,
+}));
 
 const { default: app, appReady } = await import('../../../app.js');
 const { default: request } = await import('supertest');
@@ -105,6 +103,8 @@ const mockFindById = MockArticleRepository.findById as jest.Mock<any>;
 const mockUpdateStatus = MockArticleRepository.updateStatus as jest.Mock<any>;
 const mockReviewCreate = MockArticleReviewRepository.create as jest.Mock<any>;
 const mockUserFindById = MockUserRepository.findById as jest.Mock<any>;
+const mockUserFindManyByIds =
+  MockUserRepository.findManyByIds as jest.Mock<any>;
 const mockDate = new Date().toISOString();
 
 const reviewerHeaders = {
@@ -135,6 +135,13 @@ describe('Reviewer API Integration', () => {
       name: 'Author Name',
       email: 'author@example.com',
     });
+    mockUserFindManyByIds.mockResolvedValue([
+      {
+        id: 'user-1',
+        name: 'Author Name',
+        email: 'author@example.com',
+      },
+    ]);
   });
 
   describe('GET /api/v1/reviewer/articles/pending', () => {
