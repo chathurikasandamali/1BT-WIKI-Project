@@ -151,7 +151,7 @@ describe('ArticleRepository.findByAuthor', () => {
     expect(findManyArgs.take).toBe(10);
   });
 
-  it('should request a filtered comment count that excludes soft-deleted comments, and an unfiltered like count', async () => {
+  it('should request filtered comments, an unfiltered like count, and latest rejected review feedback', async () => {
     mockFindMany.mockResolvedValue([]);
     mockCount.mockResolvedValue(0);
 
@@ -164,6 +164,19 @@ describe('ArticleRepository.findByAuthor', () => {
         select: {
           likes: true,
           comments: { where: { deletedAt: null } },
+        },
+      },
+      reviews: {
+        where: {
+          status: 'Rejected',
+          deletedAt: null,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: 1,
+        select: {
+          feedback: true,
         },
       },
     });

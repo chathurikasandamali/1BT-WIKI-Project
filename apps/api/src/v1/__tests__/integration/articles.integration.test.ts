@@ -485,6 +485,47 @@ describe('Articles API Integration', () => {
       expect(mockFindByAuthor).toHaveBeenCalledWith('user-123', 1, 20);
     });
 
+    it('should return rejectionFeedback for a currently rejected (Unpublished) article with reviews', async () => {
+      const mockArticles = [
+        {
+          id: 'article-1',
+          title: 'Rejected Article',
+          authorId: 'user-123',
+          tags: ['test'],
+          status: 'Unpublished',
+          createdAt: new Date('2023-01-01').toISOString(),
+          updatedAt: new Date('2023-01-01').toISOString(),
+          _count: { likes: 0, comments: 0 },
+          reviews: [{ feedback: 'Please add more technical details.' }],
+        },
+        {
+          id: 'article-2',
+          title: 'Draft Article',
+          authorId: 'user-123',
+          tags: ['test'],
+          status: 'Draft',
+          createdAt: new Date('2023-01-01').toISOString(),
+          updatedAt: new Date('2023-01-01').toISOString(),
+          _count: { likes: 0, comments: 0 },
+          reviews: [{ feedback: 'Old feedback' }],
+        },
+      ];
+
+      mockFindByAuthor.mockResolvedValueOnce({
+        articles: mockArticles,
+        total: 2,
+      });
+
+      const response = await request(app)
+        .get(mineArticlePath)
+        .set(userHeaders);
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.articles).toHaveLength(2);
+      expect(response.body.data.articles[0].rejectionFeedback).toBe('Please add more technical details.');
+      expect(response.body.data.articles[1].rejectionFeedback).toBeNull();
+    });
+
     it('should respect custom page and limit query params', async () => {
       mockFindByAuthor.mockResolvedValueOnce({ articles: [], total: 0 });
 

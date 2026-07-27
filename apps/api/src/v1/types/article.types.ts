@@ -44,6 +44,7 @@ export interface ArticleListItem {
   likeCount: number;
   commentCount: number;
   views: number;
+  rejectionFeedback: string | null;
 }
 
 export interface CreateArticleInput {

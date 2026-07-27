@@ -13,32 +13,48 @@ import { formatDate } from '@/lib/utils/date';
 
 type SortOption = 'newest' | 'oldest' | 'title';
 
+function RejectionFeedback({ feedback }: { feedback: string | null }): React.JSX.Element {
+  const trimmedFeedback = feedback?.trim();
+  return (
+    <div className="mt-3 p-3 bg-brand-red/5 border border-brand-red/10 rounded">
+      <h4 className="text-xs font-semibold text-brand-red mb-1">Reviewer feedback</h4>
+      <p className="text-sm text-brand-text-secondary whitespace-pre-wrap break-words">
+        {trimmedFeedback ? trimmedFeedback : 'No reviewer feedback was provided.'}
+      </p>
+    </div>
+  );
+}
+
 function ArticleCard({ article, onDeleteClick, isAdmin }: { article: ArticleListItem; onDeleteClick: (article: ArticleListItem) => void; isAdmin: boolean }): React.JSX.Element {
+  const isRejected = article.status === 'Unpublished';
+  const displayStatus = isRejected ? 'Rejected' : article.status;
   const dateLabel = article.status === 'Published' ? 'Published' : 'Last updated';
   const dateValue = article.status === 'Published' ? article.updatedAt : article.createdAt;
-  const canEdit = article.status === 'Draft' || article.status === 'Rejected';
+  
+  const canEdit = article.status === 'Draft' || isRejected;
   const canDelete = article.status === 'Draft' || isAdmin;
 
   return (
     <div
-      className="flex items-center gap-4 p-4 bg-brand-surface border border-brand-border rounded"
+      className="flex flex-col gap-0 p-4 bg-brand-surface border border-brand-border rounded"
       data-testid={`article-card-${article.id}`}
     >
-      <div className="w-16 h-16 rounded bg-brand-bg border border-brand-border flex-shrink-0 flex items-center justify-center text-brand-text-secondary text-xs">
-        No image
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <p className="font-medium text-brand-text-primary truncate">
-          {article.title}
-        </p>
-        <div className="mt-1 flex items-center gap-2 text-xs text-brand-text-secondary">
-          <StatusBadge status={article.status} />
-          <span>
-            {dateLabel}: {formatDate(dateValue)}
-          </span>
+      <div className="flex items-center gap-4">
+        <div className="w-16 h-16 rounded bg-brand-bg border border-brand-border flex-shrink-0 flex items-center justify-center text-brand-text-secondary text-xs">
+          No image
         </div>
-      </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="font-medium text-brand-text-primary truncate">
+            {article.title}
+          </p>
+          <div className="mt-1 flex items-center gap-2 text-xs text-brand-text-secondary">
+            <StatusBadge status={displayStatus as import('@/lib/api/articles').ArticleStatus} />
+            <span>
+              {dateLabel}: {formatDate(dateValue)}
+            </span>
+          </div>
+        </div>
 
       <div className="flex items-center gap-2 flex-shrink-0">
         {canEdit ? (
@@ -83,6 +99,8 @@ function ArticleCard({ article, onDeleteClick, isAdmin }: { article: ArticleList
           </button>
         )}
       </div>
+      </div>
+      {isRejected && <RejectionFeedback feedback={article.rejectionFeedback} />}
     </div>
   );
 }
