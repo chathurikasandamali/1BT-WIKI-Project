@@ -287,7 +287,7 @@ describe('ReviewerService.rejectArticle', () => {
     mockArticleRepo.findById.mockResolvedValue(pendingArticle as never);
     mockArticleRepo.updateStatus.mockResolvedValue({
       ...pendingArticle,
-      status: 'Unpublished',
+      status: 'Draft',
     } as never);
 
     await service.rejectArticle(articleId, reviewerId, 'exactlyTen');
@@ -295,7 +295,7 @@ describe('ReviewerService.rejectArticle', () => {
     expect(mockArticleRepo.findById).toHaveBeenCalledWith(articleId);
     expect(mockArticleRepo.updateStatus).toHaveBeenCalledWith(
       articleId,
-      'Unpublished'
+      'Draft'
     );
     expect(mockReviewRepo.create).toHaveBeenCalledWith({
       articleId,
@@ -366,7 +366,7 @@ describe('ReviewerService.rejectArticle', () => {
     expect(mockArticleRepo.findById).toHaveBeenCalledWith(articleId);
     expect(mockArticleRepo.updateStatus).toHaveBeenCalledWith(
       articleId,
-      'Unpublished'
+      'Draft'
     );
     expect(mockReviewRepo.create).toHaveBeenCalledWith({
       articleId,
