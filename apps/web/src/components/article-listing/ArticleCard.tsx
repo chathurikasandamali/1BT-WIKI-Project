@@ -10,6 +10,7 @@ interface ArticleCardProps {
   tags: string[];
   likeCount: number;
   commentCount: number;
+  views: number;
   createdAt: string;
 }
 
@@ -19,6 +20,7 @@ export function ArticleCard({
   tags,
   likeCount,
   commentCount,
+  views,
   createdAt,
 }: ArticleCardProps): React.JSX.Element {
   const formattedDate = new Date(createdAt).toLocaleDateString('en-US', {
@@ -64,14 +66,12 @@ export function ArticleCard({
             <CommentIcon width="16" height="16" />
             <span>{commentCount}</span>
           </div>
-          {/* TODO(backend): wire real view count once the views field is exposed by GET /api/v1/articles */}
           <div
-            className="flex items-center gap-1 opacity-50 cursor-not-allowed"
+            className="flex items-center gap-1"
             data-testid="article-view-count"
-            title="View count coming soon"
           >
             <EyeIcon width="16" height="16" />
-            <span>—</span>
+            <span>{views}</span>
           </div>
         </div>
         <span>{formattedDate}</span>
