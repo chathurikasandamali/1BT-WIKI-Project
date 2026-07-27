@@ -15,6 +15,27 @@ function makeComment(overrides: Record<string, unknown> = {}) {
 }
 
 describe('Article comments', () => {
+  beforeEach(() => {
+    cy.intercept('GET', '**/api/v1/articles/a1', {
+      statusCode: 200,
+      body: {
+        success: true,
+        data: {
+          id: 'a1',
+          title: 'Mock Article',
+          body: { type: 'doc', content: [] },
+          authorId: 'author-123',
+          tags: [],
+          status: 'Published',
+          likeCount: 0,
+          commentCount: 2,
+          likedByMe: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }
+      }
+    }).as('getArticle');
+  });
   it("lists comments and only shows edit/delete on the current user's own comment", () => {
     stubAuthSession('User');
 
