@@ -10,7 +10,7 @@ export type ArticleStatus =
 export interface ArticleDetail {
   id: string;
   title: string;
-  body: any;
+  body: Record<string, unknown>;
   authorId: string;
   tags: string[];
   status: ArticleStatus;

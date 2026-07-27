@@ -9,7 +9,7 @@ jest.mock('@/lib/api/articles', () => ({
 }));
 
 jest.mock('@/components/article-detail/LikeButton', () => ({
-  LikeButton: ({ articleId, initialLikeCount, initialLikedByMe }: any) => (
+  LikeButton: ({ articleId, initialLikeCount, initialLikedByMe }: { articleId: string; initialLikeCount: number; initialLikedByMe: boolean }) => (
     <div data-testid="like-button">
       Like Button - ID: {articleId} - Count: {initialLikeCount} - Liked: {initialLikedByMe?.toString()}
     </div>

@@ -1,6 +1,4 @@
 'use client';
-
-/* eslint-disable @next/next/no-img-element */
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getArticle, ArticleDetail } from '@/lib/api/articles';
@@ -31,9 +29,9 @@ export default function ArticleDetailPage(props: ArticlePageProps) {
           setArticle(data);
           setError(null);
         }
-      } catch (err: any) {
+      } catch (err) {
         if (mounted) {
-          setError(err.message || 'Failed to load article');
+          setError(err instanceof Error ? err.message : 'Failed to load article');
         }
       } finally {
         if (mounted) {
