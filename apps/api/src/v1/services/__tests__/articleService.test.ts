@@ -77,6 +77,7 @@ const makeRepo = (): jest.Mocked<
     | 'update'
     | 'updateStatus'
     | 'findByStatus'
+    | 'findByAuthor'
     | 'softDelete'
     | 'hardDelete'
   >
@@ -86,6 +87,7 @@ const makeRepo = (): jest.Mocked<
   update: jest.fn(),
   updateStatus: jest.fn(),
   findByStatus: jest.fn(),
+  findByAuthor: jest.fn(),
   softDelete: jest.fn(),
   hardDelete: jest.fn(),
 });
@@ -589,6 +591,7 @@ describe('ArticleService.listPublished', () => {
           updatedAt: mockArticles[0].updatedAt,
           likeCount: 5,
           commentCount: 2,
+          rejectionFeedback: null,
         },
         {
           id: '2',
@@ -601,6 +604,7 @@ describe('ArticleService.listPublished', () => {
           updatedAt: mockArticles[1].updatedAt,
           likeCount: 0,
           commentCount: 0,
+          rejectionFeedback: null,
         },
       ],
       total: 2,
@@ -927,5 +931,185 @@ describe('ArticleService.deleteArticle', () => {
 
     expect(mockRepo.softDelete).not.toHaveBeenCalled();
     expect(mockRepo.hardDelete).not.toHaveBeenCalled();
+  });
+});
+
+describe('ArticleService.listMine', () => {
+  let mockRepo: ReturnType<typeof makeRepo>;
+  let service: InstanceType<typeof ArticleService>;
+  const authorId = 'user-123';
+
+  beforeEach(() => {
+    mockRepo = makeRepo();
+    service = new ArticleService(
+      mockRepo as unknown as ArticleRepository,
+      ArticleReviewRepository as any,
+      ArticleAttachmentRepository as any
+    );
+    jest.clearAllMocks();
+  });
+
+  // Type definition for test data to match what the repository returns
+  type MockPublishedArticleRow = {
+    id: string;
+    title: string;
+    authorId: string;
+    tags: string[];
+    status: string;
+    views: number;
+    createdAt: Date;
+    updatedAt: Date;
+    _count?: { likes: number; comments: number };
+    reviews?: { feedback: string | null }[];
+  };
+
+  it('should map returned articles correctly and not expose reviews array', async () => {
+    const mockArticles: MockPublishedArticleRow[] = [
+      {
+        id: '1',
+        title: 'Draft Article',
+        authorId,
+        tags: [],
+        status: 'Draft',
+        views: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        _count: { likes: 0, comments: 0 },
+      },
+    ];
+
+    mockRepo.findByAuthor.mockResolvedValue({
+      articles: mockArticles,
+      total: 1,
+    } as never);
+
+    const result = await service.listMine(authorId, 1, 20);
+    
+    expect(result.articles).toHaveLength(1);
+    expect(result.articles[0]).not.toHaveProperty('reviews');
+    expect(result.total).toBe(1);
+    expect(result.page).toBe(1);
+    expect(result.limit).toBe(20);
+  });
+
+  it('should return rejectionFeedback if article is Unpublished and has a review', async () => {
+    const mockArticles: MockPublishedArticleRow[] = [
+      {
+        id: '2',
+        title: 'Rejected Article',
+        authorId,
+        tags: [],
+        status: 'Unpublished',
+        views: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        _count: { likes: 1, comments: 2 },
+        reviews: [{ feedback: 'Needs more technical depth' }],
+      },
+    ];
+
+    mockRepo.findByAuthor.mockResolvedValue({
+      articles: mockArticles,
+      total: 1,
+    } as never);
+
+    const result = await service.listMine(authorId, 1, 20);
+    expect(result.articles[0].rejectionFeedback).toBe('Needs more technical depth');
+  });
+
+  it('should map the first review if multiple review data is returned (though repo should take 1)', async () => {
+    const mockArticles: MockPublishedArticleRow[] = [
+      {
+        id: '2',
+        title: 'Rejected Article',
+        authorId,
+        tags: [],
+        status: 'Unpublished',
+        views: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        reviews: [{ feedback: 'Latest feedback' }, { feedback: 'Old feedback' }],
+      },
+    ];
+
+    mockRepo.findByAuthor.mockResolvedValue({
+      articles: mockArticles,
+      total: 1,
+    } as never);
+
+    const result = await service.listMine(authorId, 1, 20);
+    expect(result.articles[0].rejectionFeedback).toBe('Latest feedback');
+  });
+
+  it('should return null rejectionFeedback if article is Unpublished but has no review', async () => {
+    const mockArticles: MockPublishedArticleRow[] = [
+      {
+        id: '3',
+        title: 'Rejected Article No Review',
+        authorId,
+        tags: [],
+        status: 'Unpublished',
+        views: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        reviews: [],
+      },
+    ];
+
+    mockRepo.findByAuthor.mockResolvedValue({
+      articles: mockArticles,
+      total: 1,
+    } as never);
+
+    const result = await service.listMine(authorId, 1, 20);
+    expect(result.articles[0].rejectionFeedback).toBeNull();
+  });
+
+  it('should return null rejectionFeedback if article is Unpublished but review feedback is null', async () => {
+    const mockArticles: MockPublishedArticleRow[] = [
+      {
+        id: '3',
+        title: 'Rejected Article Null Feedback',
+        authorId,
+        tags: [],
+        status: 'Unpublished',
+        views: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        reviews: [{ feedback: null }],
+      },
+    ];
+
+    mockRepo.findByAuthor.mockResolvedValue({
+      articles: mockArticles,
+      total: 1,
+    } as never);
+
+    const result = await service.listMine(authorId, 1, 20);
+    expect(result.articles[0].rejectionFeedback).toBeNull();
+  });
+
+  it.each(['Draft', 'Pending', 'Published'])('should return null rejectionFeedback if article is %s even if reviews exist', async (status) => {
+    const mockArticles: MockPublishedArticleRow[] = [
+      {
+        id: '4',
+        title: `${status} Article`,
+        authorId,
+        tags: [],
+        status: status,
+        views: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        reviews: [{ feedback: 'Historical feedback' }],
+      },
+    ];
+
+    mockRepo.findByAuthor.mockResolvedValue({
+      articles: mockArticles,
+      total: 1,
+    } as never);
+
+    const result = await service.listMine(authorId, 1, 20);
+    expect(result.articles[0].rejectionFeedback).toBeNull();
   });
 });

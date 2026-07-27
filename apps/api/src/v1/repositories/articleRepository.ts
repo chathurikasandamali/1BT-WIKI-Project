@@ -2,7 +2,7 @@ import { prisma } from '@repo/db';
 import type { Article, CreateArticleInput, JSONContent } from '@models/article.types.js';
 import { ARTICLE_SORT_FIELDS } from '@models/article.types.js';
 import type { Prisma } from '@repo/db';
-import { ArticleStatus } from '@repo/db/generated/prisma/index.js';
+import { ArticleStatus, ReviewStatus } from '@repo/db/generated/prisma/index.js';
 import { buildSearchFilter, buildSortOrder } from '@utils/queryHelpers.js';
 
 const ARTICLE_SELECT = {
@@ -155,6 +155,19 @@ export class ArticleRepository {
             select: {
               likes: true,
               comments: { where: { deletedAt: null } },
+            },
+          },
+          reviews: {
+            where: {
+              status: ReviewStatus.Rejected,
+              deletedAt: null,
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+            take: 1,
+            select: {
+              feedback: true,
             },
           },
         },

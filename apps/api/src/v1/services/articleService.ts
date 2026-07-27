@@ -25,6 +25,7 @@ type ArticleUpdateFields = Partial<
 
 type PublishedArticleRow = Article & {
   _count?: { likes: number; comments: number };
+  reviews?: { feedback: string | null }[];
 };
 
 const validateImages = (images: Express.Multer.File[]) => {
@@ -302,6 +303,7 @@ export class ArticleService {
       updatedAt: article.updatedAt,
       likeCount: article._count?.likes ?? 0,
       commentCount: article._count?.comments ?? 0,
+      rejectionFeedback: null,
     }));
 
     return { articles: mappedArticles, total, page, limit };
@@ -401,6 +403,10 @@ export class ArticleService {
       updatedAt: article.updatedAt,
       likeCount: article._count?.likes ?? 0,
       commentCount: article._count?.comments ?? 0,
+      rejectionFeedback:
+        article.status === ArticleStatusValue.Unpublished
+          ? article.reviews?.[0]?.feedback ?? null
+          : null,
     }));
 
     return { articles: mappedArticles, total, page, limit };
