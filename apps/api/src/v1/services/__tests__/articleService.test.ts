@@ -330,7 +330,7 @@ describe('ArticleService.listAllArticles', () => {
     jest.clearAllMocks();
   });
 
-  it('should call findByStatus with undefined status when no status filter is given', async () => {
+  it('should call findByStatus with undefined status and exclude Drafts when no status filter is given', async () => {
     mockRepo.findByStatus.mockResolvedValue({ articles: [], total: 0 } as never);
     mockUserRepo.findManyByIds.mockResolvedValue([]);
 
@@ -340,7 +340,13 @@ describe('ArticleService.listAllArticles', () => {
       undefined,
       1,
       20,
-      { includeCounts: true, search: undefined, sort: undefined, order: undefined }
+      {
+        includeCounts: true,
+        search: undefined,
+        sort: undefined,
+        order: undefined,
+        excludeStatus: 'Draft',
+      }
     );
     expect(result).toEqual({ articles: [], total: 0, page: 1, limit: 20 });
   });
@@ -349,10 +355,10 @@ describe('ArticleService.listAllArticles', () => {
     mockRepo.findByStatus.mockResolvedValue({ articles: [], total: 0 } as never);
     mockUserRepo.findManyByIds.mockResolvedValue([]);
 
-    await service.listAllArticles(1, 20, 'Draft');
+    await service.listAllArticles(1, 20, 'Pending');
 
     expect(mockRepo.findByStatus).toHaveBeenCalledWith(
-      'Draft',
+      'Pending',
       1,
       20,
       { includeCounts: true, search: undefined, sort: undefined, order: undefined }
@@ -362,7 +368,15 @@ describe('ArticleService.listAllArticles', () => {
   it('should throw 400 for an invalid status filter', async () => {
     await expect(
       service.listAllArticles(1, 20, 'bogus')
-    ).rejects.toThrow(new AppError('Invalid status filter. Allowed: Draft, Pending, Published, Unpublished', 400));
+    ).rejects.toThrow(new AppError('Invalid status filter. Allowed: Pending, Published, Unpublished', 400));
+
+    expect(mockRepo.findByStatus).not.toHaveBeenCalled();
+  });
+
+  it('should throw 400 for the Draft status filter (drafts are private to authors)', async () => {
+    await expect(
+      service.listAllArticles(1, 20, 'Draft')
+    ).rejects.toThrow(new AppError('Invalid status filter. Allowed: Pending, Published, Unpublished', 400));
 
     expect(mockRepo.findByStatus).not.toHaveBeenCalled();
   });
@@ -387,8 +401,8 @@ describe('ArticleService.listAllArticles', () => {
     const mockArticles = [
       {
         id: 'article-1',
-        title: 'Draft Article',
-        status: 'Draft',
+        title: 'Pending Article',
+        status: 'Pending',
         authorId: 'user-1',
         tags: [],
         createdAt: new Date('2024-01-01'),
@@ -424,7 +438,7 @@ describe('ArticleService.listAllArticles', () => {
 
   it('should fall back to Unknown and null when an author is not found in the batch result', async () => {
     const mockArticles = [
-      { id: 'article-1', title: 'Orphaned Article', status: 'Draft', authorId: 'user-missing', tags: [] },
+      { id: 'article-1', title: 'Orphaned Article', status: 'Pending', authorId: 'user-missing', tags: [] },
     ];
 
     mockRepo.findByStatus.mockResolvedValue({ articles: mockArticles, total: 1 } as never);
@@ -443,9 +457,9 @@ describe('ArticleService.listAllArticles', () => {
     const mockArticles = [
       {
         id: 'article-1',
-        title: 'Draft Article',
+        title: 'Pending Article',
         body: { type: 'doc', content: [] },
-        status: 'Draft',
+        status: 'Pending',
         authorId: 'user-1',
         views: 7,
         tags: ['a'],
@@ -477,7 +491,6 @@ describe('ArticleService.listAllArticles', () => {
     mockRepo.findByStatus.mockResolvedValue({ articles: [], total: 0 } as never);
     mockUserRepo.findManyByIds.mockResolvedValue([]);
 
-    await expect(service.listAllArticles(1, 20, 'Draft')).resolves.not.toThrow();
     await expect(service.listAllArticles(1, 20, 'Pending')).resolves.not.toThrow();
     await expect(service.listAllArticles(1, 20, 'Published')).resolves.not.toThrow();
     await expect(service.listAllArticles(1, 20, 'Unpublished')).resolves.not.toThrow();
