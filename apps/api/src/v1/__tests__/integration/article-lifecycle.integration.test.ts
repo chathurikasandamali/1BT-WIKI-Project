@@ -1,4 +1,5 @@
 import { jest, describe, it, expect, beforeAll } from '@jest/globals';
+import { createTestUserHeaders } from '../helpers/auth.helpers.js';
 
 // 1. Mock DB and Prisma
 await jest.unstable_mockModule('@repo/db', () => ({
@@ -116,17 +117,17 @@ describe('Article Lifecycle Integration', () => {
     await appReady;
   });
 
-  const authorHeaders = {
-    'x-test-user-id': 'author-1',
-    'x-test-user-email': 'author@example.com',
-    'x-test-user-role': 'User',
-  };
+  const authorHeaders = createTestUserHeaders({
+    userId: 'author-1',
+    email: 'author@example.com',
+    role: 'User',
+  });
 
-  const reviewerHeaders = {
-    'x-test-user-id': 'reviewer-1',
-    'x-test-user-email': 'reviewer@example.com',
-    'x-test-user-role': 'Reviewer',
-  };
+  const reviewerHeaders = createTestUserHeaders({
+    userId: 'reviewer-1',
+    email: 'reviewer@example.com',
+    role: 'Reviewer',
+  });
 
   it('moves an article from Draft to Pending to Published', async () => {
     // 1. Author creates an article
