@@ -29,7 +29,7 @@ function ArticleCard({ article, onDeleteClick, isAdmin }: { article: ArticleList
   const isRejected = article.status === 'Unpublished';
   const displayStatus = isRejected ? 'Rejected' : article.status;
   const dateLabel = article.status === 'Published' ? 'Published' : 'Last updated';
-  const dateValue = article.status === 'Published' ? article.updatedAt : article.updatedAt;
+  const dateValue = article.updatedAt;
   
   const canEdit = article.status === 'Draft' || isRejected;
   const canDelete = article.status === 'Draft' || isAdmin;
