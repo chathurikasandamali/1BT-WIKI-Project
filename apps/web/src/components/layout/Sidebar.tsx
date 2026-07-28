@@ -7,6 +7,7 @@ import { useGSAP } from '@gsap/react';
 import { authClient } from '@/lib/auth/client';
 import { UserAvatar } from '@/components/UserAvatar';
 import { useUser } from '@/lib/hooks/useUser';
+import { cn } from '@/lib/utils';
 
 interface NavItem {
   label: string;
@@ -87,9 +88,12 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
     href === '/' ? (pathname === '/' || pathname === '/admin') : pathname.startsWith(href);
 
   const itemClasses = (href: string): string =>
-    isActive(href)
-      ? 'sidebar-item sidebar-active relative flex items-center pr-4 h-11 rounded cursor-pointer transition-colors text-sm font-medium text-brand-red bg-white/10 group'
-      : 'sidebar-item relative flex items-center pr-4 h-11 rounded cursor-pointer transition-colors text-sm font-medium text-gray-400 hover:bg-white/5 hover:text-white group';
+    cn(
+      'sidebar-item relative flex items-center pr-4 h-11 rounded cursor-pointer transition-colors text-sm font-medium group',
+      isActive(href)
+        ? 'sidebar-active text-brand-red bg-white/10'
+        : 'text-gray-400 hover:bg-white/5 hover:text-white'
+    );
 
   useGSAP(
     () => {
@@ -116,7 +120,15 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
   const Tooltip = ({ text }: { text: string }) => {
     if (!isCollapsed) return null;
     return (
-      <span className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none whitespace-nowrap z-50">
+      <span
+        className={cn(
+          'absolute left-full ml-2 z-50',
+          'px-2 py-1',
+          'bg-gray-800 text-white text-xs rounded',
+          'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
+          'pointer-events-none whitespace-nowrap'
+        )}
+      >
         {text}
       </span>
     );
@@ -125,7 +137,10 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
   return (
     <aside
       ref={sidebarRef}
-      className={`fixed left-0 top-0 h-screen min-h-screen bg-brand-dark flex flex-col z-20 shrink-0 ${isCollapsed ? 'w-[78px]' : 'w-60'}`}
+      className={cn(
+        'fixed left-0 top-0 h-screen min-h-screen bg-brand-dark flex flex-col z-20 shrink-0',
+        isCollapsed ? 'w-[78px]' : 'w-60'
+      )}
       data-testid="sidebar"
     >
       {isCollapsed ? (
