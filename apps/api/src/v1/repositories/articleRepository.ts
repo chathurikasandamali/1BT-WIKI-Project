@@ -25,6 +25,15 @@ type ArticleBody = {
 };
 
 export class ArticleRepository {
+  /**
+   * Persist a new article in `Draft` status.
+   *
+   * `body` and `tags` default to `{}` and `[]` respectively when omitted.
+   * The `status` is always initialised to `'Draft'` — callers cannot override it at creation time.
+   *
+   * @param data - Article fields plus the `authorId` of the creating user.
+   * @returns The newly created article row.
+   */
   async create(
     data: CreateArticleInput & { authorId: string }
   ): Promise<Article> {
@@ -49,6 +58,12 @@ export class ArticleRepository {
     return result as unknown as Article;
   }
 
+  /**
+   * Fetch a single article by its primary key, excluding soft-deleted rows.
+   *
+   * @param id - The article's UUID.
+   * @returns The article, or `null` if it does not exist or has been soft-deleted.
+   */
   async findById(id: string): Promise<Article | null> {
     const result = await prisma.article.findFirst({
       where: { id, deletedAt: null },
@@ -58,6 +73,16 @@ export class ArticleRepository {
     return result ? (result as unknown as Article) : null;
   }
 
+  /**
+   * Partially update an article's mutable fields.
+   *
+   * Only the keys present in `fields` are written; omitted keys are left unchanged.
+   * Prisma updates `updatedAt` automatically via the `@updatedAt` directive.
+   *
+   * @param id - The article's UUID.
+   * @param fields - A subset of `title`, `body`, `tags`, and/or `status` to overwrite.
+   * @returns The article row after the update.
+   */
   async update(id: string, fields: Partial<ArticleBody>): Promise<Article> {
     // Prisma will update updatedAt automatically via @updatedAt
     const updateData: Prisma.articleUpdateInput = {
@@ -78,6 +103,16 @@ export class ArticleRepository {
     return result as unknown as Article;
   }
 
+  /**
+   * Overwrite the article's `status` field atomically.
+   *
+   * This method does **not** validate the status transition — that responsibility
+   * belongs to the service layer (`ArticleService`, `ReviewerService`).
+   *
+   * @param id - The article's UUID.
+   * @param status - The target status to set.
+   * @returns The article row after the status change.
+   */
   async updateStatus(id: string, status: ArticleStatus): Promise<Article> {
     const result = await prisma.article.update({
       where: { id },
@@ -88,6 +123,16 @@ export class ArticleRepository {
     return result as unknown as Article;
   }
 
+  /**
+   * Soft-delete an article by stamping `deletedAt` with the current timestamp.
+   *
+   * The row is **retained** in the database; `findById` and `findByStatus` both
+   * filter on `deletedAt: null`, so the article becomes invisible to all normal
+   * queries without being permanently lost.
+   *
+   * @param id - The article's UUID.
+   * @returns The article row after the `deletedAt` stamp is applied.
+   */
   async softDelete(id: string): Promise<Article> {
     const result = await prisma.article.update({
       where: { id },
@@ -98,6 +143,14 @@ export class ArticleRepository {
     return result as unknown as Article;
   }
 
+  /**
+   * Permanently remove an article from the database.
+   *
+   * Unlike `softDelete`, this issues a SQL `DELETE` and the row is gone
+   * immediately. Reserved for Admin-initiated purges.
+   *
+   * @param id - The article's UUID.
+   */
   async hardDelete(id: string): Promise<void> {
     await prisma.article.delete({ where: { id } });
   }
@@ -105,10 +158,20 @@ export class ArticleRepository {
   /**
    * Fetch articles by status, with optional search/sort/order/count options.
    *
-   * Cross-role note (RV-06): `status` is now optional. When omitted, the status
-   * predicate is excluded from the WHERE clause so Prisma returns all statuses.
-   * All pre-existing callers still pass an explicit status — this is additive only.
-   * Flag for content-authoring-engineer review.
+   * Cross-role note (RV-06): `status` is optional — when omitted, no status
+   * filter is applied and articles across all statuses are returned. Existing
+   * callers (`ArticleService.listPublished`, `ReviewerService.listPending`)
+   * are unaffected since they always pass an explicit status.
+   *
+   * @param status - Filter by this status, or omit to include all statuses.
+   * @param page - 1-indexed page number.
+   * @param limit - Page size.
+   * @param options.includeCounts - Include like/comment counts via Prisma `_count`.
+   * @param options.search - Case-insensitive title substring filter.
+   * @param options.sort - Sort field, validated against an allow-list by the caller.
+   * @param options.order - Sort direction, `'asc'` or `'desc'`.
+   * @returns The matching articles for the requested page, plus the total count
+   *          across all pages (for pagination metadata).
    */
   async findByStatus(
     status: ArticleStatus | undefined,
@@ -150,6 +213,18 @@ export class ArticleRepository {
     return { articles: articles as unknown as Article[], total };
   }
 
+  /**
+   * Fetch all non-deleted articles written by a specific author, sorted newest-first.
+   *
+   * Always includes `_count` (likes/non-deleted comments) and the most recent
+   * `Rejected` review's `feedback` field — used by the "My Articles" list to
+   * surface rejection reasons without a separate request.
+   *
+   * @param authorId - The author's user UUID.
+   * @param page - 1-indexed page number.
+   * @param limit - Page size.
+   * @returns The author's articles for the requested page, plus the total count.
+   */
   async findByAuthor(authorId: string, page: number, limit: number): Promise<{ articles: Article[]; total: number }> {
     const where = { authorId, deletedAt: null };
     const [articles, total] = await Promise.all([
