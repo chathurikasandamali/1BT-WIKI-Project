@@ -7,6 +7,8 @@ export function useLenisScroll(containerId?: string | null): void {
   useEffect(() => {
     let wrapper: HTMLElement | null = null;
 
+    if (containerId === null) return;
+
     if (containerId) {
       wrapper = document.getElementById(containerId);
       if (!wrapper) return;
@@ -26,16 +28,19 @@ export function useLenisScroll(containerId?: string | null): void {
           ...baseOptions,
           wrapper,
           content: wrapper.firstElementChild as HTMLElement,
+          eventsTarget: wrapper,
         })
       : new Lenis(baseOptions);
 
+    let rafId: number;
     function raf(time: number) {
       lenis.raf(time);
-      requestAnimationFrame(raf);
+      rafId = requestAnimationFrame(raf);
     }
-    requestAnimationFrame(raf);
+    rafId = requestAnimationFrame(raf);
 
     return () => {
+      cancelAnimationFrame(rafId);
       lenis.destroy();
     };
   }, [containerId]);
