@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import React, { useRef, useState, useEffect } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
@@ -142,10 +144,12 @@ export function Navbar({
         </button>
       )}
 
-      <div
-        className="flex items-center gap-1.5 flex-shrink-0"
+      <Link
+        href="/"
+        className="flex items-center gap-1.5 flex-shrink-0 hover:opacity-80 transition-opacity"
         style={{ marginLeft: onToggleSidebar ? '8px' : '24px' }}
         data-testid="logo"
+        aria-label="1BT Wiki home"
       >
         <div className="h-10 w-10 bg-brand-red rounded flex items-center justify-center flex-shrink-0">
           <span className="text-white text-xs font-black leading-none">
@@ -155,7 +159,7 @@ export function Navbar({
         <span className="text-brand-text-secondary font-semibold text-base leading-none tracking-tight">
           {BRAND_SUB_NAME}
         </span>
-      </div>
+      </Link>
 
       <div className="flex-1 px-4">
         <div className="relative max-w-xl mx-auto">

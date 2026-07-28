@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, Pencil, Trash2 } from 'lucide-react';
+import { Search, Pencil, Trash2, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { fetchMyArticles, deleteArticle, type ArticleListItem } from '@/lib/api/articles';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -198,38 +198,58 @@ export function MyArticlesList(): React.JSX.Element {
 
   return (
     <div data-testid="my-articles-list">
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-brand-text-secondary" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search your articles..."
-            data-testid="article-search-input"
-            className="w-full pl-9 pr-3 py-2 bg-brand-bg border border-brand-border rounded text-sm text-brand-text-primary focus:outline-none focus:border-brand-red transition-colors"
-          />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div className="flex flex-col sm:flex-row gap-3 flex-1">
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-brand-text-secondary" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search your articles..."
+              data-testid="article-search-input"
+              className="w-full pl-9 pr-3 py-2 bg-brand-bg border border-brand-border rounded text-sm text-brand-text-primary focus:outline-none focus:border-brand-red transition-colors"
+            />
+          </div>
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as SortOption)}
+            data-testid="article-sort-select"
+            className="px-3 py-2 bg-brand-bg border border-brand-border rounded text-sm text-brand-text-primary focus:outline-none focus:border-brand-red transition-colors"
+          >
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="title">Title (A–Z)</option>
+          </select>
         </div>
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value as SortOption)}
-          data-testid="article-sort-select"
-          className="px-3 py-2 bg-brand-bg border border-brand-border rounded text-sm text-brand-text-primary focus:outline-none focus:border-brand-red transition-colors"
+        <Link
+          href="/editor"
+          className="flex items-center justify-center gap-2 bg-brand-red hover:bg-brand-red-hover text-white px-4 py-2 rounded text-sm font-medium transition-colors w-full sm:w-auto"
         >
-          <option value="newest">Newest first</option>
-          <option value="oldest">Oldest first</option>
-          <option value="title">Title (A–Z)</option>
-        </select>
+          <Plus className="w-4 h-4" />
+          Create New Article
+        </Link>
       </div>
 
       {visibleArticles.length === 0 ? (
         <div
-          className="py-16 text-center text-brand-text-secondary text-sm"
+          className="py-16 text-center text-brand-text-secondary text-sm flex flex-col items-center justify-center gap-4"
           data-testid="my-articles-empty"
         >
-          {articles.length === 0
-            ? "You haven't written any articles yet."
-            : 'No articles match your search.'}
+          {articles.length === 0 ? (
+            <>
+              <p>You haven&apos;t written any articles yet.</p>
+              <Link
+                href="/editor"
+                className="flex items-center gap-2 bg-brand-red hover:bg-brand-red-hover text-white px-4 py-2 rounded text-sm font-medium transition-colors mt-2"
+              >
+                <Plus className="w-4 h-4" />
+                Create your first article
+              </Link>
+            </>
+          ) : (
+            <p>No articles match your search.</p>
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-3">

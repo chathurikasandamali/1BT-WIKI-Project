@@ -79,27 +79,12 @@ export function Sidebar(): React.JSX.Element {
   const isReviewerOrAdmin = user?.role === 'Reviewer' || user?.role === 'Admin';
 
   const isActive = (href: string): boolean =>
-    href === '/' ? pathname === '/' : pathname.startsWith(href);
+    href === '/' ? (pathname === '/' || pathname === '/admin') : pathname.startsWith(href);
 
   const itemClasses = (href: string): string =>
     isActive(href)
       ? 'sidebar-item sidebar-active relative flex items-center gap-4 pr-4 h-11 rounded cursor-pointer transition-colors text-sm font-medium text-brand-red bg-white/10'
       : 'sidebar-item relative flex items-center gap-4 pr-4 h-11 rounded cursor-pointer transition-colors text-sm font-medium text-gray-400 hover:bg-white/5 hover:text-white';
-
-  useGSAP(
-    () => {
-      if (isE2E()) return;
-      // [GSAP] Sidebar Menu load Staggered fade-in + slide-right on initial load (stagger: 0.08s)
-      gsap.from('.sidebar-item', {
-        x: -20,
-        opacity: 0,
-        duration: 0.4,
-        stagger: 0.08,
-        ease: 'power2.out',
-      });
-    },
-    { scope: sidebarRef }
-  );
 
   useGSAP(
     () => {

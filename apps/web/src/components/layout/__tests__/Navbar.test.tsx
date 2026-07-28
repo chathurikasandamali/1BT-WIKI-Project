@@ -174,3 +174,13 @@ describe('Navbar Notification Bell', () => {
     expect(mockMarkAsRead).toHaveBeenCalledTimes(1); // Still 1
   });
 });
+
+describe('Navbar Logo Link', () => {
+  it('renders a logo link pointing to home', () => {
+    render(<Navbar notificationCount={0} />);
+    const logoLink = screen.getByRole('link', { name: /1bt wiki home/i });
+    expect(logoLink).toBeInTheDocument();
+    expect(logoLink).toHaveAttribute('href', '/');
+  });
+});
+
