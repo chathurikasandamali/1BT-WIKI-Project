@@ -19,6 +19,9 @@ export interface ArticleDetail {
   likeCount: number;
   commentCount: number;
   likedByMe: boolean;
+  views?: number;
+  authorName?: string;
+  authorEmail?: string | null;
 }
 
 export interface ArticleListItem {
