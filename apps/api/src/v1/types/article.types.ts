@@ -38,7 +38,6 @@ export interface ArticleDetail extends Article {
   likeCount: number;
   commentCount: number;
   likedByMe: boolean;
-  authorName?: string;
   authorEmail?: string | null;
 }
 
