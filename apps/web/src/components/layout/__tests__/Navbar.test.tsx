@@ -163,6 +163,9 @@ describe('Navbar Notification Bell', () => {
     expect(mockMarkAsRead).toHaveBeenCalledWith('n1');
     expect(mockMarkAsRead).toHaveBeenCalledTimes(1);
     
+    // The dropdown closes after a click. We must re-open it.
+    await user.click(screen.getByTestId('notification-bell'));
+    
     // Click the read notification (should not trigger markAsRead)
     const readNotification = screen.getByText('Test Notification 2').closest('button');
     expect(readNotification).not.toBeNull();
