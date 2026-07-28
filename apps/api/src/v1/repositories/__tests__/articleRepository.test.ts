@@ -6,12 +6,14 @@ import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 
 const mockFindMany = jest.fn<any>();
 const mockCount = jest.fn<any>();
+const mockFindFirst = jest.fn<any>();
 
 await jest.unstable_mockModule('@repo/db', () => ({
   prisma: {
     article: {
       findMany: mockFindMany,
       count: mockCount,
+      findFirst: mockFindFirst,
     },
   },
 }));
@@ -22,6 +24,57 @@ const { default: ArticleRepository } = await import('../articleRepository.js');
 describe('ArticleRepository.findByStatus', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  describe('findById', () => {
+    it('should query a single article without requester-specific likes if no requesterId is provided', async () => {
+      mockFindFirst.mockResolvedValue({ id: 'article-1', _count: { likes: 5, comments: 2 } });
+      
+      const result = await ArticleRepository.findById('article-1');
+      
+      expect(mockFindFirst).toHaveBeenCalledTimes(1);
+      const [args] = mockFindFirst.mock.calls[0] as [any];
+      
+      expect(args.where).toEqual({ id: 'article-1', deletedAt: null });
+      expect(args.select._count.select.likes).toBe(true);
+      expect(args.select._count.select.comments.where.deletedAt).toBe(null);
+      expect(args.select.likes).toBeUndefined();
+      
+      expect(result).toEqual({ id: 'article-1', _count: { likes: 5, comments: 2 } });
+    });
+
+    it('should query a single article with requester-specific likes if requesterId is provided', async () => {
+      mockFindFirst.mockResolvedValue({ 
+        id: 'article-1', 
+        _count: { likes: 5, comments: 2 },
+        likes: [{ id: 'like-1' }]
+      });
+      
+      const result = await ArticleRepository.findById('article-1', 'user-123');
+      
+      expect(mockFindFirst).toHaveBeenCalledTimes(1);
+      const [args] = mockFindFirst.mock.calls[0] as [any];
+      
+      expect(args.select.likes).toEqual({
+        where: { userId: 'user-123' },
+        select: { id: true },
+        take: 1,
+      });
+      
+      expect(result).toEqual({ 
+        id: 'article-1', 
+        _count: { likes: 5, comments: 2 },
+        likes: [{ id: 'like-1' }]
+      });
+    });
+
+    it('should return null if article is not found', async () => {
+      mockFindFirst.mockResolvedValue(null);
+      
+      const result = await ArticleRepository.findById('missing-id', 'user-123');
+      
+      expect(result).toBeNull();
+    });
   });
 
   it('should query published, non-deleted articles with the expected pagination and ordering', async () => {

@@ -12,6 +12,9 @@ jest.unstable_mockModule('@services/likeService.js', () => ({
 const { default: controller } = await import('../likeController.js');
 const { default: mockLikeService } = await import('@services/likeService.js');
 
+const VALID_UUID = '123e4567-e89b-12d3-a456-426614174000';
+const INVALID_UUID = 'invalid-123';
+
 describe('LikeController.like', () => {
   let req: Partial<Request>;
   let res: Partial<Response>;
@@ -19,7 +22,7 @@ describe('LikeController.like', () => {
 
   beforeEach(() => {
     req = {
-      params: { id: 'article-123' },
+      params: { id: VALID_UUID },
       user: { userId: 'user-123' } as any,
     };
     res = {
@@ -38,7 +41,7 @@ describe('LikeController.like', () => {
     await controller.like(req as Request, res as Response, next);
 
     expect(mockLikeService.likeArticle).toHaveBeenCalledWith(
-      'article-123',
+      VALID_UUID,
       'user-123'
     );
     expect(res.status).toHaveBeenCalledWith(200);
@@ -58,6 +61,18 @@ describe('LikeController.like', () => {
 
     expect(next).toHaveBeenCalledWith(error);
   });
+
+  it('should return 400 Bad Request if article ID is not a valid UUID', async () => {
+    req.params = { id: INVALID_UUID };
+
+    await controller.like(req as Request, res as Response, next);
+
+    expect(next).toHaveBeenCalledWith(expect.any(AppError));
+    const err = next.mock.calls[0][0] as AppError;
+    expect(err.statusCode).toBe(400);
+    expect(err.message).toBe('Invalid article ID format');
+    expect(mockLikeService.likeArticle).not.toHaveBeenCalled();
+  });
 });
 
 describe('LikeController.unlike', () => {
@@ -67,7 +82,7 @@ describe('LikeController.unlike', () => {
 
   beforeEach(() => {
     req = {
-      params: { id: 'article-123' },
+      params: { id: VALID_UUID },
       user: { userId: 'user-123' } as any,
     };
     res = {
@@ -86,7 +101,7 @@ describe('LikeController.unlike', () => {
     await controller.unlike(req as Request, res as Response, next);
 
     expect(mockLikeService.unlikeArticle).toHaveBeenCalledWith(
-      'article-123',
+      VALID_UUID,
       'user-123'
     );
     expect(res.status).toHaveBeenCalledWith(200);
@@ -105,5 +120,17 @@ describe('LikeController.unlike', () => {
     await controller.unlike(req as Request, res as Response, next);
 
     expect(next).toHaveBeenCalledWith(error);
+  });
+
+  it('should return 400 Bad Request if article ID is not a valid UUID', async () => {
+    req.params = { id: INVALID_UUID };
+
+    await controller.unlike(req as Request, res as Response, next);
+
+    expect(next).toHaveBeenCalledWith(expect.any(AppError));
+    const err = next.mock.calls[0][0] as AppError;
+    expect(err.statusCode).toBe(400);
+    expect(err.message).toBe('Invalid article ID format');
+    expect(mockLikeService.unlikeArticle).not.toHaveBeenCalled();
   });
 });

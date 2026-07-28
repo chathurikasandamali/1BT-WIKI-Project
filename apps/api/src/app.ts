@@ -25,7 +25,7 @@ export const appReady: Promise<void> = (async () => {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     // eslint-disable-next-line no-console
-    console.warn('Routes not mounted:', message);
+    console.warn('Routes not mounted:', err);
   }
 
   // ---------------------------------------------------------------------------
