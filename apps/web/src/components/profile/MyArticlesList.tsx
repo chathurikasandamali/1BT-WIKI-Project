@@ -29,7 +29,7 @@ function ArticleCard({ article, onDeleteClick, isAdmin }: { article: ArticleList
   const isRejected = article.status === 'Unpublished';
   const displayStatus = isRejected ? 'Rejected' : article.status;
   const dateLabel = article.status === 'Published' ? 'Published' : 'Last updated';
-  const dateValue = article.status === 'Published' ? article.updatedAt : article.createdAt;
+  const dateValue = article.updatedAt;
   
   const canEdit = article.status === 'Draft' || isRejected;
   const canDelete = article.status === 'Draft' || isAdmin;
@@ -169,8 +169,8 @@ export function MyArticlesList(): React.JSX.Element {
 
     const sorted = [...filtered].sort((a, b) => {
       if (sort === 'title') return a.title.localeCompare(b.title);
-      const aTime = new Date(a.createdAt).getTime();
-      const bTime = new Date(b.createdAt).getTime();
+      const aTime = new Date(a.updatedAt).getTime();
+      const bTime = new Date(b.updatedAt).getTime();
       return sort === 'newest' ? bTime - aTime : aTime - bTime;
     });
 
