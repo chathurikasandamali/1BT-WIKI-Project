@@ -117,7 +117,7 @@ export default function ArticleDetailPage(props: ArticlePageProps) {
               </div>
               <div>
                 <p className="font-semibold text-brand-dark">
-                  {article.authorName}
+                  {article.authorName || 'Unknown Author'}
                 </p>
                 <p className="text-sm text-brand-text-secondary">
                   {formattedDate}

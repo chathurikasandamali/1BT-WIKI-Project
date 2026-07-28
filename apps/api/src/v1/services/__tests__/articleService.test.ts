@@ -64,6 +64,7 @@ jest.unstable_mockModule('@v1/lib/b2Client.js', () => ({
 jest.unstable_mockModule('@repositories/userRepository.js', () => ({
   default: {
     findManyByIds: jest.fn(),
+    findById: jest.fn(),
   },
 }));
 
@@ -887,6 +888,7 @@ describe('ArticleService.getArticleById', () => {
       likeCount: 5,
       commentCount: 2,
       likedByMe: true,
+      authorName: 'Unknown',
     });
   });
 
@@ -910,6 +912,7 @@ describe('ArticleService.getArticleById', () => {
       likeCount: 0,
       commentCount: 0,
       likedByMe: false,
+      authorName: 'Unknown',
     });
   });
 
@@ -981,6 +984,7 @@ describe('ArticleService.getArticleById', () => {
       likeCount: 0,
       commentCount: 0,
       likedByMe: false,
+      authorName: 'Unknown',
     });
   });
 
@@ -1008,6 +1012,7 @@ describe('ArticleService.getArticleById', () => {
       likeCount: 0,
       commentCount: 0,
       likedByMe: false,
+      authorName: 'Unknown',
     });
   });
 

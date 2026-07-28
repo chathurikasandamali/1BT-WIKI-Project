@@ -91,8 +91,7 @@ const MockUserRepository = {
 };
 
 await jest.unstable_mockModule('@repositories/userRepository.js', () => ({
-  UserRepository: jest.fn().mockImplementation(() => MockUserRepository),
-  default: jest.fn().mockImplementation(() => MockUserRepository),
+  default: MockUserRepository,
 }));
 
 // Mock B2 Client
