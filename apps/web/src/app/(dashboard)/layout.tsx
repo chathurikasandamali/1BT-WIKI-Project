@@ -120,11 +120,18 @@ function DashboardLayoutInner({
     () => {
       if (isAppLoading || isE2E()) return; // Prevent initial layout conflicts
 
+      const mainWrapper = mainWrapperRef.current;
+      if (!mainWrapper) return;
+
+      if (isEditorRoute) {
+        gsap.set(mainWrapper, { clearProps: 'marginLeft' });
+        return;
+      }
+
       const sidebar = document.querySelector('[data-testid="sidebar"]');
       const navbar = document.querySelector('[data-testid="navbar"]');
-      const mainWrapper = mainWrapperRef.current;
 
-      if (!sidebar || !navbar || !mainWrapper) return;
+      if (!sidebar || !navbar) return;
 
       if (isSidebarOpen) {
         // Slide sidebar IN
@@ -180,7 +187,7 @@ function DashboardLayoutInner({
         });
       }
     },
-    { dependencies: [isSidebarOpen, isAppLoading] }
+    { dependencies: [isSidebarOpen, isAppLoading, isEditorRoute] }
   );
 
   const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);

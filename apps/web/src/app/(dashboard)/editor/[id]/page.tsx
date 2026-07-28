@@ -27,11 +27,16 @@ export default function EditArticlePage() {
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
 
-  useLenisScroll('editor-scroll-container');
+  useLenisScroll(!loading && article ? 'editor-scroll-container' : null);
 
   useEffect(() => {
     let cancelled = false;
 
+    // IMPORTANT: Reset state immediately when `id` changes (client-side navigation)
+    setLoading(true);
+    setArticle(null);
+    setToastVisible(false);
+    
     async function fetchArticle() {
       try {
         const result = await apiFetch<ArticleResponse>(`/articles/${id}`);
@@ -80,7 +85,7 @@ export default function EditArticlePage() {
   }
 
   return (
-    <EditorDraftProvider initialArticle={article}>
+    <EditorDraftProvider key={article.id} initialArticle={article}>
       <div className="flex h-screen w-full flex-col overflow-hidden bg-brand-bg">
         <EditorHeader mode={mode} setMode={setMode} />
 
@@ -88,6 +93,7 @@ export default function EditArticlePage() {
           <DraftManagerSidebar
             isOpen={isSidebarOpen}
             toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+            currentArticleId={id}
           />
 
           <main
