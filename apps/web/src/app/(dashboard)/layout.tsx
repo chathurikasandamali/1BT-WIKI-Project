@@ -134,9 +134,9 @@ function DashboardLayoutInner({
       if (!sidebar || !navbar) return;
 
       if (isSidebarOpen) {
-        // Slide sidebar IN
+        // Expand sidebar to 240px
         gsap.to(sidebar, {
-          x: 0,
+          width: 240,
           opacity: 1,
           duration: 0.4,
           ease: 'power2.out',
@@ -167,21 +167,21 @@ function DashboardLayoutInner({
           }
         );
       } else {
-        // Slide sidebar OUT
+        // Collapse sidebar to 78px
         gsap.to(sidebar, {
-          x: -240,
-          opacity: 0,
+          width: 78,
+          opacity: 1,
           duration: 0.4,
           ease: 'power2.inOut',
         });
-        // Slide navbar and main content area to full width
+        // Slide navbar and main content area to compact width
         gsap.to(navbar, {
-          left: 0,
+          left: 78,
           duration: 0.4,
           ease: 'power2.inOut',
         });
         gsap.to(mainWrapper, {
-          marginLeft: 0,
+          marginLeft: 78,
           duration: 0.4,
           ease: 'power2.inOut',
         });
@@ -214,7 +214,7 @@ function DashboardLayoutInner({
         </div>
       )}
 
-      {!isEditorRoute && <Sidebar />}
+      {!isEditorRoute && <Sidebar isOpen={isSidebarOpen} />}
       <div
         ref={mainWrapperRef}
         className={cn('flex flex-col flex-1', !isEditorRoute && 'ml-60')}
