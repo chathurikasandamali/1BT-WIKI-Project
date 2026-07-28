@@ -198,6 +198,35 @@ describe('ArticleRepository.findByStatus', () => {
     expect(countArgs.where).not.toHaveProperty('status');
     expect(countArgs.where).toEqual({ deletedAt: null });
   });
+
+  it('should apply a status "not" filter when status is undefined and excludeStatus is given', async () => {
+    mockFindMany.mockResolvedValue([]);
+    mockCount.mockResolvedValue(0);
+
+    await ArticleRepository.findByStatus(undefined, 1, 20, { excludeStatus: 'Draft' });
+
+    const [findManyArgs] = mockFindMany.mock.calls[0] as [any];
+    expect(findManyArgs.where).toEqual({
+      status: { not: 'Draft' },
+      deletedAt: null,
+    });
+
+    const [countArgs] = mockCount.mock.calls[0] as [any];
+    expect(countArgs.where).toEqual({
+      status: { not: 'Draft' },
+      deletedAt: null,
+    });
+  });
+
+  it('should ignore excludeStatus when an explicit status is provided', async () => {
+    mockFindMany.mockResolvedValue([]);
+    mockCount.mockResolvedValue(0);
+
+    await ArticleRepository.findByStatus('Published', 1, 20, { excludeStatus: 'Draft' });
+
+    const [findManyArgs] = mockFindMany.mock.calls[0] as [any];
+    expect(findManyArgs.where.status).toBe('Published');
+  });
 });
 
 describe('ArticleRepository.findByAuthor', () => {

@@ -90,6 +90,15 @@ await jest.unstable_mockModule(
   }
 );
 
+// Mock User Repository (author enrichment in getArticleById / listAllArticles)
+await jest.unstable_mockModule('@repositories/userRepository.js', () => ({
+  default: {
+    findManyByIds: jest
+      .fn<() => Promise<unknown[]>>()
+      .mockResolvedValue([]),
+  },
+}));
+
 // Mock B2 Client
 await jest.unstable_mockModule('@v1/lib/b2Client.js', () => ({
   default: {
@@ -439,6 +448,38 @@ describe('Articles API Integration', () => {
       expect(response.status).toBe(401);
       expect(response.body.success).toBe(false);
       expect(mockFindById).not.toHaveBeenCalled();
+    });
+
+    it("should return 200 when an Admin requests someone else's Draft article", async () => {
+      mockFindById.mockResolvedValueOnce({
+        id: articleId,
+        status: 'Draft',
+        authorId: 'other-author',
+        title: 'Oversight Target',
+      });
+
+      const response = await request(app)
+        .get(articlePath)
+        .set(adminHeaders);
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.title).toBe('Oversight Target');
+      expect(response.body.data.status).toBe('Draft');
+    });
+
+    it("should still return 403 when a non-admin User requests someone else's Pending article", async () => {
+      mockFindById.mockResolvedValueOnce({
+        id: articleId,
+        status: 'Pending',
+        authorId: 'other-author',
+      });
+
+      const response = await request(app)
+        .get(articlePath)
+        .set(userHeaders);
+
+      expect(response.status).toBe(403);
     });
   });
 

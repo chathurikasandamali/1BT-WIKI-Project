@@ -86,13 +86,18 @@ await jest.unstable_mockModule('@repositories/articleReviewRepository.js', () =>
   default: jest.fn().mockImplementation(() => MockArticleReviewRepository),
 }));
 
+// The real userRepository default-exports a plain object of functions (no class),
+// so the mock must be a plain object too — a constructor-style mock leaves the
+// methods undefined at call sites like UserRepository.findManyByIds().
 const MockUserRepository = {
   findById: jest.fn<any>(async () => ({ id: 'author-1', name: 'Author', email: 'author@example.com' })),
+  findManyByIds: jest.fn<any>(async () => [
+    { id: 'author-1', name: 'Author', email: 'author@example.com' },
+  ]),
 };
 
 await jest.unstable_mockModule('@repositories/userRepository.js', () => ({
-  UserRepository: jest.fn().mockImplementation(() => MockUserRepository),
-  default: jest.fn().mockImplementation(() => MockUserRepository),
+  default: MockUserRepository,
 }));
 
 // Mock B2 Client

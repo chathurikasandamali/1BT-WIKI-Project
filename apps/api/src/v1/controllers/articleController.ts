@@ -154,8 +154,9 @@ export class ArticleController {
     try {
       const { id } = req.params;
       const requesterId = req.user?.userId ?? null;
+      const role = (req.user?.role as UserRole | undefined) ?? null;
 
-      const article = await this.service.getArticleById(id, requesterId);
+      const article = await this.service.getArticleById(id, requesterId, role);
 
       res
         .status(200)

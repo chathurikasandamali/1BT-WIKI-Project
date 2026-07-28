@@ -315,7 +315,8 @@ describe('ArticleController', () => {
 
       expect(mockService.getArticleById).toHaveBeenCalledWith(
         'article-123',
-        'user-123'
+        'user-123',
+        'User'
       );
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({
@@ -323,6 +324,32 @@ describe('ArticleController', () => {
         data: mockArticle,
         message: 'Article retrieved successfully',
       });
+    });
+
+    it('should pass null requesterId and role when unauthenticated', async () => {
+      req.user = undefined;
+      mockService.getArticleById.mockResolvedValue({} as never);
+
+      await controller.getById(req as Request, res as Response, next);
+
+      expect(mockService.getArticleById).toHaveBeenCalledWith(
+        'article-123',
+        null,
+        null
+      );
+    });
+
+    it('should pass the Admin role through to the service', async () => {
+      req.user = { userId: 'admin-1', role: 'Admin', email: 'a@test.com' };
+      mockService.getArticleById.mockResolvedValue({} as never);
+
+      await controller.getById(req as Request, res as Response, next);
+
+      expect(mockService.getArticleById).toHaveBeenCalledWith(
+        'article-123',
+        'admin-1',
+        'Admin'
+      );
     });
 
     it('should pass service errors to next', async () => {
