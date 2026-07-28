@@ -12,6 +12,7 @@ export interface ArticleDetail {
   title: string;
   body: Record<string, unknown>;
   authorId: string;
+  authorName: string;
   tags: string[];
   status: ArticleStatus;
   createdAt: string;

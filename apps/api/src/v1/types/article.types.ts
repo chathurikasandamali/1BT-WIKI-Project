@@ -25,6 +25,7 @@ export interface Article {
   body: JSONContent;
   status: ArticleStatus;
   authorId: string;
+  authorName: string,
   views: number;
   tags: string[];
   createdAt: Date;

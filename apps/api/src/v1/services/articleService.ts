@@ -414,11 +414,14 @@ export class ArticleService {
 
     const { _count, likes, ...baseArticle } = articleRecord;
 
+    const author = await this.userRepository.findById(articleRecord.authorId);
+
     return {
       ...baseArticle,
       likeCount: _count?.likes ?? 0,
       commentCount: _count?.comments ?? 0,
       likedByMe: likes ? likes.length > 0 : false,
+      authorName: author?.name ?? 'Unknown',
     };
   }
 
