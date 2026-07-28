@@ -439,6 +439,40 @@ describe('ArticleService.listAllArticles', () => {
     });
   });
 
+  it('should map rows to AdminArticleListItem without leaking body or _count', async () => {
+    const mockArticles = [
+      {
+        id: 'article-1',
+        title: 'Draft Article',
+        body: { type: 'doc', content: [] },
+        status: 'Draft',
+        authorId: 'user-1',
+        views: 7,
+        tags: ['a'],
+        createdAt: new Date('2024-01-01'),
+        updatedAt: new Date('2024-01-01'),
+        _count: { likes: 3, comments: 2 },
+      },
+    ];
+
+    mockRepo.findByStatus.mockResolvedValue({ articles: mockArticles, total: 1 } as never);
+    mockUserRepo.findManyByIds.mockResolvedValue([
+      { id: 'user-1', name: 'Alice', email: 'alice@example.com' },
+    ] as never);
+
+    const result = await service.listAllArticles(1, 20);
+
+    expect(result.articles[0]).not.toHaveProperty('body');
+    expect(result.articles[0]).not.toHaveProperty('_count');
+    expect(result.articles[0]).toMatchObject({
+      id: 'article-1',
+      views: 7,
+      likeCount: 3,
+      commentCount: 2,
+      rejectionFeedback: null,
+    });
+  });
+
   it('should accept all valid status filter values without throwing', async () => {
     mockRepo.findByStatus.mockResolvedValue({ articles: [], total: 0 } as never);
     mockUserRepo.findManyByIds.mockResolvedValue([]);

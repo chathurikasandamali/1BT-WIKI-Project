@@ -318,5 +318,37 @@ describe('Admin API Integration', () => {
       expect(response.body.data.articles[0].authorName).toBe('Author Name');
       expect(response.body.data.articles[0].authorEmail).toBe('author@example.com');
     });
+
+    it('should not leak body or _count in list rows and should map counts', async () => {
+      const articles = [
+        {
+          id: 'article-5',
+          title: 'Heavy Article',
+          body: { type: 'doc', content: [] },
+          status: 'Pending',
+          authorId: 'user-1',
+          views: 12,
+          tags: [],
+          createdAt: mockDate,
+          updatedAt: mockDate,
+          _count: { likes: 4, comments: 1 },
+        },
+      ];
+
+      mockFindByStatus.mockResolvedValueOnce({ articles, total: 1 });
+      mockUserFindManyByIds.mockResolvedValueOnce([mockAuthor]);
+
+      const response = await request(app)
+        .get('/api/v1/admin/articles')
+        .set(adminHeaders);
+
+      expect(response.status).toBe(200);
+      const row = response.body.data.articles[0];
+      expect(row).not.toHaveProperty('body');
+      expect(row).not.toHaveProperty('_count');
+      expect(row.likeCount).toBe(4);
+      expect(row.commentCount).toBe(1);
+      expect(row.views).toBe(12);
+    });
   });
 });

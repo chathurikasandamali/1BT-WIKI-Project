@@ -16,6 +16,7 @@ import type {
   ArticleAttachment,
   JSONContent,
   ArticleListItem,
+  AdminArticleListItem,
 } from '@models/article.types.js';
 import { ArticleStatusValue, ARTICLE_SORT_FIELDS } from '@models/article.types.js';
 import { assertValidSort } from '../utils/queryHelpers.js';
@@ -321,7 +322,7 @@ export class ArticleService {
     search?: string,
     sort?: string,
     order?: string
-  ): Promise<{ articles: (Article & { authorName: string; authorEmail: string | null })[]; total: number; page: number; limit: number }> {
+  ): Promise<{ articles: AdminArticleListItem[]; total: number; page: number; limit: number }> {
     if (status !== undefined && !ALLOWED_STATUS_FILTERS.includes(status as ArticleStatus)) {
       throw new AppError(`Invalid status filter. Allowed: ${ALLOWED_STATUS_FILTERS.join(', ')}`, 400);
     }
@@ -341,11 +342,24 @@ export class ArticleService {
     const authors = await this.userRepository.findManyByIds(authorIds);
     const authorMap = new Map(authors.map((u) => [u.id, u]));
 
-    const enrichedArticles = articles.map((article) => ({
-      ...article,
-      authorName: authorMap.get(article.authorId)?.name ?? 'Unknown',
-      authorEmail: authorMap.get(article.authorId)?.email ?? null,
-    }));
+    // Map to a DTO so heavy/internal columns (body, _count) never leave the service.
+    const enrichedArticles: AdminArticleListItem[] = articles.map(
+      (article: PublishedArticleRow) => ({
+        id: article.id,
+        title: article.title,
+        authorId: article.authorId,
+        tags: article.tags,
+        status: article.status as ArticleStatus,
+        views: article.views,
+        createdAt: article.createdAt,
+        updatedAt: article.updatedAt,
+        likeCount: article._count?.likes ?? 0,
+        commentCount: article._count?.comments ?? 0,
+        rejectionFeedback: null,
+        authorName: authorMap.get(article.authorId)?.name ?? 'Unknown',
+        authorEmail: authorMap.get(article.authorId)?.email ?? null,
+      })
+    );
 
     return { articles: enrichedArticles, total, page, limit };
   }
