@@ -159,10 +159,7 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
           </Link>
         </div>
       ) : (
-        <div
-          className="pr-4 pt-6 pb-2 sidebar-item"
-          style={{ paddingLeft: '36px' }}
-        >
+        <div className="pr-4 pt-6 pb-2 pl-[36px] sidebar-item">
           <span className="text-xs font-semibold uppercase tracking-widest text-brand-text-secondary">
             Menu
           </span>
@@ -174,8 +171,10 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
           <Link
             key={item.href}
             href={item.href}
-            className={itemClasses(item.href)}
-            style={{ paddingLeft: isCollapsed ? '31px' : '20px', gap: isCollapsed ? '0' : '16px' }}
+            className={cn(
+              itemClasses(item.href),
+              isCollapsed ? 'pl-[31px] gap-0' : 'pl-[20px] gap-[16px]'
+            )}
             data-testid={item.testId}
             aria-label={isCollapsed ? item.label : undefined}
           >
@@ -210,8 +209,10 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
           <Link
             key={item.href}
             href={item.href}
-            className={itemClasses(item.href)}
-            style={{ paddingLeft: isCollapsed ? '31px' : '20px', gap: isCollapsed ? '0' : '16px' }}
+            className={cn(
+              itemClasses(item.href),
+              isCollapsed ? 'pl-[31px] gap-0' : 'pl-[20px] gap-[16px]'
+            )}
             data-testid={item.testId}
             aria-label={isCollapsed ? item.label : undefined}
           >
@@ -226,8 +227,10 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
         {isReviewerOrAdmin && (
           <Link
             href="/reviewer/approvals"
-            className={itemClasses('/reviewer/approvals')}
-            style={{ paddingLeft: isCollapsed ? '31px' : '20px', gap: isCollapsed ? '0' : '16px' }}
+            className={cn(
+              itemClasses('/reviewer/approvals'),
+              isCollapsed ? 'pl-[31px] gap-0' : 'pl-[20px] gap-[16px]'
+            )}
             data-testid="nav-reviewer-approvals"
             aria-label={isCollapsed ? "Approvals" : undefined}
           >
@@ -245,10 +248,7 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
         <>
           <div className={`border-t border-white/10 my-2 ${isCollapsed ? 'mx-2' : 'mx-4'} sidebar-item`} />
           {!isCollapsed && (
-            <div
-              className="pr-4 pb-1 sidebar-item"
-              style={{ paddingLeft: '36px' }}
-            >
+            <div className="pr-4 pb-1 pl-[36px] sidebar-item">
               <span className="text-[10px] font-semibold uppercase tracking-widest text-brand-red/60">
                 Admin
               </span>
@@ -257,8 +257,10 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
           <nav className={`flex flex-col gap-1 ${isCollapsed ? 'px-2' : 'px-4'}`}>
             <Link
               href="/admin/users"
-              className={itemClasses('/admin/users')}
-              style={{ paddingLeft: isCollapsed ? '31px' : '20px', gap: isCollapsed ? '0' : '16px' }}
+              className={cn(
+                itemClasses('/admin/users'),
+                isCollapsed ? 'pl-[31px] gap-0' : 'pl-[20px] gap-[16px]'
+              )}
               data-testid="nav-admin-users"
               aria-label={isCollapsed ? "User Management" : undefined}
             >
@@ -276,8 +278,10 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
       <div className="flex-1" />
       
       <div
-        className={`sidebar-item border-t border-white/10 py-4 flex items-center ${isCollapsed ? 'justify-center flex-col gap-4' : 'pr-4 gap-3'}`}
-        style={isCollapsed ? {} : { paddingLeft: '36px' }}
+        className={cn(
+          'sidebar-item border-t border-white/10 py-4 flex items-center',
+          isCollapsed ? 'justify-center flex-col gap-4' : 'pr-4 gap-3 pl-[36px]'
+        )}
       >
         <div className="relative group flex items-center justify-center">
           <UserAvatar format={isCollapsed ? 'collapsed' : 'expanded'} />
