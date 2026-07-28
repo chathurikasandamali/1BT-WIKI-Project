@@ -298,6 +298,7 @@ describe('ArticleController', () => {
   describe('getById', () => {
     beforeEach(() => {
       req.params = { id: 'article-123' };
+      req.user = { userId: 'user-123', role: 'User', email: 'test@test.com' };
     });
 
     it('should return the article', async () => {
@@ -305,6 +306,8 @@ describe('ArticleController', () => {
         id: 'article-123',
         title: 'Test Article',
         status: 'Published',
+        likeCount: 5,
+        likedByMe: true,
       };
       mockService.getArticleById.mockResolvedValue(mockArticle as never);
 

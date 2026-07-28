@@ -24,6 +24,14 @@ type ArticleBody = {
   status: ArticleStatus;
 };
 
+export type ArticleDetailRecord = Article & {
+  _count?: {
+    likes: number;
+    comments: number;
+  };
+  likes?: Array<{ id: string }>;
+};
+
 export class ArticleRepository {
   /**
    * Persist a new article in `Draft` status.
@@ -64,13 +72,28 @@ export class ArticleRepository {
    * @param id - The article's UUID.
    * @returns The article, or `null` if it does not exist or has been soft-deleted.
    */
-  async findById(id: string): Promise<Article | null> {
+  async findById(id: string, requesterId?: string | null): Promise<ArticleDetailRecord | null> {
     const result = await prisma.article.findFirst({
       where: { id, deletedAt: null },
-      select: ARTICLE_SELECT,
+      select: {
+        ...ARTICLE_SELECT,
+        _count: {
+          select: {
+            likes: true,
+            comments: { where: { deletedAt: null } },
+          },
+        },
+        ...(requesterId && {
+          likes: {
+            where: { userId: requesterId },
+            select: { id: true },
+            take: 1,
+          },
+        }),
+      },
     });
 
-    return result ? (result as unknown as Article) : null;
+    return result ? (result as unknown as ArticleDetailRecord) : null;
   }
 
   /**

@@ -9,6 +9,7 @@ import type { UserRole } from '@/types/userTypes.js';
 import { UserRoleValue } from '@/types/userTypes.js';
 import type {
   Article,
+  ArticleDetail,
   ArticleStatus,
   CreateArticleInput,
   UpdateArticleInput,
@@ -383,23 +384,28 @@ export class ArticleService {
   async getArticleById(
     id: string,
     requesterId: string | null = null
-  ): Promise<Article> {
-    const article = await this.repository.findById(id);
-    if (!article) {
+  ): Promise<ArticleDetail> {
+    const articleRecord = await this.repository.findById(id, requesterId);
+    if (!articleRecord) {
       throw new AppError('Article not found', 404);
     }
 
-    // Published articles are publicly readable (by any authenticated user).
-    if (article.status === ArticleStatusValue.Published) {
-      return article;
+    const isAvailable =
+      articleRecord.status === ArticleStatusValue.Published ||
+      (requesterId && requesterId === articleRecord.authorId);
+
+    if (!isAvailable) {
+      throw new AppError('Article not available', 403);
     }
 
-    // Non-Published articles are only visible to the author.
-    if (requesterId && requesterId === article.authorId) {
-      return article;
-    }
+    const { _count, likes, ...baseArticle } = articleRecord;
 
-    throw new AppError('Article not available', 403);
+    return {
+      ...baseArticle,
+      likeCount: _count?.likes ?? 0,
+      commentCount: _count?.comments ?? 0,
+      likedByMe: likes ? likes.length > 0 : false,
+    };
   }
 
   private async findOwned(articleId: string, userId: string): Promise<Article> {

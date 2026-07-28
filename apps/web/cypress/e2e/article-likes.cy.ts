@@ -1,10 +1,29 @@
 import { stubAuthSession } from "../support/auth";
 
-// LikeButton is always rendered with the mock article's id ("1"), since
-// apps/(dashboard)/articles/[id]/page.tsx falls back to mockArticles['1']
-// for any route id. The comments spec uses "a1" (the raw route param
-// passed to CommentsSection) — likes intentionally target "1" instead.
+// LikeButton receives the article ID from the GET response.
+// We intercept GET /api/v1/articles/1 to provide a mock article.
 describe("Article likes", () => {
+  beforeEach(() => {
+    cy.intercept('GET', '**/api/v1/articles/1', {
+      statusCode: 200,
+      body: {
+        success: true,
+        data: {
+          id: '1',
+          title: 'Mock Article',
+          body: { type: 'doc', content: [] },
+          authorId: 'author-123',
+          tags: [],
+          status: 'Published',
+          likeCount: 42,
+          commentCount: 0,
+          likedByMe: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }
+      }
+    }).as('getArticle');
+  });
   it("likes an article and increments the count", () => {
     stubAuthSession("User");
 

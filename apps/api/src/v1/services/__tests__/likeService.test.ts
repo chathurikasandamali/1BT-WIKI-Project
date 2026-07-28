@@ -71,7 +71,7 @@ describe('LikeService.likeArticle', () => {
     const like = { id: 'like-123', articleId, userId, createdAt: new Date() };
 
     (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(article);
-    (LikeRepository.upsert as jest.Mock<any>).mockResolvedValue(like);
+    (LikeRepository.upsert as jest.Mock<any>).mockResolvedValue({ like, created: true });
 
     await LikeService.likeArticle(articleId, userId);
 
@@ -95,7 +95,25 @@ describe('LikeService.likeArticle', () => {
     const like = { id: 'like-123', articleId, userId, createdAt: new Date() };
 
     (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(article);
-    (LikeRepository.upsert as jest.Mock<any>).mockResolvedValue(like);
+    (LikeRepository.upsert as jest.Mock<any>).mockResolvedValue({ like, created: true });
+
+    await LikeService.likeArticle(articleId, userId);
+
+    expect(NotificationService.send).not.toHaveBeenCalled();
+  });
+
+  it('should not send a notification when liking an already-liked article', async () => {
+    const article = {
+      id: articleId,
+      authorId: 'other-user',
+      title: 'Test Article',
+      status: 'Published',
+    };
+    const like = { id: 'like-123', articleId, userId, createdAt: new Date() };
+
+    (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(article);
+    // created: false ensures no new notification is sent
+    (LikeRepository.upsert as jest.Mock<any>).mockResolvedValue({ like, created: false });
 
     await LikeService.likeArticle(articleId, userId);
 
@@ -112,7 +130,11 @@ describe('LikeService.likeArticle', () => {
     const like = { id: 'like-123', articleId, userId, createdAt: new Date() };
 
     (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(article);
-    (LikeRepository.upsert as jest.Mock<any>).mockResolvedValue(like);
+    
+    // First call returns created: true
+    (LikeRepository.upsert as jest.Mock<any>).mockResolvedValueOnce({ like, created: true });
+    // Second call returns created: false
+    (LikeRepository.upsert as jest.Mock<any>).mockResolvedValueOnce({ like, created: false });
 
     await LikeService.likeArticle(articleId, userId);
     await LikeService.likeArticle(articleId, userId);
@@ -120,6 +142,9 @@ describe('LikeService.likeArticle', () => {
     expect(LikeRepository.upsert).toHaveBeenCalledTimes(2);
     expect(LikeRepository.upsert).toHaveBeenNthCalledWith(1, articleId, userId);
     expect(LikeRepository.upsert).toHaveBeenNthCalledWith(2, articleId, userId);
+    
+    // Notification should only be sent ONCE
+    expect(NotificationService.send).toHaveBeenCalledTimes(1);
   });
 });
 

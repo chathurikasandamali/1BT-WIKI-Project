@@ -18,9 +18,9 @@ const likeArticle = async (
     throw new AppError('Cannot like this article', 403);
   }
 
-  const like = await LikeRepository.upsert(articleId, userId);
+  const { like, created } = await LikeRepository.upsert(articleId, userId);
 
-  if (article.authorId !== userId) {
+  if (created && article.authorId !== userId) {
     const notificationPayload = new NotificationBuilder()
       .forUser(article.authorId)
       .regardingLike(like.id)

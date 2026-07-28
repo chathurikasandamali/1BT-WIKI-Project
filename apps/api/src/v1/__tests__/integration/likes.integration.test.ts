@@ -100,7 +100,7 @@ describe('Likes API Integration', () => {
   });
 
   describe('POST /api/v1/articles/:id/like', () => {
-    const articleId = 'article-123';
+    const articleId = '12345678-1234-1234-1234-123456789012';
 
     it('should return 401 if unauthenticated', async () => {
       const response = await request(app).post(
@@ -161,7 +161,7 @@ describe('Likes API Integration', () => {
       };
 
       mockFindById.mockResolvedValueOnce(article);
-      mockUpsertLike.mockResolvedValueOnce(like);
+      mockUpsertLike.mockResolvedValueOnce({ like, created: true });
 
       const response = await request(app)
         .post(`/api/v1/articles/${articleId}/like`)
@@ -200,7 +200,8 @@ describe('Likes API Integration', () => {
       };
 
       mockFindById.mockResolvedValue(article);
-      mockUpsertLike.mockResolvedValue(like);
+      mockUpsertLike.mockResolvedValueOnce({ like, created: true });
+      mockUpsertLike.mockResolvedValueOnce({ like, created: false });
 
       const first = await request(app)
         .post(`/api/v1/articles/${articleId}/like`)
@@ -219,7 +220,7 @@ describe('Likes API Integration', () => {
   });
 
   describe('DELETE /api/v1/articles/:id/like', () => {
-    const articleId = 'article-123';
+    const articleId = '12345678-1234-1234-1234-123456789012';
 
     it('should return 401 if unauthenticated', async () => {
       const response = await request(app).delete(

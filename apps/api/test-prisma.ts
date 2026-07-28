@@ -1,0 +1,1 @@
+import { prisma } from '@repo/db'; prisma.article.findFirst({where: {id: '1'}}).catch(e => { console.log('ERROR_NAME:', e.name); console.log('ERROR_CODE:', e.code); console.log('ERROR_MESSAGE:', e.message); console.log('ERROR_STACK:', e.stack); }).finally(() => process.exit(0));
