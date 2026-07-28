@@ -853,16 +853,20 @@ describe('ArticleService.getArticleById', () => {
   const articleId = 'article-123';
   const authorId = 'user-123';
   let mockRepo: ReturnType<typeof makeRepo>;
+  let mockUserRepo: ReturnType<typeof makeUserRepo>;
   let service: InstanceType<typeof ArticleService>;
 
   beforeEach(() => {
     mockRepo = makeRepo();
+    mockUserRepo = makeUserRepo();
     service = new ArticleService(
       mockRepo as unknown as ArticleRepository,
       ArticleReviewRepository as any,
-      ArticleAttachmentRepository as any
+      ArticleAttachmentRepository as any,
+      mockUserRepo as any
     );
     jest.clearAllMocks();
+    mockUserRepo.findManyByIds.mockResolvedValue([]);
   });
 
   it('should return the article with mapped likeCount and likedByMe when it exists and is Published', async () => {
@@ -887,6 +891,8 @@ describe('ArticleService.getArticleById', () => {
       likeCount: 5,
       commentCount: 2,
       likedByMe: true,
+      authorName: 'Unknown',
+      authorEmail: null,
     });
   });
 
@@ -910,6 +916,8 @@ describe('ArticleService.getArticleById', () => {
       likeCount: 0,
       commentCount: 0,
       likedByMe: false,
+      authorName: 'Unknown',
+      authorEmail: null,
     });
   });
 
@@ -981,6 +989,8 @@ describe('ArticleService.getArticleById', () => {
       likeCount: 0,
       commentCount: 0,
       likedByMe: false,
+      authorName: 'Unknown',
+      authorEmail: null,
     });
   });
 
@@ -1008,6 +1018,8 @@ describe('ArticleService.getArticleById', () => {
       likeCount: 0,
       commentCount: 0,
       likedByMe: false,
+      authorName: 'Unknown',
+      authorEmail: null,
     });
   });
 
@@ -1037,6 +1049,58 @@ describe('ArticleService.getArticleById', () => {
     await expect(service.getArticleById(articleId, null)).rejects.toThrow(
       new AppError('Article not available', 403)
     );
+  });
+
+  it.each(['Draft', 'Pending', 'Unpublished'] as const)(
+    "should allow an Admin to view someone else's %s article",
+    async (status) => {
+      const article = {
+        id: articleId,
+        status,
+        title: 'Oversight Target',
+        authorId: 'other-author',
+      };
+      mockRepo.findById.mockResolvedValue(article as never);
+
+      const result = await service.getArticleById(articleId, authorId, 'Admin');
+
+      expect(result).toMatchObject({ id: articleId, status });
+    }
+  );
+
+  it("should still throw 403 for a non-admin role viewing someone else's Draft article", async () => {
+    const article = {
+      id: articleId,
+      status: 'Draft',
+      title: 'Someone Else Draft',
+      authorId: 'other-author',
+    };
+    mockRepo.findById.mockResolvedValue(article as never);
+
+    await expect(
+      service.getArticleById(articleId, authorId, 'Employee' as never)
+    ).rejects.toThrow(new AppError('Article not available', 403));
+  });
+
+  it('should enrich the article with authorName and authorEmail when the author exists', async () => {
+    const article = {
+      id: articleId,
+      status: 'Published',
+      title: 'My Article',
+      authorId: 'user-1',
+    };
+    mockRepo.findById.mockResolvedValue(article as never);
+    mockUserRepo.findManyByIds.mockResolvedValue([
+      { id: 'user-1', name: 'Alice', email: 'alice@example.com' },
+    ]);
+
+    const result = await service.getArticleById(articleId);
+
+    expect(mockUserRepo.findManyByIds).toHaveBeenCalledWith(['user-1']);
+    expect(result).toMatchObject({
+      authorName: 'Alice',
+      authorEmail: 'alice@example.com',
+    });
   });
 });
 

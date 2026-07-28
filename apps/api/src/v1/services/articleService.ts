@@ -397,16 +397,19 @@ export class ArticleService {
 
   async getArticleById(
     id: string,
-    requesterId: string | null = null
+    requesterId: string | null = null,
+    role: UserRole | null = null
   ): Promise<ArticleDetail> {
     const articleRecord = await this.repository.findById(id, requesterId);
     if (!articleRecord) {
       throw new AppError('Article not found', 404);
     }
 
+    // Admins may inspect articles in any status (oversight view).
     const isAvailable =
       articleRecord.status === ArticleStatusValue.Published ||
-      (requesterId && requesterId === articleRecord.authorId);
+      (requesterId && requesterId === articleRecord.authorId) ||
+      role === UserRoleValue.Admin;
 
     if (!isAvailable) {
       throw new AppError('Article not available', 403);
@@ -414,11 +417,17 @@ export class ArticleService {
 
     const { _count, likes, ...baseArticle } = articleRecord;
 
+    const [author] = await this.userRepository.findManyByIds([
+      articleRecord.authorId,
+    ]);
+
     return {
       ...baseArticle,
       likeCount: _count?.likes ?? 0,
       commentCount: _count?.comments ?? 0,
       likedByMe: likes ? likes.length > 0 : false,
+      authorName: author?.name ?? 'Unknown',
+      authorEmail: author?.email ?? null,
     };
   }
 
