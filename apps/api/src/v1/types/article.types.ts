@@ -25,6 +25,7 @@ export interface Article {
   body: JSONContent;
   status: ArticleStatus;
   authorId: string;
+  authorName: string,
   views: number;
   tags: string[];
   createdAt: Date;
@@ -37,7 +38,6 @@ export interface ArticleDetail extends Article {
   likeCount: number;
   commentCount: number;
   likedByMe: boolean;
-  authorName?: string;
   authorEmail?: string | null;
 }
 

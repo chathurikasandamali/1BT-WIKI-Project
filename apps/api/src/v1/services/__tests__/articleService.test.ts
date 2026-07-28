@@ -65,6 +65,7 @@ jest.unstable_mockModule('@v1/lib/b2Client.js', () => ({
 jest.unstable_mockModule('@repositories/userRepository.js', () => ({
   default: {
     findManyByIds: jest.fn(),
+    findById: jest.fn(),
   },
 }));
 
@@ -125,6 +126,7 @@ const makeArticleRecord = (
   tags: [],
   createdAt: new Date('2024-01-01'),
   updatedAt: new Date('2024-01-01'),
+  authorName: AUTHOR_ALICE.name,
   ...overrides,
 });
 
