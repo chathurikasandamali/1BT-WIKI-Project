@@ -21,6 +21,7 @@ jest.unstable_mockModule('@repo/db', () => ({
 }));
 
 const { prisma, Prisma } = await import('@repo/db');
+const prismaMock = jest.mocked(prisma);
 const { default: LikeRepository } = await import('../likeRepository.js');
 
 describe('LikeRepository', () => {
@@ -34,7 +35,7 @@ describe('LikeRepository', () => {
 
   describe('upsert', () => {
     it('should create a new like and return it with created: true', async () => {
-      (prisma.like.create as jest.Mock<any>).mockResolvedValue(mockLike);
+      prismaMock.like.create.mockResolvedValue(mockLike);
 
       const result = await LikeRepository.upsert(articleId, userId);
 
@@ -50,8 +51,8 @@ describe('LikeRepository', () => {
         'Unique constraint failed',
         { code: 'P2002', clientVersion: '7.8.0', meta: {} }
       );
-      (prisma.like.create as jest.Mock<any>).mockRejectedValue(error);
-      (prisma.like.findUnique as jest.Mock<any>).mockResolvedValue(mockLike);
+      prismaMock.like.create.mockRejectedValue(error);
+      prismaMock.like.findUnique.mockResolvedValue(mockLike);
 
       const result = await LikeRepository.upsert(articleId, userId);
 
@@ -71,8 +72,8 @@ describe('LikeRepository', () => {
         'Unique constraint failed',
         { code: 'P2002', clientVersion: '7.8.0', meta: {} }
       );
-      (prisma.like.create as jest.Mock<any>).mockRejectedValue(error);
-      (prisma.like.findUnique as jest.Mock<any>).mockResolvedValue(null);
+      prismaMock.like.create.mockRejectedValue(error);
+      prismaMock.like.findUnique.mockResolvedValue(null);
 
       await expect(LikeRepository.upsert(articleId, userId)).rejects.toThrow(error);
 
@@ -82,7 +83,7 @@ describe('LikeRepository', () => {
 
     it('should rethrow non-P2002 errors without calling findUnique', async () => {
       const error = new Error('Database connection failed');
-      (prisma.like.create as jest.Mock<any>).mockRejectedValue(error);
+      prismaMock.like.create.mockRejectedValue(error);
 
       await expect(LikeRepository.upsert(articleId, userId)).rejects.toThrow(error);
 
@@ -93,7 +94,7 @@ describe('LikeRepository', () => {
 
   describe('remove', () => {
     it('should call deleteMany with correct where clause', async () => {
-      (prisma.like.deleteMany as jest.Mock<any>).mockResolvedValue({ count: 1 });
+      prismaMock.like.deleteMany.mockResolvedValue({ count: 1 });
 
       await LikeRepository.remove(articleId, userId);
 
