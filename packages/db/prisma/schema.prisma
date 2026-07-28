@@ -1,0 +1,357 @@
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["neon_auth", "public"]
+}
+
+model account {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId             String
+  providerId            String
+  userId                String    @db.Uuid
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime? @db.Timestamptz(6)
+  refreshTokenExpiresAt DateTime? @db.Timestamptz(6)
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime  @db.Timestamptz(6)
+  user                  user      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId])
+  @@schema("neon_auth")
+}
+
+model invitation {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @db.Uuid
+  email          String
+  role           String?
+  status         String
+  expiresAt      DateTime     @db.Timestamptz(6)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  inviterId      String       @db.Uuid
+  user           user         @relation(fields: [inviterId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  organization   organization @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([email])
+  @@index([organizationId])
+  @@schema("neon_auth")
+}
+
+model jwks {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publicKey  String
+  privateKey String
+  createdAt  DateTime  @db.Timestamptz(6)
+  expiresAt  DateTime? @db.Timestamptz(6)
+
+  @@schema("neon_auth")
+}
+
+model member {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @db.Uuid
+  userId         String       @db.Uuid
+  role           String
+  createdAt      DateTime     @db.Timestamptz(6)
+  organization   organization @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user           user         @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([organizationId])
+  @@index([userId])
+  @@schema("neon_auth")
+}
+
+model organization {
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String
+  slug       String       @unique
+  logo       String?
+  createdAt  DateTime     @db.Timestamptz(6)
+  metadata   String?
+  invitation invitation[]
+  member     member[]
+
+  @@schema("neon_auth")
+}
+
+model project_config {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String
+  endpoint_id        String   @unique
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime @default(now()) @db.Timestamptz(6)
+  trusted_origins    Json
+  social_providers   Json
+  email_provider     Json?
+  email_and_password Json?
+  allow_localhost    Boolean
+  plugin_configs     Json?
+  webhook_config     Json?
+
+  @@schema("neon_auth")
+}
+
+model session {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  expiresAt            DateTime @db.Timestamptz(6)
+  token                String   @unique
+  createdAt            DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt            DateTime @db.Timestamptz(6)
+  ipAddress            String?
+  userAgent            String?
+  userId               String   @db.Uuid
+  impersonatedBy       String?
+  activeOrganizationId String?
+  user                 user     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId])
+  @@schema("neon_auth")
+}
+
+model user {
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String
+  email           String              @unique
+  emailVerified   Boolean
+  image           String?
+  createdAt       DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime            @default(now()) @db.Timestamptz(6)
+  role            String?
+  banned          Boolean?
+  banReason       String?
+  banExpires      DateTime?           @db.Timestamptz(6)
+  account         account[]
+  invitation      invitation[]
+  member          member[]
+  session         session[]
+  attachments     articleAttachment[]
+  comments        comment[]
+  likes           like[]
+  reviewsCreated  articleReview[]     @relation("article_reviews_created_byTouser")
+  reviewsReviewed articleReview[]     @relation("article_reviews_reviewer_idTouser")
+  articles        article[]
+  notifications   notification[]
+  techTalks       techTalk[]
+
+  @@schema("neon_auth")
+}
+
+model verification {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  identifier String
+  value      String
+  expiresAt  DateTime @db.Timestamptz(6)
+  createdAt  DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([identifier])
+  @@schema("neon_auth")
+}
+
+enum ArticleStatus {
+  Draft
+  Pending
+  Published
+  Unpublished
+
+  @@map("article_status")
+  @@schema("public")
+}
+
+model article {
+  id        String        @id @default(uuid()) @db.Uuid
+  title     String        @db.VarChar(500)
+  body      Json          @default("{}")
+  status    ArticleStatus @map("status")
+  authorId  String        @map("author_id") @db.Uuid
+  views     Int           @default(0)
+  tags      String[]      @default([]) @map("article_tags")
+  deletedAt DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  attachments articleAttachment[]
+  comments    comment[]
+  likes       like[]
+  reviews     articleReview[]
+
+  user user @relation(fields: [authorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([authorId], map: "idx_articles_author_id")
+  @@index([deletedAt], map: "idx_articles_deleted_at")
+  @@index([status], map: "idx_articles_status")
+  @@map("articles")
+  @@schema("public")
+}
+
+model articleAttachment {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  articleId    String    @map("article_id") @db.Uuid
+  uploadedBy   String    @map("uploaded_by") @db.Uuid
+  fileName     String    @map("file_name")
+  b2FileKey    String    @unique @map("b2_file_key")
+  b2FileId     String    @map("b2_file_id")
+  b2BucketName String    @map("b2_bucket_name")
+  fileUrl      String    @map("file_url")
+  mimeType     String    @map("mime_type")
+  sizeBytes    Int       @map("size_bytes")
+  createdAt    DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
+  article      article   @relation(fields: [articleId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user         user      @relation(fields: [uploadedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([articleId], map: "idx_article_attachments_article_id")
+  @@index([uploadedBy], map: "idx_article_attachments_uploaded_by")
+  @@map("article_attachments")
+  @@schema("public")
+}
+
+model comment {
+  id        String    @id @default(uuid()) @db.Uuid
+  articleId String    @map("article_id") @db.Uuid
+  createdBy String    @map("created_by") @db.Uuid
+  body      String
+  deletedAt DateTime? @map("deleted_at") @db.Timestamp(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  article article @relation(fields: [articleId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user    user    @relation(fields: [createdBy], references: [id], onUpdate: NoAction)
+
+  @@index([articleId, createdAt], map: "idx_article_comments_active", where: raw("(deleted_at IS NULL)"))
+  @@index([articleId], map: "idx_article_comments_article_id")
+  @@index([createdBy], map: "idx_article_comments_created_by")
+  @@map("article_comments")
+  @@schema("public")
+}
+
+model like {
+  id        String   @id @default(uuid()) @db.Uuid
+  articleId String   @map("article_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  article article @relation(fields: [articleId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user    user    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([articleId, userId], map: "uq_article_likes")
+  @@index([articleId], map: "idx_article_likes_article_id")
+  @@index([userId], map: "idx_article_likes_user_id")
+  @@map("article_likes")
+  @@schema("public")
+}
+
+enum NotificationReferenceType {
+  article
+  tech_talk
+  comment
+  like
+  review
+
+  @@map("notification_reference_type")
+  @@schema("public")
+}
+
+enum NotificationType {
+  success
+  failure
+  info
+
+  @@map("notification_type")
+  @@schema("public")
+}
+
+model notification {
+  id            String                    @id @default(uuid()) @db.Uuid
+  recipientId   String                    @map("recipient_id") @db.Uuid
+  title         String                    @map("notification_title") @db.VarChar(255)
+  referenceType NotificationReferenceType @map("notification_reference_type")
+  referenceId   String                    @map("reference_id") @db.Uuid
+  type          NotificationType          @map("notification_type")
+  message       String
+  isRead        Boolean                   @default(false) @map("is_read")
+  readAt        DateTime?                 @map("read_at") @db.Timestamp(6)
+  deletedAt     DateTime?                 @map("deleted_at") @db.Timestamp(6)
+  createdAt     DateTime                  @default(now()) @map("created_at") @db.Timestamp(6)
+
+  user user @relation(fields: [recipientId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([recipientId, isRead], map: "idx_notifications_is_read", where: raw("(is_read = false)"))
+  @@index([recipientId], map: "idx_notifications_recipient_id")
+  @@index([referenceType, referenceId], map: "idx_notifications_reference")
+  @@map("notifications")
+  @@schema("public")
+}
+
+enum TechTalkStatus {
+  draft
+  published
+  unpublished
+
+  @@map("tech_talk_status")
+  @@schema("public")
+}
+
+model techTalk {
+  id               String         @id @default(uuid()) @db.Uuid
+  title            String         @db.VarChar(500)
+  description      String?
+  presenters       String[]       @default([])
+  eventDate        DateTime       @map("event_date") @db.Timestamp(6)
+  slidesUrl        String?        @map("slides_url")
+  youtubeIframeUrl String?        @map("youtube_iframe_url")
+  status           TechTalkStatus @default(draft) @map("tech_talks_status")
+  createdBy        String         @map("created_by") @db.Uuid
+  deletedAt        DateTime?      @map("deleted_at") @db.Timestamp(6)
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  user user @relation(fields: [createdBy], references: [id], onUpdate: NoAction)
+
+  @@index([createdBy], map: "idx_tech_talks_created_by")
+  @@index([deletedAt], map: "idx_tech_talks_deleted_at")
+  @@index([eventDate(sort: Desc)], map: "idx_tech_talks_event_date")
+  @@index([eventDate(sort: Desc)], map: "idx_tech_talks_published", where: raw("((tech_talks_status = 'published'::tech_talk_status) AND (deleted_at IS NULL))"))
+  @@index([status], map: "idx_tech_talks_status")
+  @@map("tech_talks")
+  @@schema("public")
+}
+
+enum ReviewStatus {
+  Pending
+  Approved
+  Rejected
+
+  @@map("review_status")
+  @@schema("public")
+}
+
+model articleReview {
+  id         String       @id @default(uuid()) @db.Uuid
+  articleId  String       @map("article_id") @db.Uuid
+  reviewerId String       @map("reviewer_id") @db.Uuid
+  feedback   String?      @map("review_feedback")
+  status     ReviewStatus @map("review_status")
+  createdBy  String       @map("created_by") @db.Uuid
+  deletedAt  DateTime?    @map("deleted_at") @db.Timestamp(6)
+  createdAt  DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt  DateTime     @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  article       article @relation(fields: [articleId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  createdByUser user    @relation("article_reviews_created_byTouser", fields: [createdBy], references: [id], onUpdate: NoAction)
+  reviewerUser  user    @relation("article_reviews_reviewer_idTouser", fields: [reviewerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([articleId], map: "idx_article_reviews_article_id")
+  @@index([reviewerId], map: "idx_article_reviews_reviewer_id")
+  @@map("article_reviews")
+  @@schema("public")
+}

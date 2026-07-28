@@ -17,8 +17,8 @@ app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/users', usersRouter);
 app.use('/api/v1/reviewer', reviewerRouter);
 app.use('/api/v1/notifications', notificationsRouter);
-app.use('/api/v1/tech-talks', techTalksRouter);
-app.use('/api/v1/quiz-attempts', quizAttemptsRouter);
+app.use('/api/v1/techTalks', techTalksRouter);
+app.use('/api/v1/quizAttempts', quizAttemptsRouter);
 app.use('/api/v1/admin', adminRouter);
 ```
 
@@ -36,8 +36,8 @@ app.use('/api/v1/admin', adminRouter);
 **Never use PUT** — always PATCH for updates (partial updates only).
 
 ## Route Naming Rules
-- Plural nouns for resources: `/articles`, `/users`, `/tech-talks`
-- kebab-case for multi-word resources: `/tech-talks`, `/quiz-attempts`
+- Plural nouns for resources: `/articles`, `/users`, `/techTalks`
+- camelCase for multi-word resources: `/techTalks`, `/quizAttempts`
 - Sub-resources use nesting (max 2 levels deep): `/articles/:id/comments`
 - Actions (state transitions) as POST sub-routes: `/articles/:id/submit`, `/articles/:id/publish`
 
@@ -72,8 +72,8 @@ DELETE /api/v1/articles/:id/like             ← unlike
 
 ### Quiz
 ```
-POST   /api/v1/articles/:id/quiz/generate    ← generate quiz from article (Claude API)
-POST   /api/v1/quiz-attempts                 ← submit quiz answers
+POST   /api/v1/articles/:id/quiz/generate    ← generate quiz from article (GEMINI API)
+POST   /api/v1/quizAttempts                  ← submit quiz answers
 ```
 
 ### Reviewer
@@ -100,13 +100,13 @@ PATCH  /api/v1/notifications/:id/read        ← mark read
 
 ### Tech Talks
 ```
-GET    /api/v1/tech-talks                    ← list published (sort, search)
-GET    /api/v1/tech-talks/:id                ← detail
-POST   /api/v1/tech-talks                    ← admin: create
-PATCH  /api/v1/tech-talks/:id                ← admin: edit
-POST   /api/v1/tech-talks/:id/publish        ← admin: publish
-PATCH  /api/v1/tech-talks/:id/republish      ← admin: republish after edit
-DELETE /api/v1/tech-talks/:id                ← admin: delete
+GET    /api/v1/techTalks                    ← list published (sort, search)
+GET    /api/v1/techTalks/:id                ← detail
+POST   /api/v1/techTalks                    ← admin: create
+PATCH  /api/v1/techTalks/:id                ← admin: edit
+POST   /api/v1/techTalks/:id/publish        ← admin: publish
+PATCH  /api/v1/techTalks/:id/republish      ← admin: republish after edit
+DELETE /api/v1/techTalks/:id                ← admin: delete
 ```
 
 ### Admin Dashboard

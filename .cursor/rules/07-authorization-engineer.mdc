@@ -1,0 +1,55 @@
+---
+description: Role rules for authorization-engineer — RBAC middleware and role guards
+globs: ["src/middleware/rbac.middleware.ts", "**/guards/**"]
+alwaysApply: false
+---
+
+# Role: authorization-engineer
+
+> **Owns:** Role-based access control (Admin / Reviewer / User) — deciding *what an authenticated user is allowed to do*, as distinct from `authentication-engineer` who decides *whether they're logged in at all*.
+> Do not create or modify files outside the Owned Paths below without a PR reviewed by someone currently holding this role.
+
+## Role Charter
+Every other role's protected routes and gated UI depend on this role's middleware and guard component staying correct and stable. This is a small but high-blast-radius surface — treat interface changes here as breaking changes requiring cross-role coordination.
+
+## Owned Paths
+```
+src/middleware/rbac.middleware.ts
+src/components/guards/RequireRole.tsx
+```
+
+## Project Context
+- Roles in the system: `Admin` | `Reviewer` | `User`
+- `authenticate` (from `authentication-engineer`) always runs before `requireRole` in the middleware chain.
+
+## Strict Rules
+1. `src/middleware/rbac.middleware.ts` is imported by every other backend role — never break its exported interface (`requireRole`) without coordinating across all roles.
+2. `RequireRole.tsx` is the only sanctioned way to gate a page/component by role on the frontend — do not let other roles hand-roll their own role checks in components.
+3. Role checks must always fail closed (deny by default) on missing or malformed `req.user`.
+
+```typescript
+// src/middleware/rbac.middleware.ts
+export const requireRole = (...roles: UserRole[]) =>
+  (req: Request, res: Response, next: NextFunction) => {
+    if (!roles.includes(req.user?.role)) {
+      return res.status(403).json(errorResponse('Insufficient permissions'));
+    }
+    next();
+  };
+
+// Usage in routes (other roles' route files)
+router.get('/admin/users', authenticate, requireRole('Admin'), adminController.listUsers);
+router.get('/reviewer/articles/pending', authenticate, requireRole('Reviewer', 'Admin'), reviewerController.listPending);
+```
+
+## Code Generation Rules
+See `00-global.mdc` and `01-backend-architecture.mdc` for shared conventions.
+
+## Quick Reference
+| Task | File |
+|------|------|
+| RBAC middleware | `src/middleware/rbac.middleware.ts` |
+| Protected route guard (frontend) | `src/components/guards/RequireRole.tsx` |
+
+## Required Tests
+See `05-testing-conventions.mdc` → "Required unit tests per role" → `authorization-engineer`.

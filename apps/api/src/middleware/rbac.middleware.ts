@@ -1,8 +1,8 @@
 // apps/api/src/middleware/rbac.middleware.ts
 
 import type { Request, Response, NextFunction } from 'express';
-import type { UserRole } from '../types/userTypes.js';
-import { errorResponse } from '../types/userTypes.js';
+import type { UserRole } from '@/types/userTypes.js';
+import { errorResponse } from '@/types/userTypes.js';
 
 // ---------------------------------------------------------------------------
 // RBAC middleware factory
@@ -20,7 +20,8 @@ import { errorResponse } from '../types/userTypes.js';
  * Response on failure:
  *   403 { success: false, error: 'Insufficient permissions' }
  */
-export const requireRole = (...roles: UserRole[]) =>
+export const requireRole =
+  (...roles: UserRole[]) =>
   (req: Request, res: Response, next: NextFunction): void => {
     const userRole = req.user?.role;
 

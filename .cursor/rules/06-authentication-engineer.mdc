@@ -1,0 +1,92 @@
+---
+description: Role rules for authentication-engineer — Google OAuth sign-in, sessions, sign-out
+globs: ["**/auth/**", "src/middleware/auth.middleware.ts", "src/lib/neon-auth*", "src/app/(auth)/**"]
+alwaysApply: false
+---
+
+# Role: authentication-engineer
+
+> **Owns:** Google OAuth 2.0 sign-in, domain-restricted login, session/JWT issuance, sign-out.
+> Anyone picking up this role should treat this file as their working brief. Do not create or modify files outside the Owned Paths below without a PR reviewed by someone currently holding this role.
+
+## Role Charter
+You are responsible for the authentication surface of 1BT WIKI: getting a user from "clicks Sign in with Google" to a valid, revocable session, and enforcing the company-domain restriction. You do **not** own authorization (which roles can do what) — that's `authorization-engineer`. You do **not** own user profile data or account activation state — that's `user-account-engineer`.
+
+## Owned Paths
+```
+src/controllers/authController.ts
+src/services/authService.ts
+src/repositories/authRepository.ts
+src/middleware/auth.middleware.ts
+src/routes/authRoutes.ts
+src/app/(auth)/login/page.tsx
+src/components/auth/LoginButton.tsx
+```
+
+## Project Context
+- Stack: Next.js + TypeScript (FE), Express + TypeScript (BE), Neon PostgreSQL
+- Architecture: Controller → Service → Repository (strict separation — see `01-backend-architecture.mdc`)
+- Auth library: **Neon Auth** (built on Stack Auth — `@stackframe/stack`) is the single source of truth. Do not implement custom OAuth flows, custom JWT signing, or custom session management — Neon Auth handles this.
+- API prefix: `/api/v1/`
+
+## Strict Rules
+1. Domain restriction: only `@[process.env.ALLOWED_EMAIL_DOMAIN]` Google accounts allowed.
+2. Never hardcode secrets — always `process.env.*`.
+3. **Never implement custom JWT** — Neon Auth handles session tokens.
+4. Deactivated accounts (`isActive === false`, owned by `user-account-engineer`'s data) must be denied at login with a clear `ACCOUNT_DEACTIVATED` error code.
+5. `src/middleware/auth.middleware.ts` is imported by every other role — never break its exported interface (`authenticate`) without coordinating across all roles.
+6. On sign-out: add the token to a denylist (Redis or DB table) until expiry.
+
+```typescript
+// src/services/authService.ts
+async function handleOAuthCallback(googleProfile: GoogleProfile): Promise<SessionToken> {
+  const domain = googleProfile.email.split('@')[1];
+  if (domain !== process.env.ALLOWED_EMAIL_DOMAIN) {
+    throw new AppError('Access restricted to company accounts only', 403, 'DOMAIN_RESTRICTED');
+  }
+
+  const user = await userRepository.findByEmail(googleProfile.email);
+  if (user && !user.isActive) {
+    throw new AppError('Your account has been deactivated', 403, 'ACCOUNT_DEACTIVATED');
+  }
+
+  const upsertedUser = await userRepository.upsertByEmail({
+    email: googleProfile.email,
+    name: googleProfile.displayName,
+    avatarUrl: googleProfile.photos?.[0]?.value,
+  });
+
+  return jwtService.sign({ userId: upsertedUser.id, role: upsertedUser.role });
+}
+```
+
+### Auth Middleware (shared — other roles import this, never modify without coordination)
+```typescript
+// src/middleware/auth.middleware.ts
+export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json(errorResponse('Authentication required'));
+
+  try {
+    const payload = jwtService.verify(token);
+    req.user = payload; // { userId, role }
+    next();
+  } catch {
+    return res.status(401).json(errorResponse('Invalid or expired token'));
+  }
+};
+```
+
+## Code Generation Rules
+See `00-global.mdc` and `01-backend-architecture.mdc` for the shared conventions (TypeScript strict, async/await, parameterized SQL, `AppError`, response envelope, `data-testid`). This role follows all of them without exception.
+
+## Quick Reference
+| Task | File |
+|------|------|
+| Neon Auth server app config | `src/services/authService.ts` |
+| Auth middleware | `src/middleware/auth.middleware.ts` |
+| Login page | `src/app/(auth)/login/page.tsx` |
+| Login button / auth context | `src/components/auth/LoginButton.tsx` |
+
+## Required Tests
+See `05-testing-conventions.mdc` → "Required unit tests per role" → `authentication-engineer`.

@@ -1,4 +1,5 @@
 # Architecture Requirements Document (ARD)
+
 ## 1BT Knowledge Management System (1BT-WIKI)
 
 **Version:** 1.0
@@ -56,7 +57,7 @@ This document defines the system architecture for 1BT-WIKI: how the frontend, ba
 - **Auth client layer (`lib/auth/`):**
   - `client.ts` — `createAuthClient()` from `@neondatabase/auth/next`, no arguments.
   - `server.ts` — `createNeonAuth()` for server components.
-- **API client layer (`lib/api/client.ts`):** the *only* sanctioned way to call the Express API. Provides `apiFetch()` and `getValidToken()`:
+- **API client layer (`lib/api/client.ts`):** the _only_ sanctioned way to call the Express API. Provides `apiFetch()` and `getValidToken()`:
   - In-memory JWT cache (never localStorage), expiry read from the token's own `exp` claim with a 60s safety buffer.
   - JWT-shape validation (3 dot-separated parts) with retry-with-backoff to defend against the Neon Auth SDK's 60-second session cache returning stale session-shaped data instead of a fresh JWT.
   - Single-retry-then-throw on HTTP 401.
@@ -83,14 +84,14 @@ This document defines the system architecture for 1BT-WIKI: how the frontend, ba
 
 ### 4.4 Third-Party Integrations
 
-| Integration | Purpose | Owner domain |
-|---|---|---|
+| Integration                         | Purpose                            | Owner domain  |
+| ----------------------------------- | ---------------------------------- | ------------- |
 | Neon Auth (Better Auth, Google SSO) | Authentication, JWT issuance, JWKS | Lahiru (Auth) |
-| Neon PostgreSQL | Primary data store | Shared |
-| Gemini API | AI quiz generation | Lahiru (Quiz) |
-| Vercel | Hosting for both apps | Shared |
-| GitHub Actions | CI/CD | Shared |
-| SonarQube | Code quality gate | Shared |
+| Neon PostgreSQL                     | Primary data store                 | Shared        |
+| Gemini API                          | AI quiz generation                 | Lahiru (Quiz) |
+| Vercel                              | Hosting for both apps              | Shared        |
+| GitHub Actions                      | CI/CD                              | Shared        |
+| SonarQube                           | Code quality gate                  | Shared        |
 
 ---
 
@@ -99,15 +100,18 @@ This document defines the system architecture for 1BT-WIKI: how the frontend, ba
 This is the most architecturally significant — and most debugged — part of the system. It has gone through a documented pivot and must not be re-derived from first principles by a future contributor without reading this section.
 
 ### 5.1 Chosen design
+
 Stateless JWT verification, verified **locally** in the API via JWKS — no per-request network call from Express to Neon Auth.
 
-1. **Frontend** calls `authClient.token()` (from `@neondatabase/auth/next`) to obtain a real, signed JWT (3-part, EdDSA-signed). This is *not* the same as the opaque session cookie token (`session.session.token`), which is not independently verifiable and must never be used as the Bearer token.
+1. **Frontend** calls `authClient.token()` (from `@neondatabase/auth/next`) to obtain a real, signed JWT (3-part, EdDSA-signed). This is _not_ the same as the opaque session cookie token (`session.session.token`), which is not independently verifiable and must never be used as the Bearer token.
 2. Frontend sends the JWT as `Authorization: Bearer <token>` via `apiFetch()`.
 3. **Backend** verifies the JWT signature locally using `jose`:
    ```ts
-   const JWKS = createRemoteJWKSet(new URL(`${NEON_AUTH_BASE_URL}/.well-known/jwks.json`));
+   const JWKS = createRemoteJWKSet(
+     new URL(`${NEON_AUTH_BASE_URL}/.well-known/jwks.json`)
+   );
    const { payload } = await jwtVerify(token, JWKS, {
-     issuer: new URL(NEON_AUTH_BASE_URL).origin,   // origin only, no path
+     issuer: new URL(NEON_AUTH_BASE_URL).origin, // origin only, no path
      audience: new URL(NEON_AUTH_BASE_URL).origin, // origin only, no path
    });
    ```
@@ -117,20 +121,24 @@ Stateless JWT verification, verified **locally** in the API via JWKS — no per-
 7. `req.user = { userId, email, role }` is attached for downstream Controllers/Services and for `rbac.middleware.ts`.
 
 ### 5.2 Why this design was chosen (architectural rationale)
+
 An earlier design attempted session **introspection** (Express calling Neon Auth's `get-session` endpoint per request). This was abandoned because the session token returned to the frontend is opaque and not a verifiable JWT — it cannot be validated without a live round-trip to the auth provider on every request, which is both a performance and an architectural liability for a separate backend service. Neon's documented pattern for exactly this topology (frontend + independent backend) is JWT + local JWKS verification, which is what is implemented now.
 
 ### 5.3 Critical, previously-broken details (do not regress)
-- **Issuer/audience must be origin-only.** `NEON_AUTH_BASE_URL` includes a project path (`/neondb/auth`); a real token's `iss` claim does not. The JWKS *fetch URL* uses the full base URL + path; the *issuer/audience check* uses `new URL(NEON_AUTH_BASE_URL).origin` only. These are two different derived values from the same env var.
+
+- **Issuer/audience must be origin-only.** `NEON_AUTH_BASE_URL` includes a project path (`/neondb/auth`); a real token's `iss` claim does not. The JWKS _fetch URL_ uses the full base URL + path; the _issuer/audience check_ uses `new URL(NEON_AUTH_BASE_URL).origin` only. These are two different derived values from the same env var.
 - **`authClient.getJWTToken()` does not exist** on `@neondatabase/auth/next` and silently 404s via an auto-generated broken route. The correct method is `authClient.token()`.
 - **60-second SDK session cache**: calling `.token()` shortly after any `.getSession()` call elsewhere in the app can return stale session-shaped data. Mitigated by (a) JWT-shape validation + retry-with-backoff in `getValidToken()`, and (b) eliminating direct `.getSession()` calls from feature components in favor of the shared `useUser()` hook.
 - **Role capitalization must be centralized** (`capitalizeRole()` in `userTypes.ts`), used identically in `auth.middleware.ts` and any service that returns role in a response body, to prevent the two call sites drifting out of sync (this happened once — see TRD test/bug history).
 
 ### 5.4 Role-Based Access Control
+
 - Three roles: `User`, `Reviewer`, `Admin` (title-cased in all outward-facing contexts).
 - Enforced via `requireRole(...roles)` middleware composed onto routes, e.g. `router.post('/tech-talks', authenticate, requireRole('Admin'), ...)`.
 - RBAC middleware itself has been stable and unmodified throughout the auth migration.
 
 ### 5.5 Governance note
+
 The JWT+JWKS pivot is new design work in the Auth domain (owned by Lahiru), not merely a bugfix, even though it is confirmed working end-to-end via live browser smoke testing. It must be walked through with Lahiru and formally accepted before being considered fully merged, once he returns from leave.
 
 ---
@@ -146,6 +154,7 @@ Reviewer (web) --PATCH /api/v1/articles/:id/approve------> API --update status P
                                                               --create notification------> DB
 All users (web) --GET /api/v1/articles?status=PUBLISHED--> API --query DB----------------> DB
 ```
+
 Status transitions are enforced in the Service layer only (never in the Controller or Repository), per the layered architecture rule.
 
 ---
@@ -181,11 +190,11 @@ Status transitions are enforced in the Service layer only (never in the Controll
 
 ## 10. Domain Ownership Boundaries (Architectural Governance)
 
-| Domain | Owner | Includes |
-|---|---|---|
-| Articles, Admin Dashboard, Homepage shell, global layout | Malindu | Article CRUD, review UI consumption, layout shell, shared components |
-| Auth, Comments/Likes, Quiz generation | Lahiru | Neon Auth/RBAC design, Gemini integration |
-| User account backend, Review workflow backend, Notifications, Tech Talks | Chathurika | Admin user ops, approve/reject backend, notification dispatch |
+| Domain                                                                   | Owner      | Includes                                                             |
+| ------------------------------------------------------------------------ | ---------- | -------------------------------------------------------------------- |
+| Articles, Admin Dashboard, Homepage shell, global layout                 | Malindu    | Article CRUD, review UI consumption, layout shell, shared components |
+| Auth, Comments/Likes, Quiz generation                                    | Lahiru     | Neon Auth/RBAC design, Gemini integration                            |
+| User account backend, Review workflow backend, Notifications, Tech Talks | Chathurika | Admin user ops, approve/reject backend, notification dispatch        |
 
 Cross-domain changes (e.g. shared infra files like `app.ts`) require explicit callout in the PR description and are never self-merged. Current exception: Malindu has approval to implement Lahiru's A-01→A-05 (Auth) and Chathurika's UP-01/UP-02 (profile endpoints) tasks.
 

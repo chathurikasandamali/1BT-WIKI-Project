@@ -1,0 +1,109 @@
+---
+description: Role rules for analytics-dashboard-engineer — Admin dashboard aggregation stats and homepage feed
+globs: ["**/admin/dashboard/**", "**/homepage/**", "src/app/page.tsx"]
+alwaysApply: false
+---
+
+# Role: analytics-dashboard-engineer
+
+> **Owns:** Admin Dashboard home (summary widgets: users, published articles, pending reviews, tech talks) and the Homepage thread (chronological feed combining articles + tech talks). Also owns the global layout shell placement decisions for these surfaces.
+> Do not create or modify files outside the Owned Paths below without a PR reviewed by someone currently holding this role.
+
+## Role Charter
+This role is about **aggregation and read-side composition** — pulling data other roles own (users, articles, tech talks) into dashboard stats and a combined feed, without re-implementing their business logic. You call into `content-authoring-engineer`'s article repository and `content-publishing-engineer`'s tech talk repository rather than duplicating their queries.
+
+## Owned Paths
+```
+src/controllers/adminDashboardController.ts
+src/services/adminDashboardService.ts
+src/repositories/adminDashboardRepository.ts
+src/routes/adminRoutes.ts             (dashboard stats only)
+src/services/homepageService.ts
+src/app/(dashboard)/admin/page.tsx
+src/app/page.tsx                      (homepage thread)
+src/components/admin/DashboardWidget.tsx
+src/components/homepage/FeedItem.tsx
+```
+
+## Project Context
+- Stack: Next.js + TypeScript (FE), Express + TypeScript (BE), Neon PostgreSQL
+- Auth: import `authenticate` and `requireRole` from `authentication-engineer` / `authorization-engineer` — never rewrite them
+- API prefix: `/api/v1/`
+
+## Strict Rules
+1. Admin Dashboard stats come from a **single batched call** — use `prisma.$transaction([...])` to run the count queries together (one round trip), not sequential awaited calls. If a true single-SQL-statement aggregation is ever needed, use `prisma.$queryRaw` with a tagged template — never `$queryRawUnsafe`.
+2. Homepage feed must combine **articles AND tech talks** — call `content-authoring-engineer`'s and `content-publishing-engineer`'s repositories rather than re-implementing their queries.
+3. Never touch article CRUD, tech talk CRUD, or user account logic — you consume their read APIs/repositories, you don't own their write paths.
+
+```typescript
+// src/services/adminDashboardService.ts
+async getSummary(): Promise<DashboardSummary> {
+  return adminDashboardRepository.getAggregatedStats();
+}
+```
+
+```typescript
+// src/repositories/adminDashboardRepository.ts
+async getAggregatedStats(): Promise<DashboardSummary> {
+  const [totalUsers, publishedArticles, pendingReviews, techTalks] = await prisma.$transaction([
+    prisma.user.count({ where: { isActive: true } }), // via Neon Auth-backed user model
+    prisma.article.count({ where: { status: 'Published', deletedAt: null } }),
+    prisma.article.count({ where: { status: 'Pending', deletedAt: null } }),
+    prisma.techTalk.count({ where: { status: 'published', deletedAt: null } }),
+  ]);
+
+  return { totalUsers, publishedArticles, pendingReviews, techTalks };
+}
+```
+
+```typescript
+interface DashboardSummary {
+  totalUsers: number;
+  publishedArticles: number;
+  pendingReviews: number;   // highlight if > 0 with a badge
+  techTalks: number;
+}
+```
+
+```typescript
+// src/services/homepageService.ts
+async getThread(page = 1, limit = 20): Promise<FeedItem[]> {
+  const articles = await articleRepository.findPublished({ limit, page });
+  const techTalks = await techTalkRepository.findPublished({ limit, page });
+
+  return [...articles.items, ...techTalks.items]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, limit);
+}
+```
+
+```tsx
+// src/components/homepage/FeedItem.tsx
+// Renders either an article card or a tech talk card based on `type` field
+interface FeedItem {
+  type: 'article' | 'tech-talk';
+  id: string;
+  title: string;
+  tags: string[];
+  createdAt: Date;
+  viewCount?: number;
+  likeCount?: number;
+  commentCount?: number;
+  eventDate?: Date;
+  presenters?: string[];
+}
+```
+
+## Code Generation Rules
+See `00-global.mdc` and `01-backend-architecture.mdc` for shared conventions.
+
+## Quick Reference
+| Task | File |
+|------|------|
+| Admin dashboard stats | `src/services/adminDashboardService.ts` |
+| Homepage feed | `src/services/homepageService.ts` |
+| Homepage | `src/app/page.tsx` |
+| Admin dashboard | `src/app/(dashboard)/admin/page.tsx` |
+
+## Required Tests
+See `05-testing-conventions.mdc` → "Required unit tests per role" → `analytics-dashboard-engineer`.

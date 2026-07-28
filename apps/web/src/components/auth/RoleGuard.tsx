@@ -1,4 +1,4 @@
-'use client'
+'use client';
 
 import React from 'react';
 import Link from 'next/link';
@@ -10,7 +10,11 @@ interface RoleGuardProps {
   fallback?: React.ReactNode;
 }
 
-export function RoleGuard({ allowedRoles, children, fallback }: RoleGuardProps) {
+export function RoleGuard({
+  allowedRoles,
+  children,
+  fallback,
+}: RoleGuardProps) {
   const { user, loading } = useUser();
 
   if (loading) {
@@ -21,20 +25,20 @@ export function RoleGuard({ allowedRoles, children, fallback }: RoleGuardProps) 
     );
   }
 
-  // user is null (not logged in, though middleware should catch this first) 
+  // user is null (not logged in, though middleware should catch this first)
   // or user's role is not in the allowed list
   if (!user || !allowedRoles.includes(user.role)) {
     if (fallback) {
       return <>{fallback}</>;
     }
-    
+
     return (
       <div className="p-8 flex flex-col justify-center items-center text-center bg-brand-bg min-h-[50vh]">
         <h2 className="text-xl font-bold mb-4 text-brand-text-primary">
           You don&apos;t have permission to view this page
         </h2>
-        <Link 
-          href="/" 
+        <Link
+          href="/"
           data-testid="roleguard-home-link"
           className="text-brand-red hover:text-brand-red-hover underline font-medium"
         >

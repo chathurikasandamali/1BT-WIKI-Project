@@ -1,0 +1,53 @@
+---
+description: Cross-cutting security audit checklist — applies across all feature roles
+alwaysApply: true
+---
+
+# Role: app-security-auditor
+
+> **Owns:** Nothing exclusively — this is a cross-cutting lens every role applies to their own code, and the checklist used in PR review regardless of which feature role opened the PR.
+> Unlike the feature roles, this file has no owned paths; it applies everywhere.
+
+## Role Charter
+Security is not one person/role's job in 1BT WIKI — every role is responsible for their own surface. This file is the shared checklist. If you're touching authentication, authorization, SQL, file uploads, or anything crossing a trust boundary, re-read this before opening a PR.
+
+## Checklist — run this against every PR
+
+### Injection
+- [ ] All database access goes through Prisma Client's query builder — zero hand-built SQL for normal CRUD (see `04-database-conventions.mdc`)
+- [ ] Any `prisma.$queryRaw` usage is a **tagged template literal** only — never `$queryRawUnsafe`, never string concatenation/interpolation into a raw query
+- [ ] User-supplied search/filter values passed to Prisma's `where` clauses (e.g. `contains` for ILIKE-style search) are passed as values, never interpolated into a raw string
+
+### AuthN / AuthZ
+- [ ] Every new route explicitly declares whether it needs `authenticate` (`authentication-engineer`'s middleware) and `requireRole(...)` (`authorization-engineer`'s middleware) — routes are never "accidentally public"
+- [ ] Ownership checks (`resource.authorId === req.user.userId`) are present on every mutation of user-owned data (articles, comments, profile)
+- [ ] No role or permission check ever happens only on the frontend — every privileged action is re-checked server-side
+- [ ] IDOR check: can user A access/modify user B's resource by guessing an ID? (articles, comments, notifications, quiz attempts)
+
+### Secrets & Config
+- [ ] No hardcoded secrets, API keys, or connection strings — `process.env.*` only (see `00-global.mdc`)
+- [ ] New env vars are added to `src/config/env.ts` with Zod validation
+- [ ] Secrets never logged, even in error paths
+
+### Input Validation
+- [ ] Request bodies validated with Zod/`express-validator` before reaching the controller (see `02-api-conventions.mdc`)
+- [ ] File/URL inputs (slides_url, youtube_iframe_url, avatar_url) are validated and, where rendered, safe from injection (no `javascript:` URLs, etc.)
+- [ ] Rich text (TipTap `JSONContent`) is never rendered as raw, unsanitized HTML on the frontend
+
+### Data Exposure
+- [ ] API responses never leak fields like password hashes, internal IDs not meant for the client, or other users' private data
+- [ ] Soft-deleted rows (`deleted_at IS NOT NULL`) are excluded from all non-admin queries
+- [ ] Error messages sent to the client never leak stack traces or internal implementation details (see `errorHandler` in `01-backend-architecture.mdc`)
+
+### Session / Token
+- [ ] No custom JWT signing outside `authentication-engineer`'s `AuthService` (Neon Auth owns this)
+- [ ] Sign-out actually invalidates the session (denylist), not just a client-side token discard
+- [ ] Deactivated accounts are rejected at the earliest possible checkpoint (login), not just hidden in the UI
+
+### Rate/Abuse
+- [ ] Idempotent actions (likes) can't be abused to create duplicate side effects
+- [ ] Endpoints that trigger external API calls (AI quiz generation) are not callable in an unbounded loop by a single user without cost/rate consideration — flag if no such guard exists yet
+
+## How to use this file
+- If you're a feature role opening a PR that touches auth, SQL, file/URL input, or cross-user data access, walk this checklist before requesting review.
+- If you find a gap this checklist doesn't cover, add it here rather than silently patching just your own role's file — this is the one place all roles read.

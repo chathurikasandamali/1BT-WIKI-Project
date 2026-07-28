@@ -8,7 +8,7 @@
     "dev": "tsx watch src/index.ts",
     "dev:nodemon": "nodemon --watch src --ext ts,js,json --exec \"tsx src/index.ts\"",
     "build": "tsc -p tsconfig.json",
-    "start": "node src/index.js",
+    "start": "node dist/index.js",
     "lint": "tsc --noEmit",
     "test": "cross-env NODE_ENV=test node --experimental-vm-modules node_modules/jest/bin/jest.js --forceExit",
     "test:watch": "cross-env NODE_ENV=test node --experimental-vm-modules node_modules/jest/bin/jest.js --watch --forceExit"
@@ -20,6 +20,16 @@
       ".ts"
     ],
     "moduleNameMapper": {
+      "^@v1/(.*)\\.js$": "<rootDir>/src/v1/$1",
+      "^@errors/(.*)\\.js$": "<rootDir>/src/errors/$1",
+      "^@repositories/(.*)\\.js$": "<rootDir>/src/v1/repositories/$1",
+      "^@controllers/(.*)\\.js$": "<rootDir>/src/v1/controllers/$1",
+      "^@routes/(.*)\\.js$": "<rootDir>/src/v1/routes/$1",
+      "^@services/(.*)\\.js$": "<rootDir>/src/v1/services/$1",
+      "^@models/(.*)\\.js$": "<rootDir>/src/v1/types/$1",
+      "^@middleware/(.*)\\.js$": "<rootDir>/src/middleware/$1",
+      "^@utils/(.*)\\.js$": "<rootDir>/src/v1/utils/$1",
+      "^@/(.*)\\.js$": "<rootDir>/src/$1",
       "^(\\.{1,2}/.*)\\.js$": "$1"
     },
     "transform": {
@@ -43,17 +53,22 @@
   "keywords": [],
   "dependencies": {
     "@neondatabase/auth": "0.4.2-beta",
+    "@repo/db": "workspace:*",
+    "backblaze-b2": "^1.7.1",
     "cors": "^2.8.5",
-    "dotenv": "^16.0.3",
+    "dotenv": "^16.6.1",
     "express": "^4.18.2",
     "jose": "^6.2.3",
-    "pg": "^8.22.0"
+    "multer": "^2.2.0",
+    "pg": "^8.22.0",
+    "pusher": "^5.3.4"
   },
   "devDependencies": {
     "@jest/globals": "^30.4.1",
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.15",
     "@types/jest": "^30.0.0",
+    "@types/multer": "^2.2.0",
     "@types/node": "^18.17.0",
     "@types/pg": "^8.20.0",
     "@types/supertest": "^7.2.0",
