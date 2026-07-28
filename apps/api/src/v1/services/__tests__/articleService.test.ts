@@ -61,6 +61,12 @@ jest.unstable_mockModule('@v1/lib/b2Client.js', () => ({
   },
 }));
 
+jest.unstable_mockModule('@repositories/userRepository.js', () => ({
+  default: {
+    findManyByIds: jest.fn(),
+  },
+}));
+
 const { ArticleService } = await import('../articleService.js');
 const { default: ArticleAttachmentRepository } =
   await import('@repositories/articleAttachmentRepository.js');
@@ -90,6 +96,10 @@ const makeRepo = (): jest.Mocked<
   findByAuthor: jest.fn(),
   softDelete: jest.fn(),
   hardDelete: jest.fn(),
+});
+
+const makeUserRepo = () => ({
+  findManyByIds: jest.fn<() => Promise<unknown[]>>(),
 });
 
 describe('ArticleService.createArticle', () => {
@@ -300,6 +310,143 @@ describe('ArticleService.createArticle', () => {
         warnings: ['Failed to upload fail.png: Upload failed'],
       });
     });
+  });
+});
+
+describe('ArticleService.listAllArticles', () => {
+  let mockRepo: ReturnType<typeof makeRepo>;
+  let mockUserRepo: ReturnType<typeof makeUserRepo>;
+  let service: InstanceType<typeof ArticleService>;
+
+  beforeEach(() => {
+    mockRepo = makeRepo();
+    mockUserRepo = makeUserRepo();
+    service = new ArticleService(
+      mockRepo as unknown as ArticleRepository,
+      ArticleReviewRepository as any,
+      ArticleAttachmentRepository as any,
+      mockUserRepo as any
+    );
+    jest.clearAllMocks();
+  });
+
+  it('should call findByStatus with undefined status when no status filter is given', async () => {
+    mockRepo.findByStatus.mockResolvedValue({ articles: [], total: 0 } as never);
+    mockUserRepo.findManyByIds.mockResolvedValue([]);
+
+    const result = await service.listAllArticles(1, 20);
+
+    expect(mockRepo.findByStatus).toHaveBeenCalledWith(
+      undefined,
+      1,
+      20,
+      { includeCounts: true, search: undefined, sort: undefined, order: undefined }
+    );
+    expect(result).toEqual({ articles: [], total: 0, page: 1, limit: 20 });
+  });
+
+  it('should pass the status filter through to findByStatus when a valid status is provided', async () => {
+    mockRepo.findByStatus.mockResolvedValue({ articles: [], total: 0 } as never);
+    mockUserRepo.findManyByIds.mockResolvedValue([]);
+
+    await service.listAllArticles(1, 20, 'Draft');
+
+    expect(mockRepo.findByStatus).toHaveBeenCalledWith(
+      'Draft',
+      1,
+      20,
+      { includeCounts: true, search: undefined, sort: undefined, order: undefined }
+    );
+  });
+
+  it('should throw 400 for an invalid status filter', async () => {
+    await expect(
+      service.listAllArticles(1, 20, 'bogus')
+    ).rejects.toThrow(new AppError('Invalid status filter. Allowed: Draft, Pending, Published, Unpublished', 400));
+
+    expect(mockRepo.findByStatus).not.toHaveBeenCalled();
+  });
+
+  it('should throw 400 for an invalid sort field', async () => {
+    await expect(
+      service.listAllArticles(1, 20, undefined, undefined, 'hackedField')
+    ).rejects.toThrow(new AppError('Invalid sort field. Allowed: title, createdAt, views', 400));
+
+    expect(mockRepo.findByStatus).not.toHaveBeenCalled();
+  });
+
+  it('should throw 400 for an invalid order value', async () => {
+    await expect(
+      service.listAllArticles(1, 20, undefined, undefined, 'createdAt', 'sideways')
+    ).rejects.toThrow(new AppError('Invalid sort order. Allowed: asc, desc', 400));
+
+    expect(mockRepo.findByStatus).not.toHaveBeenCalled();
+  });
+
+  it('should enrich articles with authorName and authorEmail via batched findManyByIds', async () => {
+    const mockArticles = [
+      {
+        id: 'article-1',
+        title: 'Draft Article',
+        status: 'Draft',
+        authorId: 'user-1',
+        tags: [],
+        createdAt: new Date('2024-01-01'),
+        updatedAt: new Date('2024-01-01'),
+      },
+      {
+        id: 'article-2',
+        title: 'Published Article',
+        status: 'Published',
+        authorId: 'user-2',
+        tags: [],
+        createdAt: new Date('2024-01-02'),
+        updatedAt: new Date('2024-01-02'),
+      },
+    ];
+    const mockAuthors = [
+      { id: 'user-1', name: 'Alice', email: 'alice@example.com' },
+      { id: 'user-2', name: 'Bob', email: 'bob@example.com' },
+    ];
+
+    mockRepo.findByStatus.mockResolvedValue({ articles: mockArticles, total: 2 } as never);
+    mockUserRepo.findManyByIds.mockResolvedValue(mockAuthors as never);
+
+    const result = await service.listAllArticles(1, 20);
+
+    expect(mockUserRepo.findManyByIds).toHaveBeenCalledWith(['user-1', 'user-2']);
+    expect(result.articles[0]).toMatchObject({ id: 'article-1', authorName: 'Alice', authorEmail: 'alice@example.com' });
+    expect(result.articles[1]).toMatchObject({ id: 'article-2', authorName: 'Bob', authorEmail: 'bob@example.com' });
+    expect(result.total).toBe(2);
+    expect(result.page).toBe(1);
+    expect(result.limit).toBe(20);
+  });
+
+  it('should fall back to Unknown and null when an author is not found in the batch result', async () => {
+    const mockArticles = [
+      { id: 'article-1', title: 'Orphaned Article', status: 'Draft', authorId: 'user-missing', tags: [] },
+    ];
+
+    mockRepo.findByStatus.mockResolvedValue({ articles: mockArticles, total: 1 } as never);
+    mockUserRepo.findManyByIds.mockResolvedValue([]);
+
+    const result = await service.listAllArticles(1, 20);
+
+    expect(result.articles[0]).toMatchObject({
+      id: 'article-1',
+      authorName: 'Unknown',
+      authorEmail: null,
+    });
+  });
+
+  it('should accept all valid status filter values without throwing', async () => {
+    mockRepo.findByStatus.mockResolvedValue({ articles: [], total: 0 } as never);
+    mockUserRepo.findManyByIds.mockResolvedValue([]);
+
+    await expect(service.listAllArticles(1, 20, 'Draft')).resolves.not.toThrow();
+    await expect(service.listAllArticles(1, 20, 'Pending')).resolves.not.toThrow();
+    await expect(service.listAllArticles(1, 20, 'Published')).resolves.not.toThrow();
+    await expect(service.listAllArticles(1, 20, 'Unpublished')).resolves.not.toThrow();
   });
 });
 

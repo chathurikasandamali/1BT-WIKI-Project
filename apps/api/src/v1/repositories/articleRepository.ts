@@ -102,8 +102,16 @@ export class ArticleRepository {
     await prisma.article.delete({ where: { id } });
   }
 
+  /**
+   * Fetch articles by status, with optional search/sort/order/count options.
+   *
+   * Cross-role note (RV-06): `status` is now optional. When omitted, the status
+   * predicate is excluded from the WHERE clause so Prisma returns all statuses.
+   * All pre-existing callers still pass an explicit status — this is additive only.
+   * Flag for content-authoring-engineer review.
+   */
   async findByStatus(
-    status: ArticleStatus,
+    status: ArticleStatus | undefined,
     page: number,
     limit: number,
     options?: {
@@ -114,7 +122,7 @@ export class ArticleRepository {
     }
   ): Promise<{ articles: Article[]; total: number }> {
     const where = {
-      status,
+      ...(status !== undefined && { status }),
       deletedAt: null,
       ...buildSearchFilter('title', options?.search),
     };

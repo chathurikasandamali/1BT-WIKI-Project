@@ -116,6 +116,36 @@ export class ArticleController {
     }
   };
 
+  listAllArticles = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const page = Number(req.query.page) || 1;
+      const limit = Number(req.query.limit) || 20;
+      const status = req.query.status as string | undefined;
+      const search = req.query.search as string | undefined;
+      const sort = req.query.sort as string | undefined;
+      const order = req.query.order as string | undefined;
+
+      const result = await this.service.listAllArticles(
+        page,
+        limit,
+        status,
+        search,
+        sort,
+        order
+      );
+
+      res
+        .status(200)
+        .json(successResponse(result, 'Articles retrieved successfully'));
+    } catch (error) {
+      next(error);
+    }
+  };
+
   getById = async (
     req: Request,
     res: Response,

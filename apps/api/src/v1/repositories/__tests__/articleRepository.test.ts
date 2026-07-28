@@ -127,6 +127,24 @@ describe('ArticleRepository.findByStatus', () => {
     const [findManyArgs] = mockFindMany.mock.calls[0] as [any];
     expect(findManyArgs.orderBy).toEqual({ createdAt: 'asc' });
   });
+
+  it('should omit the status key from the where clause entirely when status is undefined (returns all statuses)', async () => {
+    mockFindMany.mockResolvedValue([]);
+    mockCount.mockResolvedValue(0);
+
+    await ArticleRepository.findByStatus(undefined, 1, 20);
+
+    expect(mockFindMany).toHaveBeenCalledTimes(1);
+    const [findManyArgs] = mockFindMany.mock.calls[0] as [any];
+
+    // The status key must be absent — not present as undefined — so Prisma returns all statuses.
+    expect(findManyArgs.where).not.toHaveProperty('status');
+    expect(findManyArgs.where).toEqual({ deletedAt: null });
+
+    const [countArgs] = mockCount.mock.calls[0] as [any];
+    expect(countArgs.where).not.toHaveProperty('status');
+    expect(countArgs.where).toEqual({ deletedAt: null });
+  });
 });
 
 describe('ArticleRepository.findByAuthor', () => {

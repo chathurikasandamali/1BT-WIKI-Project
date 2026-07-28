@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { ArticleRepository } from '@repositories/articleRepository.js';
 import { ArticleAttachmentRepository } from '@repositories/articleAttachmentRepository.js';
 import { ArticleReviewRepository } from '@repositories/articleReviewRepository.js';
+import UserRepository from '@repositories/userRepository.js';
 import b2Client from '@v1/lib/b2Client.js';
 import { AppError } from '@errors/AppError.js';
 import type { UserRole } from '@/types/userTypes.js';
@@ -105,11 +106,14 @@ const assertTransition = (
   );
 };
 
+const ALLOWED_STATUS_FILTERS = ['Draft', 'Pending', 'Published', 'Unpublished'] as const;
+
 export class ArticleService {
   constructor(
     private repository: ArticleRepository = new ArticleRepository(),
     private reviewRepository: ArticleReviewRepository = new ArticleReviewRepository(),
-    private attachmentRepository: ArticleAttachmentRepository = new ArticleAttachmentRepository()
+    private attachmentRepository: ArticleAttachmentRepository = new ArticleAttachmentRepository(),
+    private userRepository: typeof UserRepository = UserRepository
   ) {}
 
   private async uploadArticleImages(
@@ -307,6 +311,42 @@ export class ArticleService {
     }));
 
     return { articles: mappedArticles, total, page, limit };
+  }
+
+  async listAllArticles(
+    page: number = 1,
+    limit: number = 20,
+    status?: string,
+    search?: string,
+    sort?: string,
+    order?: string
+  ): Promise<{ articles: (Article & { authorName: string; authorEmail: string | null })[]; total: number; page: number; limit: number }> {
+    if (status !== undefined && !ALLOWED_STATUS_FILTERS.includes(status as ArticleStatus)) {
+      throw new AppError(`Invalid status filter. Allowed: ${ALLOWED_STATUS_FILTERS.join(', ')}`, 400);
+    }
+    assertValidSort(ARTICLE_SORT_FIELDS, sort);
+    if (order !== undefined && order !== 'asc' && order !== 'desc') {
+      throw new AppError('Invalid sort order. Allowed: asc, desc', 400);
+    }
+
+    const { articles, total } = await this.repository.findByStatus(
+      status as ArticleStatus | undefined,
+      page,
+      limit,
+      { includeCounts: true, search, sort, order }
+    );
+
+    const authorIds = articles.map((a) => a.authorId);
+    const authors = await this.userRepository.findManyByIds(authorIds);
+    const authorMap = new Map(authors.map((u) => [u.id, u]));
+
+    const enrichedArticles = articles.map((article) => ({
+      ...article,
+      authorName: authorMap.get(article.authorId)?.name ?? 'Unknown',
+      authorEmail: authorMap.get(article.authorId)?.email ?? null,
+    }));
+
+    return { articles: enrichedArticles, total, page, limit };
   }
 
   async deleteArticle(

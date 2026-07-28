@@ -118,6 +118,12 @@ const reviewerHeaders = {
   'x-test-user-role': 'Reviewer',
 };
 
+const adminHeaders = {
+  'x-test-user-id': 'admin-1',
+  'x-test-user-email': 'admin@example.com',
+  'x-test-user-role': 'Admin',
+};
+
 const userHeaders = {
   'x-test-user-id': 'user-123',
   'x-test-user-email': 'user@example.com',

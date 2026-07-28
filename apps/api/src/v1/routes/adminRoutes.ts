@@ -11,13 +11,20 @@
 import { Router } from 'express';
 import UserController from '@controllers/userController.js';
 import AdminController from '@controllers/adminController.js';
+import ArticleController from '@controllers/articleController.js';
 import { authenticate } from '@/middleware/auth.middleware.js';
 import { requireRole } from '@/middleware/rbac.middleware.js';
 
 const router = Router();
+const articleController = new ArticleController();
+const { listAllArticles } = articleController;
 
 // GET /api/v1/admin/getAllUsers — list all users (any authenticated user)
 router.get('/getAllUsers', authenticate, AdminController.getAllUsers);
+
+// Owned by content-authoring-engineer — routed here because it's an admin
+// content-oversight view, not a dashboard stat. Flagged for cross-role review.
+router.get('/articles', authenticate, requireRole('Admin'), listAllArticles);
 
 // POST /api/v1/admin/users — Admin: onboard a new user
 router.post(

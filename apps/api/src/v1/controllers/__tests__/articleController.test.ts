@@ -21,6 +21,7 @@ const makeMockService = (): jest.Mocked<
     | 'updateArticle'
     | 'submitForReview'
     | 'listPublished'
+    | 'listAllArticles'
     | 'listMine'
     | 'getArticleById'
     | 'deleteArticle'
@@ -30,6 +31,7 @@ const makeMockService = (): jest.Mocked<
   updateArticle: jest.fn(),
   submitForReview: jest.fn(),
   listPublished: jest.fn(),
+  listAllArticles: jest.fn(),
   listMine: jest.fn(),
   getArticleById: jest.fn(),
   deleteArticle: jest.fn(),
@@ -477,5 +479,59 @@ describe('ArticleController.listMine', () => {
     await controller.listMine(req as Request, res as Response, next);
 
     expect(next).toHaveBeenCalledWith(error);
+  });
+});
+
+describe('ArticleController.listAllArticles', () => {
+  let req: Partial<Request>;
+  let res: Partial<Response>;
+  let next: jest.Mock<any>;
+  let mockService: ReturnType<typeof makeMockService>;
+  let controller: InstanceType<typeof ArticleController>;
+
+  beforeEach(() => {
+    ({ req, res, next } = makeMockReqResNext());
+    mockService = makeMockService();
+    controller = new ArticleController(mockService as unknown as ArticleService);
+    jest.clearAllMocks();
+  });
+
+  it('should call listAllArticles with default pagination and undefined filters', async () => {
+    const mockResult = { articles: [], total: 0, page: 1, limit: 20 };
+    mockService.listAllArticles.mockResolvedValue(mockResult as never);
+
+    await controller.listAllArticles(req as Request, res as Response, next);
+
+    expect(mockService.listAllArticles).toHaveBeenCalledWith(1, 20, undefined, undefined, undefined, undefined);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('should parse custom page and limit query params', async () => {
+    req.query = { page: '2', limit: '10' };
+    mockService.listAllArticles.mockResolvedValue({ articles: [], total: 0, page: 2, limit: 10 } as never);
+
+    await controller.listAllArticles(req as Request, res as Response, next);
+
+    expect(mockService.listAllArticles).toHaveBeenCalledWith(2, 10, undefined, undefined, undefined, undefined);
+  });
+
+  it('should forward all query params — status, search, sort, order — to the service', async () => {
+    req.query = { page: '1', limit: '5', status: 'Draft', search: 'react', sort: 'views', order: 'asc' };
+    mockService.listAllArticles.mockResolvedValue({ articles: [], total: 0, page: 1, limit: 5 } as never);
+
+    await controller.listAllArticles(req as Request, res as Response, next);
+
+    expect(mockService.listAllArticles).toHaveBeenCalledWith(1, 5, 'Draft', 'react', 'views', 'asc');
+  });
+
+  it('should pass errors to next', async () => {
+    const error = new AppError('Invalid status filter. Allowed: Draft, Pending, Published, Unpublished', 400);
+    mockService.listAllArticles.mockRejectedValue(error as never);
+
+    await controller.listAllArticles(req as Request, res as Response, next);
+
+    expect(next).toHaveBeenCalledWith(error);
+    expect(res.status).not.toHaveBeenCalled();
   });
 });
