@@ -7,13 +7,15 @@ import { fileURLToPath } from 'url';
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname  = path.dirname(__filename);
+const __dirname = path.dirname(__filename);
 
 const file = process.argv[2];
 
 if (!file) {
   console.error('❌ Please specify a migration file.');
-  console.error('   Usage: npm run migrate:file migrations/001_create_users.sql');
+  console.error(
+    '   Usage: npm run migrate:file migrations/001_create_users.sql'
+  );
   process.exit(1);
 }
 

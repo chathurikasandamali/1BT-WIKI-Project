@@ -1,0 +1,99 @@
+---
+description: Role rules for engagement-engineer — Comments and Likes on published articles
+globs: ["**/comments/**", "**/likes/**"]
+alwaysApply: false
+---
+
+# Role: engagement-engineer
+
+> **Owns:** Comments (CRUD on published articles, owner-only edit/delete) and Likes (idempotent toggle, count aggregation).
+> Do not create or modify files outside the Owned Paths below without a PR reviewed by someone currently holding this role.
+
+## Role Charter
+You own the two lightweight social-interaction features on articles. Both are small, well-bounded pieces — the discipline here is strict ownership checks and idempotency, not complexity.
+
+## Owned Paths
+```
+src/controllers/commentController.ts
+src/controllers/likeController.ts
+src/services/commentService.ts
+src/services/likeService.ts
+src/repositories/commentRepository.ts
+src/repositories/likeRepository.ts
+src/routes/commentsRoutes.ts   (sub-router mounted under articles)
+src/routes/likesRoutes.ts      (sub-router mounted under articles)
+src/components/articles/CommentSection.tsx
+src/components/articles/LikeButton.tsx
+src/hooks/useComments.ts
+src/hooks/useLikes.ts
+src/lib/api/comments.api.ts
+```
+
+## Project Context
+- Stack: Next.js + TypeScript (FE), Express + TypeScript (BE), Neon PostgreSQL
+- Auth: import `authenticate` from `authentication-engineer`'s middleware — never rewrite it
+- API prefix: `/api/v1/`
+
+## Strict Rules
+1. Comments can only be posted on **Published** articles.
+2. Users can only edit or delete **their own** comments; Admin can delete any comment.
+3. Comment order: chronological (oldest first); no nesting/threading in MVP.
+4. Likes are **idempotent** — liking an already-liked article does nothing (no error). Use Prisma's `upsert` (or `create` wrapped to swallow the unique-constraint error) — never a manual "check then insert" (race condition).
+5. One like per user per article, enforced by the `@@unique([articleId, userId])` constraint in `prisma/schema.prisma` (see `04-database-conventions.mdc`).
+6. Like count is aggregated in article queries, not a separate endpoint.
+7. To trigger a `new_comment` notification, call `notificationService.send()` from within `CommentService.addComment()` — do not implement notification storage yourself; that's `notification-engineer`'s.
+8. Never cross into article CRUD/ownership (`content-authoring-engineer`), review workflow (`content-moderation-engineer`), or quiz (`ai-integration-engineer`).
+
+```typescript
+// src/services/commentService.ts
+async addComment(articleId: string, authorId: string, body: string): Promise<Comment> {
+  const article = await articleRepository.findById(articleId);
+  if (!article || article.status !== 'Published') {
+    throw new AppError('Cannot comment on this article', 403);
+  }
+  return commentRepository.create({ articleId, authorId, body });
+}
+
+async editComment(commentId: string, userId: string, body: string): Promise<Comment> {
+  const comment = await commentRepository.findById(commentId);
+  if (!comment) throw new AppError('Comment not found', 404);
+  if (comment.authorId !== userId) throw new AppError('Not authorized', 403);
+  return commentRepository.update(commentId, { body });
+}
+```
+
+```typescript
+// src/services/likeService.ts
+async likeArticle(articleId: string, userId: string): Promise<void> {
+  await likeRepository.upsert({ articleId, userId });
+}
+
+async unlikeArticle(articleId: string, userId: string): Promise<void> {
+  await likeRepository.remove({ articleId, userId });
+}
+```
+
+```typescript
+// src/repositories/likeRepository.ts
+async upsert({ articleId, userId }: { articleId: string; userId: string }): Promise<void> {
+  await prisma.like.upsert({
+    where: { uq_article_likes: { articleId, userId } }, // named unique constraint from schema.prisma
+    create: { articleId, userId },
+    update: {}, // no-op — idempotent
+  });
+}
+```
+
+## Code Generation Rules
+See `00-global.mdc` and `01-backend-architecture.mdc` for shared conventions.
+
+## Quick Reference
+| Task | File |
+|------|------|
+| Comment CRUD | `src/services/commentService.ts` |
+| Like toggle | `src/services/likeService.ts` |
+| Comment component | `src/components/articles/CommentSection.tsx` |
+| Like button | `src/components/articles/LikeButton.tsx` |
+
+## Required Tests
+See `05-testing-conventions.mdc` → "Required unit tests per role" → `engagement-engineer`.

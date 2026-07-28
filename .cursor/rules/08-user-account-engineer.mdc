@@ -1,0 +1,89 @@
+---
+description: Role rules for user-account-engineer — Admin user management and self-service profile
+globs: ["**/users/**", "**/profile/**", "**/admin/users/**"]
+alwaysApply: false
+---
+
+# Role: user-account-engineer
+
+> **Owns:** Admin-side user management (list users, assign roles, activate/deactivate accounts) and each user's own profile (view/update name, avatar, contact details).
+> Do not create or modify files outside the Owned Paths below without a PR reviewed by someone currently holding this role.
+
+## Role Charter
+This role covers both sides of "account" data: the Admin console view of all users, and the individual's self-service profile page. It does not own login/session (`authentication-engineer`) or role-gate enforcement mechanics (`authorization-engineer`) — it only owns the business rules around *who can change what on a user record*.
+
+## Owned Paths
+```
+src/controllers/userController.ts
+src/controllers/profileController.ts
+src/services/userService.ts
+src/services/profileService.ts
+src/repositories/userRepository.ts
+src/routes/usersRoutes.ts
+src/app/(dashboard)/profile/page.tsx
+src/app/(dashboard)/admin/users/page.tsx
+src/components/profile/
+src/components/admin/UserManagementTable.tsx
+```
+
+## Project Context
+- Stack: Next.js + TypeScript (FE), Express + TypeScript (BE), Neon PostgreSQL
+- Architecture: Controller → Service → Repository (strict separation)
+- Auth: import `authenticate` from `authentication-engineer`'s middleware and `requireRole` from `authorization-engineer`'s middleware — never rewrite either.
+- API prefix: `/api/v1/`
+
+## Strict Rules
+1. Only **Admin** role can change user roles or activate/deactivate accounts — log every role change to `role_change_logs`.
+2. A user cannot deactivate their own account.
+3. Deactivated users are denied at login — that check itself lives in `authentication-engineer`'s `AuthService`, but the `isActive` flag is this role's data to own.
+4. Identity data (name, email) lives in `neon_auth.users`; email is read-only through the profile endpoint — never allow email updates through `updateProfile`.
+5. Updatable profile fields: `name`, `avatar_url`, `contact_details` only.
+6. Role options are fixed: `'Admin'` | `'Reviewer'` | `'User'`.
+
+```typescript
+// src/services/userService.ts
+async changeRole(targetUserId: string, newRole: UserRole, requestingUserId: string): Promise<User> {
+  const requester = await userRepository.findById(requestingUserId);
+  if (requester?.role !== 'Admin') {
+    throw new AppError('Only Admins can change user roles', 403);
+  }
+  const target = await userRepository.findById(targetUserId);
+  if (!target) throw new AppError('User not found', 404);
+  return userRepository.updateRole(targetUserId, newRole);
+}
+
+async toggleStatus(targetUserId: string, isActive: boolean, requestingUserId: string): Promise<User> {
+  if (targetUserId === requestingUserId) {
+    throw new AppError('Cannot change your own account status', 400);
+  }
+  return userRepository.updateStatus(targetUserId, isActive);
+}
+```
+
+```typescript
+// src/services/profileService.ts
+async updateProfile(userId: string, updates: ProfileUpdateInput): Promise<UserProfile> {
+  // Never allow email/role/isActive update through this endpoint
+  const { email, role, isActive, ...safeUpdates } = updates as any;
+  return userRepository.updateProfile(userId, safeUpdates);
+}
+```
+
+## Admin User Management Page
+- Table: Name | Email | Role | Status | Actions
+- Actions: Change Role (dropdown) · Activate/Deactivate toggle
+- Show a `<ConfirmationModal>` (shared component, see `03-frontend-conventions.mdc`) before role change or deactivation.
+
+## Code Generation Rules
+See `00-global.mdc` and `01-backend-architecture.mdc` for shared conventions.
+
+## Quick Reference
+| Task | File |
+|------|------|
+| Admin user list/role/status | `src/services/userService.ts` |
+| Own profile view/update | `src/services/profileService.ts` |
+| Profile page | `src/app/(dashboard)/profile/page.tsx` |
+| Admin users page | `src/app/(dashboard)/admin/users/page.tsx` |
+
+## Required Tests
+See `05-testing-conventions.mdc` → "Required unit tests per role" → `user-account-engineer`.

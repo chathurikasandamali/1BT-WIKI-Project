@@ -4,12 +4,17 @@ import Image from 'next/image';
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { authClient } from '@/lib/auth/client';
+import { BRAND_FULL_NAME, BRAND_NAME } from '@/lib/constants/brand';
+import { XCircleSolidIcon } from '@/components/shared/icons/XCircleSolidIcon';
+import { useLenisScroll } from '@/lib/hooks/useLenisScroll';
 
 function SignInContent() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const errorParam = searchParams.get('error');
+
+  useLenisScroll();
 
   const handleClick = async () => {
     try {
@@ -57,10 +62,11 @@ function SignInContent() {
                 Knowledge hub
               </p>
               <h2 className="text-3xl font-semibold text-white">
-                Welcome to 1BT WIKI
+                Welcome to {BRAND_FULL_NAME}
               </h2>
               <p className="max-w-md text-sm leading-6 text-white/80">
-                Browse internal guides, articles, and team knowledge once you sign in.
+                Browse internal guides, articles, and team knowledge once you
+                sign in.
               </p>
             </div>
           </div>
@@ -85,28 +91,30 @@ function SignInContent() {
                 <div className="mb-6 rounded-xl bg-red-50 p-4 border border-red-200">
                   <div className="flex">
                     <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                      </svg>
+                      <XCircleSolidIcon className="h-5 w-5 text-red-400" />
                     </div>
                     <div className="ml-3">
-                      <h3 className="text-sm font-medium text-red-800">Access Denied</h3>
+                      <h3 className="text-sm font-medium text-red-800">
+                        Access Denied
+                      </h3>
                       <div className="mt-1 text-sm text-red-700">
                         <p>
-                          Please sign in using your verified 1BT company email address.
+                          Please sign in using your verified {BRAND_NAME}{' '}
+                          company email address.
                         </p>
                       </div>
                       <div className="mt-3">
-                        <a 
-                          href="https://accounts.google.com/AccountChooser" 
-                          target="_blank" 
+                        <a
+                          href="https://accounts.google.com/AccountChooser"
+                          target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center rounded-md bg-red-100 px-3 py-2 text-sm font-semibold text-red-800 shadow-sm hover:bg-red-200 transition-colors"
                         >
                           Switch Google Account
                         </a>
                         <p className="mt-2 text-xs text-red-600">
-                          (Opens in a new tab. After switching, come back here and try again)
+                          (Opens in a new tab. After switching, come back here
+                          and try again)
                         </p>
                       </div>
                     </div>
@@ -129,7 +137,7 @@ function SignInContent() {
                   setIsLoading(false);
                 }}
                 disabled={isLoading}
-                className="mt-10 inline-flex w-full items-center justify-center rounded-2xl bg-[var(--color-brand-red)] px-5 py-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-brand-red-hover)] disabled:cursor-not-allowed disabled:bg-[#d34d4d]"
+                className="mt-10 inline-flex w-full items-center justify-center rounded-2xl bg-[var(--color-brand-red)] px-5 py-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-brand-red-hover)] disabled:cursor-not-allowed disabled:bg-brand-red-disabled"
               >
                 {isLoading ? 'Signing in...' : 'Sign in with Google'}
               </button>
@@ -143,13 +151,17 @@ function SignInContent() {
 
 export default function SignInPage() {
   return (
-    <Suspense fallback={
-      <main className="min-h-screen flex items-center justify-center bg-[var(--color-brand-bg)] px-4 py-8">
-        <div className="w-full max-w-6xl overflow-hidden rounded-[32px] bg-[var(--color-brand-surface)] shadow-[0_20px_70px_rgba(0,0,0,0.08)] flex items-center justify-center min-h-[560px]">
-          <p className="text-[var(--color-brand-text-secondary)]">Loading...</p>
-        </div>
-      </main>
-    }>
+    <Suspense
+      fallback={
+        <main className="min-h-screen flex items-center justify-center bg-[var(--color-brand-bg)] px-4 py-8">
+          <div className="w-full max-w-6xl overflow-hidden rounded-[32px] bg-[var(--color-brand-surface)] shadow-[0_20px_70px_rgba(0,0,0,0.08)] flex items-center justify-center min-h-[560px]">
+            <p className="text-[var(--color-brand-text-secondary)]">
+              Loading...
+            </p>
+          </div>
+        </main>
+      }
+    >
       <SignInContent />
     </Suspense>
   );

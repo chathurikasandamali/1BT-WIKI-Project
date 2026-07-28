@@ -26,9 +26,11 @@ coverage
 out/
 build
 dist
+packages/db/src/generated/
 
 
 # Debug
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -39,6 +41,11 @@ yarn-error.log*
 
 .vercel
 .env*
+.scannerwork
 
-.scannerwork/
-generated/
+CLAUDE.local.md
+.claude/rules/
+.claude/
+
+# Cypress Cache
+.cypress-cache

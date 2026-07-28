@@ -21,12 +21,12 @@ alwaysApply: false
 - Mock: repositories, external APIs (Claude, Clerk), notification senders
 
 ### File naming
-- Unit test: `src/services/__tests__/article.service.test.ts`
-- Or co-located: `src/services/article.service.test.ts`
+- Unit test: `src/services/__tests__/articleService.test.ts`
+- Or co-located: `src/services/articleService.test.ts`
 
 ### Test structure (AAA pattern)
 ```typescript
-// src/services/__tests__/article.service.test.ts
+// src/services/__tests__/articleService.test.ts
 import { ArticleService } from '../article.service';
 import { articleRepository } from '../../repositories/article.repository';
 import { AppError } from '../../errors/AppError';
@@ -74,24 +74,39 @@ describe('ArticleService', () => {
 });
 ```
 
-### Required unit tests per owner
+### Required unit tests per role
 
-**Lahiru** must cover:
+**`authentication-engineer`** must cover:
 - `AuthService`: Google OAuth callback, domain restriction, deactivated account check
 - `SessionService`: JWT issue, validate, revoke
+
+**`authorization-engineer`** must cover:
+- `rbac.middleware`: role allow/deny for each protected route, missing/invalid role payload
+
+**`engagement-engineer`** must cover:
 - `CommentService`: create, edit own, delete own, block edit of others
 - `LikeService`: like (idempotent), unlike, count aggregation
+
+**`ai-integration-engineer`** must cover:
 - `QuizService`: generate (Published only check), evaluate scoring, empty submission block
 
-**Chathurika** must cover:
+**`user-account-engineer`** must cover:
 - `UserService`: role assignment (Admin only), activate/deactivate
 - `ProfileService`: view/update own profile
+
+**`content-moderation-engineer`** must cover:
 - `ReviewService`: approve (Pending → Published), reject + feedback, notification triggers
+
+**`notification-engineer`** must cover:
 - `NotificationService`: persist, list, mark read, unread count
+
+**`content-publishing-engineer`** must cover:
 - `TechTalkService`: create, publish, edit (resets to Draft), republish, delete
 
-**Malindu** must cover:
+**`content-authoring-engineer`** must cover:
 - `ArticleService`: create, edit draft, submit, list published, list own, soft delete
+
+**`analytics-dashboard-engineer`** must cover:
 - `AdminDashboardService`: aggregate stats (users, articles, pending reviews, tech talks)
 
 ## Integration Tests

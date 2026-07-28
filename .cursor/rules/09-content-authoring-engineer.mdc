@@ -1,0 +1,157 @@
+---
+description: Role rules for content-authoring-engineer — Article CRUD, TipTap editor, article status machine
+globs: ["**/articles/**"]
+alwaysApply: false
+---
+
+# Role: content-authoring-engineer
+
+> **Owns:** Article CRUD (backend + frontend): create, edit, submit, list, detail, delete. TipTap rich-text editor integration. All article status transitions.
+> Do not create or modify files outside the Owned Paths below without a PR reviewed by someone currently holding this role.
+
+## Role Charter
+You own the article as a content object end to end — authoring, editing, and the full status state machine. You do **not** own the review/approve/reject decision itself (`content-moderation-engineer`), though your `articleRepository.updateStatus()` method is the interface they call into — coordinate on that contract. You do **not** own admin aggregation or the homepage feed (`analytics-dashboard-engineer`), though they consume your repository.
+
+## Owned Paths
+```
+src/controllers/articleController.ts
+src/services/articleService.ts
+src/repositories/articleRepository.ts
+src/routes/articlesRoutes.ts
+src/app/(dashboard)/articles/page.tsx
+src/app/(dashboard)/articles/[id]/page.tsx
+src/app/(dashboard)/articles/create/page.tsx
+src/app/(dashboard)/articles/[id]/edit/page.tsx
+src/components/articles/ArticleCard.tsx
+src/components/articles/ArticleEditor.tsx
+src/components/articles/ArticleStatusBadge.tsx
+src/components/articles/ArticleList.tsx
+src/components/articles/ArticleFilters.tsx
+src/components/articles/ArticleDeleteModal.tsx
+src/hooks/useArticles.ts
+src/lib/api/articles.api.ts
+src/lib/tiptap.ts
+```
+
+## Project Context
+- Stack: Next.js + TypeScript (FE), Express + TypeScript (BE), Neon PostgreSQL
+- TipTap: store content as `JSONContent` (never HTML in DB); render via TipTap's HTML output
+- Auth: import `authenticate` from `authentication-engineer`'s middleware — never rewrite it
+- API prefix: `/api/v1/`
+
+## Article Status Machine (you own ALL transitions)
+```
+                    ┌──────────────────────────────────────────┐
+                    │                                          │
+  POST /articles    ▼      POST /submit        PATCH /approve  │
+  ──────────────► [Draft] ────────────────► [Pending] ──────► [Published]
+                    ▲                            │
+                    │       PATCH /reject        │
+                    └────────────────────────── [Rejected]
+                         (author edits → auto-reset to Draft)
+```
+
+| From | Action | To | Who |
+|------|--------|-----|-----|
+| — | Create | Draft | Author |
+| Draft | Submit for Review | Pending | Author |
+| Pending | Approve | Published | Reviewer/Admin (via `content-moderation-engineer`) |
+| Pending | Reject + feedback | Rejected | Reviewer/Admin (via `content-moderation-engineer`) |
+| Rejected | Author edits | Draft (auto-reset) | Author (auto) |
+| Draft | Author deletes | (deleted) | Author |
+| Any | Admin soft-delete | deleted_at set | Admin |
+| Any | Admin hard-delete | Row removed | Admin |
+
+## Strict Rules
+1. `Pending → Published / Rejected` are SET via `articleRepository.updateStatus()`, called from `content-moderation-engineer`'s `ReviewService` — coordinate on this interface, don't duplicate the transition logic on their side.
+2. Article ownership: always verify `article.authorId === req.user.userId` before edit/delete.
+3. Hard delete is Admin-only; soft delete (`deleted_at`) for everyone else.
+4. Author can only delete Draft articles.
+5. Editing a Rejected article auto-resets status to Draft.
+6. Never touch auth, comments, likes, or quiz (other roles' domains).
+7. Never touch notifications, review-decision logic, or tech-talk management (other roles' domains).
+
+```typescript
+// src/services/articleService.ts
+private assertTransition(current: ArticleStatus, next: ArticleStatus, role: UserRole): void {
+  const allowed: Record<ArticleStatus, ArticleStatus[]> = {
+    Draft: ['Pending'],
+    Pending: ['Published', 'Rejected'],
+    Published: [],
+    Rejected: ['Draft'],
+  };
+  const reviewerActions = ['Published', 'Rejected'];
+  if (reviewerActions.includes(next) && !['Reviewer', 'Admin'].includes(role)) {
+    throw new AppError('Only Reviewers can approve or reject articles', 403);
+  }
+  if (!allowed[current]?.includes(next)) {
+    throw new AppError(`Cannot transition from ${current} to ${next}`, 400);
+  }
+}
+
+async editArticle(id: string, updates: ArticleUpdateInput, userId: string): Promise<Article> {
+  const article = await this.findOwned(id, userId);
+  const editableStatuses: ArticleStatus[] = ['Draft', 'Rejected'];
+  if (!editableStatuses.includes(article.status)) {
+    throw new AppError('Only Draft or Rejected articles can be edited', 400);
+  }
+  const newStatus: ArticleStatus = article.status === 'Rejected' ? 'Draft' : article.status;
+  return articleRepository.update(id, { ...updates, status: newStatus });
+}
+
+private async findOwned(articleId: string, userId: string): Promise<Article> {
+  const article = await articleRepository.findById(articleId);
+  if (!article) throw new AppError('Article not found', 404);
+  if (article.authorId !== userId) throw new AppError('Not authorized', 403);
+  return article;
+}
+```
+
+## List Endpoints
+- `GET /api/v1/articles` — list published, with `?sort=title|created_at`, `?order=asc|desc`, `?search=keyword` (ILIKE on title), `?page=1&limit=20`. Always apply `status = 'Published' AND deleted_at IS NULL`.
+- `GET /api/v1/articles/mine` — all statuses for the authenticated user, includes `reviewer_feedback` so the author can see rejection reasons.
+
+## Rich Text Storage
+```typescript
+// src/lib/tiptap.ts
+import { generateText } from '@tiptap/core';
+import StarterKit from '@tiptap/starter-kit';
+
+export function extractTextFromTipTap(json: JSONContent): string {
+  return generateText(json, [StarterKit]);
+}
+```
+`extractTextFromTipTap` is consumed by `ai-integration-engineer`'s quiz generator — keep its signature stable.
+
+```tsx
+// src/components/articles/ArticleEditor.tsx — shared, never duplicate
+interface ArticleEditorProps {
+  initialContent?: JSONContent;
+  onChange: (content: JSONContent) => void;
+  readOnly?: boolean;
+}
+```
+
+## Delete Rules
+| Deleter | Target Status | Action |
+|---------|--------------|--------|
+| Author | Draft only | Soft delete (`deleted_at = NOW()`) |
+| Admin | Any status | Soft delete by default; hard delete available |
+
+All delete actions require a `<ConfirmationModal>` (shared component).
+
+## Code Generation Rules
+See `00-global.mdc` and `01-backend-architecture.mdc` for shared conventions. Tailwind CSS only — no inline styles, no custom CSS.
+
+## Quick Reference
+| Task | File |
+|------|------|
+| Article CRUD service | `src/services/articleService.ts` |
+| Article repository | `src/repositories/articleRepository.ts` |
+| Articles listing | `src/app/(dashboard)/articles/page.tsx` |
+| Article detail | `src/app/(dashboard)/articles/[id]/page.tsx` |
+| TipTap editor | `src/components/articles/ArticleEditor.tsx` |
+| Status badge | `src/components/articles/ArticleStatusBadge.tsx` |
+
+## Required Tests
+See `05-testing-conventions.mdc` → "Required unit tests per role" → `content-authoring-engineer`.

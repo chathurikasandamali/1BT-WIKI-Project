@@ -1,0 +1,86 @@
+---
+description: Role rules for notification-engineer — persist, list, mark read, unread count, role-based broadcasting
+globs: ["**/notifications/**"]
+alwaysApply: false
+---
+
+# Role: notification-engineer
+
+> **Owns:** The notification system — persisting, listing, marking read, unread counts, and role-based broadcasting. The notification bell + panel UI.
+> Do not create or modify files outside the Owned Paths below without a PR reviewed by someone currently holding this role.
+
+## Role Charter
+You own `NotificationService.send()` as a shared piece of infrastructure other roles call into — you do not decide *when* a notification fires (that's each triggering role's call site), only *how it's stored and surfaced*.
+
+## Owned Paths
+```
+src/controllers/notificationController.ts
+src/services/notificationService.ts
+src/repositories/notificationRepository.ts
+src/routes/notificationsRoutes.ts
+src/app/(dashboard)/notifications/page.tsx
+src/components/notifications/NotificationPanel.tsx
+src/components/notifications/NotificationBell.tsx
+src/hooks/useNotifications.ts
+src/lib/api/notifications.api.ts
+```
+
+## Project Context
+- Stack: Next.js + TypeScript (FE), Express + TypeScript (BE), Neon PostgreSQL
+- Auth: import `authenticate` from `authentication-engineer`'s middleware — never rewrite it
+- API prefix: `/api/v1/`
+
+## Strict Rules
+1. Notification types are fixed: `success`, `failure`, `info`.
+2. Notification reference types are fixed: `article`, `review`, `techtalk`, `like`, `comment`.
+3. You own the implementation of `NotificationService.send()` and `sendToRole()`; other roles call these — never let another role implement notification storage themselves.
+4. Trigger points live in the triggering role's service, not yours:
+   - `new_comment` → triggered by `engagement-engineer`'s `CommentService`
+   - `pending` (submit for review) → triggered by `content-authoring-engineer`, sent to all Reviewers
+   - `approved` / `rejected` → triggered by `content-moderation-engineer`'s `ReviewService`
+5. The bell placement inside the global layout shell (`src/app/(dashboard)/layout.tsx`) is a shared/cross-role file — coordinate changes there.
+
+```typescript
+// src/services/notificationService.ts
+export class NotificationService {
+  async send(payload: NotificationPayload): Promise<void> {
+    await notificationRepository.create({
+      userId: payload.userId,
+      type: payload.type,
+      title: payload.title,
+      referenceType: payload.referenceType,
+      message: payload.message,
+      referenceId: payload.referenceId,
+      readStatus: false,
+    });
+  }
+
+  async sendToRole(role: UserRole, payload: Omit<NotificationPayload, 'userId'>): Promise<void> {
+    const users = await userRepository.findByRole(role);
+    await Promise.all(users.map(user => this.send({ ...payload, userId: user.id })));
+  }
+
+  async markRead(notificationId: string, userId: string): Promise<void> {
+    const notification = await notificationRepository.findById(notificationId);
+    if (notification?.userId !== userId) throw new AppError('Not authorized', 403);
+    await notificationRepository.updateReadStatus(notificationId, true);
+  }
+
+  async getUnreadCount(userId: string): Promise<number> {
+    return notificationRepository.countUnread(userId);
+  }
+}
+```
+
+## Code Generation Rules
+See `00-global.mdc` and `01-backend-architecture.mdc` for shared conventions.
+
+## Quick Reference
+| Task | File |
+|------|------|
+| Notification send/list/read | `src/services/notificationService.ts` |
+| Notifications panel | `src/components/notifications/NotificationPanel.tsx` |
+| Notification bell | `src/components/notifications/NotificationBell.tsx` |
+
+## Required Tests
+See `05-testing-conventions.mdc` → "Required unit tests per role" → `notification-engineer`.

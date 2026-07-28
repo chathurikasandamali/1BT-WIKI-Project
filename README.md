@@ -159,6 +159,34 @@ pnpm exec turbo link
 pnpm exec turbo link
 ```
 
+## Code Quality (SonarQube / SonarCloud)
+
+Static analysis runs against SonarCloud (org `1bt-wiki`, project `1bt-project-wiki`), configured in [sonar-project.properties](sonar-project.properties).
+
+### Running an analysis locally
+
+1. Get a SonarCloud token (Account > Security > Generate Token) and add it to `.env` at the repo root:
+   ```
+   SONAR_TOKEN=your-token-here
+   ```
+2. Run the scan:
+   ```sh
+   pnpm sonar
+   ```
+   This loads `.env` via `dotenv-cli` and runs `npx @sonar/scan`. Results are published to the [SonarCloud dashboard](https://sonarcloud.io/dashboard?id=1bt-project-wiki).
+
+`pnpm check` runs lint, tests, and the sonar scan together (see `turbo.json`).
+
+### Editor feedback (SonarLint)
+
+The SonarLint VS Code extension is configured in connected mode (`.vscode/settings.json`, `.sonarlint/connectedMode.json`) against the same SonarCloud project, so issues surface inline as you edit without needing a full scan.
+
+### Next steps
+
+- **Wire up coverage**: `apps/api`'s Jest config doesn't currently emit an lcov report, so SonarCloud sees 0% coverage. Add `collectCoverage: true` and `coverageReporters: ["lcov"]` to the `jest` block in `apps/api/package.json`, then re-add `sonar.javascript.lcov.reportPaths=apps/api/coverage/lcov.info` to `sonar-project.properties`.
+- **Add a quality gate check to CI** so PRs fail on new issues instead of relying on local runs.
+- If you add new apps/packages under `apps/*` or `packages/*`, extend `sonar.sources` (and `sonar.tests`, if applicable) in `sonar-project.properties` to include them — they aren't picked up automatically.
+
 ## Useful Links
 
 Learn more about the power of Turborepo:

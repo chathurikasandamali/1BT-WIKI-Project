@@ -4,8 +4,10 @@
 import type { Metadata } from 'next';
 import './globals.css';
 
+import { BRAND_FULL_NAME } from '@/lib/constants/brand';
+
 export const metadata: Metadata = {
-  title: '1BT WIKI',
+  title: BRAND_FULL_NAME,
   description: '1Billion Technology Internal Knowledge Base',
 };
 
@@ -13,12 +15,12 @@ interface RootLayoutProps {
   children: React.ReactNode;
 }
 
-export default function RootLayout({ children }: RootLayoutProps): React.JSX.Element {
+export default function RootLayout({
+  children,
+}: RootLayoutProps): React.JSX.Element {
   return (
     <html lang="en">
-      <body className="font-sans antialiased bg-[#F5F5F5]">
-        {children}
-      </body>
+      <body className="font-sans antialiased bg-brand-bg">{children}</body>
     </html>
   );
 }

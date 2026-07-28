@@ -2,15 +2,13 @@ name: Web CI
 
 on:
   pull_request:
-    branches:
-      - main
-      - dev
     paths:
       - 'apps/web/**'
 
   push:
     branches:
       - dev
+      - main
     paths:
       - 'apps/web/**'
 

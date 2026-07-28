@@ -1,9 +1,9 @@
 // apps/api/src/middleware/auth.middleware.ts
 
 import type { Request, Response, NextFunction } from 'express';
-import type { AuthenticatedUser, UserRole } from '../types/userTypes.js';
-import { errorResponse, capitalizeRole } from '../types/userTypes.js';
-import UserRepository from '../repositories/userRepository.js';
+import type { AuthenticatedUser, UserRole } from '@/types/userTypes.js';
+import { errorResponse, capitalizeRole } from '@/types/userTypes.js';
+import UserRepository from '@repositories/userRepository.js';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
 // ── NEON AUTH CONFIG ─────────────────────────────────────────────────────────
@@ -56,14 +56,13 @@ export const authenticate = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-
   // ── TEST MODE: allow integration tests to inject a synthetic user ──────────
   // Tests mock this module via jest.unstable_mockModule(), so this branch is
   // only reached in integration tests that deliberately skip the mock.
   if (process.env.NODE_ENV === 'test') {
-    const userId = req.headers['x-test-user-id']    as string | undefined;
-    const email  = req.headers['x-test-user-email'] as string | undefined;
-    const role   = req.headers['x-test-user-role']  as string | undefined;
+    const userId = req.headers['x-test-user-id'] as string | undefined;
+    const email = req.headers['x-test-user-email'] as string | undefined;
+    const role = req.headers['x-test-user-role'] as string | undefined;
 
     if (userId && email && role) {
       req.user = { userId, email, role };
@@ -103,7 +102,7 @@ export const authenticate = async (
 
   // 3. Fetch DB record and enforce deactivated account check
   const dbUser = await UserRepository.findById(userId);
-  
+
   if (!dbUser) {
     res.status(401).json(errorResponse('Authentication required'));
     return;
@@ -119,8 +118,8 @@ export const authenticate = async (
 
   req.user = {
     userId: dbUser.id,
-    email:  dbUser.email,
-    role:   role,
+    email: dbUser.email,
+    role: role,
   };
 
   next();

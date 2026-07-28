@@ -4,15 +4,14 @@
  */
 
 export class AppError extends Error {
-    public readonly statusCode: number;
+  public readonly statusCode: number;
 
+  constructor(message: string, statusCode: number = 500) {
+    super(message);
+    this.name = 'AppError';
+    this.statusCode = statusCode;
 
-    constructor(message: string, statusCode: number = 500) {
-        super(message);
-        this.name = 'AppError';
-        this.statusCode = statusCode;
-
-        // Maintains proper stack trace in V8
-        Object.setPrototypeOf(this, AppError.prototype);
-    }
+    // Maintains proper stack trace in V8
+    Object.setPrototypeOf(this, AppError.prototype);
+  }
 }
