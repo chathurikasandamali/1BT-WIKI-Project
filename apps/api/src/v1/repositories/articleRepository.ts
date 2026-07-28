@@ -193,6 +193,7 @@ export class ArticleRepository {
    * @param options.search - Case-insensitive title substring filter.
    * @param options.sort - Sort field, validated against an allow-list by the caller.
    * @param options.order - Sort direction, `'asc'` or `'desc'`.
+   * @param options.excludeStatus - When `status` is omitted, exclude rows in this status.
    * @returns The matching articles for the requested page, plus the total count
    *          across all pages (for pagination metadata).
    */
@@ -205,10 +206,15 @@ export class ArticleRepository {
       search?: string;
       sort?: string;
       order?: string;
+      excludeStatus?: ArticleStatus;
     }
   ): Promise<{ articles: Article[]; total: number }> {
     const where = {
-      ...(status !== undefined && { status }),
+      ...(status !== undefined
+        ? { status }
+        : options?.excludeStatus !== undefined
+          ? { status: { not: options.excludeStatus } }
+          : {}),
       deletedAt: null,
       ...buildSearchFilter('title', options?.search),
     };

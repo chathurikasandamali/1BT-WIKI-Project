@@ -210,8 +210,8 @@ describe('Admin API Integration', () => {
       const mixedArticles = [
         {
           id: 'article-1',
-          title: 'Draft Article',
-          status: 'Draft',
+          title: 'Pending Article',
+          status: 'Pending',
           authorId: 'user-1',
           tags: [],
           createdAt: mockDate,
@@ -242,21 +242,21 @@ describe('Admin API Integration', () => {
       expect(response.body.data.total).toBe(2);
       expect(response.body.data.page).toBe(1);
       expect(response.body.data.limit).toBe(20);
-      // findByStatus called with undefined status — means all statuses
+      // findByStatus called with undefined status — all statuses except Draft
       expect(mockFindByStatus).toHaveBeenCalledWith(
         undefined,
         1,
         20,
-        expect.objectContaining({ includeCounts: true })
+        expect.objectContaining({ includeCounts: true, excludeStatus: 'Draft' })
       );
     });
 
-    it('should return 200 filtered by ?status=Draft for Admin', async () => {
-      const draftArticles = [
+    it('should return 200 filtered by ?status=Pending for Admin', async () => {
+      const pendingArticles = [
         {
           id: 'article-3',
-          title: 'My Draft',
-          status: 'Draft',
+          title: 'My Pending',
+          status: 'Pending',
           authorId: 'user-1',
           tags: [],
           createdAt: mockDate,
@@ -264,22 +264,34 @@ describe('Admin API Integration', () => {
         },
       ];
 
-      mockFindByStatus.mockResolvedValueOnce({ articles: draftArticles, total: 1 });
+      mockFindByStatus.mockResolvedValueOnce({ articles: pendingArticles, total: 1 });
       mockUserFindManyByIds.mockResolvedValueOnce([mockAuthor]);
 
       const response = await request(app)
-        .get('/api/v1/admin/articles?status=Draft')
+        .get('/api/v1/admin/articles?status=Pending')
         .set(adminHeaders);
 
       expect(response.status).toBe(200);
       expect(response.body.data.articles).toHaveLength(1);
-      expect(response.body.data.articles[0].status).toBe('Draft');
+      expect(response.body.data.articles[0].status).toBe('Pending');
       expect(mockFindByStatus).toHaveBeenCalledWith(
-        'Draft',
+        'Pending',
         1,
         20,
         expect.objectContaining({ includeCounts: true })
       );
+    });
+
+    it('should return 400 for ?status=Draft (drafts are private to authors)', async () => {
+      const response = await request(app)
+        .get('/api/v1/admin/articles?status=Draft')
+        .set(adminHeaders);
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe(
+        'Invalid status filter. Allowed: Pending, Published, Unpublished'
+      );
+      expect(mockFindByStatus).not.toHaveBeenCalled();
     });
 
     it('should return 400 for an invalid ?status=bogus', async () => {
@@ -289,7 +301,7 @@ describe('Admin API Integration', () => {
 
       expect(response.status).toBe(400);
       expect(response.body.error).toBe(
-        'Invalid status filter. Allowed: Draft, Pending, Published, Unpublished'
+        'Invalid status filter. Allowed: Pending, Published, Unpublished'
       );
       expect(mockFindByStatus).not.toHaveBeenCalled();
     });
@@ -299,7 +311,7 @@ describe('Admin API Integration', () => {
         {
           id: 'article-4',
           title: 'Enriched Article',
-          status: 'Draft',
+          status: 'Pending',
           authorId: 'user-1',
           tags: [],
           createdAt: mockDate,

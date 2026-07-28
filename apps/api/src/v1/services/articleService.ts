@@ -108,7 +108,9 @@ const assertTransition = (
   );
 };
 
-const ALLOWED_STATUS_FILTERS = ['Draft', 'Pending', 'Published', 'Unpublished'] as const;
+// Draft articles are private to their authors and never appear in the admin
+// oversight list, so 'Draft' is not an accepted filter value.
+const ALLOWED_STATUS_FILTERS = ['Pending', 'Published', 'Unpublished'] as const;
 
 export class ArticleService {
   constructor(
@@ -323,7 +325,10 @@ export class ArticleService {
     sort?: string,
     order?: string
   ): Promise<{ articles: AdminArticleListItem[]; total: number; page: number; limit: number }> {
-    if (status !== undefined && !ALLOWED_STATUS_FILTERS.includes(status as ArticleStatus)) {
+    if (
+      status !== undefined &&
+      !(ALLOWED_STATUS_FILTERS as readonly string[]).includes(status)
+    ) {
       throw new AppError(`Invalid status filter. Allowed: ${ALLOWED_STATUS_FILTERS.join(', ')}`, 400);
     }
     assertValidSort(ARTICLE_SORT_FIELDS, sort);
@@ -335,7 +340,16 @@ export class ArticleService {
       status as ArticleStatus | undefined,
       page,
       limit,
-      { includeCounts: true, search, sort, order }
+      {
+        includeCounts: true,
+        search,
+        sort,
+        order,
+        // No explicit status → all statuses except private Drafts.
+        ...(status === undefined && {
+          excludeStatus: ArticleStatusValue.Draft,
+        }),
+      }
     );
 
     const authorIds = articles.map((a) => a.authorId);
@@ -397,16 +411,19 @@ export class ArticleService {
 
   async getArticleById(
     id: string,
-    requesterId: string | null = null
+    requesterId: string | null = null,
+    role: UserRole | null = null
   ): Promise<ArticleDetail> {
     const articleRecord = await this.repository.findById(id, requesterId);
     if (!articleRecord) {
       throw new AppError('Article not found', 404);
     }
 
+    // Admins may inspect articles in any status (oversight view).
     const isAvailable =
       articleRecord.status === ArticleStatusValue.Published ||
-      (requesterId && requesterId === articleRecord.authorId);
+      (requesterId && requesterId === articleRecord.authorId) ||
+      role === UserRoleValue.Admin;
 
     if (!isAvailable) {
       throw new AppError('Article not available', 403);
@@ -414,7 +431,9 @@ export class ArticleService {
 
     const { _count, likes, ...baseArticle } = articleRecord;
 
-    const author = await this.userRepository.findById(articleRecord.authorId);
+    const [author] = await this.userRepository.findManyByIds([
+      articleRecord.authorId,
+    ]);
 
     return {
       ...baseArticle,
@@ -422,6 +441,7 @@ export class ArticleService {
       commentCount: _count?.comments ?? 0,
       likedByMe: likes ? likes.length > 0 : false,
       authorName: author?.name ?? 'Unknown',
+      authorEmail: author?.email ?? null,
     };
   }
 

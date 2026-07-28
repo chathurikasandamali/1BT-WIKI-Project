@@ -215,6 +215,18 @@ export function Sidebar(): React.JSX.Element {
               <UsersIcon className="w-4 h-4 relative z-10" />
               <span className="relative z-10">User Management</span>
             </Link>
+            <Link
+              href="/admin/articles"
+              className={itemClasses('/admin/articles')}
+              style={{ paddingLeft: '20px' }}
+              data-testid="nav-admin-articles"
+            >
+              {isActive('/admin/articles') && (
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-3/4 bg-brand-red active-indicator rounded-r-full" />
+              )}
+              <ArticleIcon className="w-4 h-4 relative z-10" />
+              <span className="relative z-10">Article Management</span>
+            </Link>
           </nav>
         </>
       )}
