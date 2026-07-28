@@ -10,6 +10,7 @@ import { Toast } from '@/components/shared/Toast';
 import { useUser } from '@/lib/hooks/useUser';
 import { useToast } from '@/lib/hooks/useToast';
 import { formatDate } from '@/lib/utils/date';
+import { cn } from '@/lib/utils';
 
 type SortOption = 'newest' | 'oldest' | 'title';
 
@@ -208,14 +209,24 @@ export function MyArticlesList(): React.JSX.Element {
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search your articles..."
               data-testid="article-search-input"
-              className="w-full pl-9 pr-3 py-2 bg-brand-bg border border-brand-border rounded text-sm text-brand-text-primary focus:outline-none focus:border-brand-red transition-colors"
+              className={cn(
+                "w-full pl-9 pr-3 py-2",
+                "bg-brand-bg border border-brand-border rounded",
+                "text-sm text-brand-text-primary",
+                "focus:outline-none focus:border-brand-red transition-colors"
+              )}
             />
           </div>
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as SortOption)}
             data-testid="article-sort-select"
-            className="px-3 py-2 bg-brand-bg border border-brand-border rounded text-sm text-brand-text-primary focus:outline-none focus:border-brand-red transition-colors"
+            className={cn(
+              "px-3 py-2",
+              "bg-brand-bg border border-brand-border rounded",
+              "text-sm text-brand-text-primary",
+              "focus:outline-none focus:border-brand-red transition-colors"
+            )}
           >
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
