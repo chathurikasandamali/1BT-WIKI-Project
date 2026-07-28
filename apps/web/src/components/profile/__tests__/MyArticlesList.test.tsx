@@ -31,6 +31,7 @@ function makeArticle(
     updatedAt: '2026-01-05T00:00:00.000Z',
     likeCount: 0,
     commentCount: 0,
+    views: 0,
     rejectionFeedback: null,
     ...overrides,
   };

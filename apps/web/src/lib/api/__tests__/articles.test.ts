@@ -19,6 +19,7 @@ const sampleResult: ListMineResult = {
       updatedAt: getFormattedISODate('2026-01-02'),
       likeCount: 3,
       commentCount: 1,
+      views: 5,
       rejectionFeedback: null,
     },
   ],
