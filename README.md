@@ -159,6 +159,108 @@ pnpm exec turbo link
 pnpm exec turbo link
 ```
 
+## AI Quiz Generation (QZ-01)
+
+Generates a quiz from a **Published** article using a 2-agent LLM workflow (generator → validator) hosted in **Microsoft AI Foundry**. Owned by `ai-integration-engineer`.
+
+### Endpoint
+
+```
+POST /api/v1/articles/:id/quiz/generate      (requires authentication)
+```
+
+- Generates **10 questions** per quiz (fixed default until admin `quiz_config` exists).
+- Question types: `mcq`, `single_choice` (exactly one correct answer) and `multiple_choice` (two or more correct answers).
+- **Correct answers are never sent to the client.** Questions are persisted with their answers in the database; the response contains only `id`, `question`, `type`, and `options` per question. Server-side scoring is a later task.
+
+**Success response — `201 Created`:**
+
+```json
+{
+  "success": true,
+  "message": "Quiz generated successfully",
+  "data": {
+    "quizId": "…",
+    "articleId": "…",
+    "isFallback": false,
+    "questions": [
+      { "id": "…", "question": "…", "type": "mcq", "options": ["A", "B", "C", "D"] }
+    ]
+  }
+}
+```
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Invalid article id / article is not `Published` |
+| 404 | Article not found (or soft-deleted) |
+| 422 | Article body has no extractable text |
+| 502 | Workflow unreachable or returned output violating the quiz contract (and no fallback exists) |
+| 503 | `FOUNDRY_WORKFLOW_URL` / `FOUNDRY_API_KEY` not configured |
+| 504 | Workflow request timed out |
+
+### Request flow
+
+```
+quizRoutes → quizController → quizService → foundryClient (MS Foundry workflow)
+                                  │               │
+                        articleRepository   quizPrompts (versioned)
+                                  │
+                            quizRepository → quizzes / quiz_questions (Neon PostgreSQL)
+```
+
+1. `quizService.generateQuiz` loads the article and rejects anything not `Published`.
+2. The TipTap `body` is flattened to plain text (`v1/utils/tiptapText.ts`).
+3. `foundryClient` POSTs `{ promptVersion, questionCount, articleTitle, generatorPrompt, validatorPrompt }` to the Foundry workflow endpoint.
+4. The raw output is validated by `parseGeneratedQuestions` (`v1/types/quiz.types.ts`) — it accepts a JSON array, `{ "questions": [...] }`, or a fenced JSON string, and rejects anything violating the contract (wrong count, bad types, out-of-range answer indexes).
+5. The quiz is stored atomically (quiz + questions) with a `config_snapshot` recording the prompt version, then returned with answers stripped.
+
+### Fallback quizzes
+
+When a reviewer **approves** an article (`reviewerService.approveArticle`), a fallback quiz is pre-generated fire-and-forget and stored with `is_fallback = true`. If the live Foundry workflow later fails with any 5xx error, `generateQuiz` serves the newest stored fallback (`"isFallback": true` in the response) instead of erroring; only when no fallback exists does the client see the 5xx. Domain errors (not Published, empty body) never fall back.
+
+### Key files (apps/api/src)
+
+| File | Purpose |
+|------|---------|
+| `v1/routes/quizRoutes.ts` | Route, mounted at `/:id/quiz` inside `articlesRoutes.ts` |
+| `v1/controllers/quizController.ts` | UUID validation, 201 response shaping |
+| `v1/services/quizService.ts` | Orchestration: guards, generation, fallback logic |
+| `v1/repositories/quizRepository.ts` | Prisma nested create + latest-fallback lookup |
+| `v1/lib/foundryClient.ts` | HTTP client for the Foundry workflow (timeout, error mapping) |
+| `v1/lib/prompts/quizPrompts.ts` | Versioned generator/validator prompts (`PROMPT_VERSION`) |
+| `v1/utils/tiptapText.ts` | TipTap JSON → plain text (stand-in until content-authoring ships a shared one) |
+| `v1/types/quiz.types.ts` | Domain types + LLM output validator + answer stripping |
+| `db/migrations/20260728120000_create_quizzes.sql` | `quiz_question_type` enum, `quizzes`, `quiz_questions` tables |
+
+The Prisma models (`quiz`, `quizQuestion`, `QuizQuestionType`) live in `packages/db/prisma/schema.prisma`; run `pnpm --filter @repo/db build` after schema changes to regenerate the client.
+
+### Database
+
+- `quizzes`: `id`, `article_id` (FK → articles, cascade), `is_fallback`, `config_snapshot` (jsonb), `generated_at`
+- `quiz_questions`: `id`, `quiz_id` (FK → quizzes, cascade), `question`, `question_type` (enum), `options` (jsonb array of strings), `correct_answer` (jsonb array of indexes — supports multi-answer), `explanation`
+
+Apply the migration to the Neon dev branch via `apps/api/src/db/migrations/run_migration.ts` (or `pnpm --filter @repo/db db:push`).
+
+### Environment variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `FOUNDRY_WORKFLOW_URL` | Yes | MS Foundry quiz workflow invocation endpoint |
+| `FOUNDRY_API_KEY` | Yes | Bearer key for the workflow endpoint |
+| `FOUNDRY_TIMEOUT_MS` | No | Request timeout, default `60000` |
+
+### Tests
+
+```sh
+pnpm --filter api test -- --testPathPatterns "quiz"
+```
+
+- `v1/services/__tests__/quizService.test.ts` — guards, happy path, answer stripping, fallback on workflow failure/invalid output, fallback pre-generation.
+- `v1/controllers/__tests__/quizController.test.ts` — id validation, 201 shaping, error forwarding.
+
 ## Code Quality (SonarQube / SonarCloud)
 
 Static analysis runs against SonarCloud (org `1bt-wiki`, project `1bt-project-wiki`), configured in [sonar-project.properties](sonar-project.properties).

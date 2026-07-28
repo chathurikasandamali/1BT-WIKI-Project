@@ -3,6 +3,7 @@ import multer from 'multer';
 import ArticleController from '@controllers/articleController.js';
 import LikeController from '@controllers/likeController.js';
 import commentsRoutes from './commentsRoutes.js';
+import quizRoutes from './quizRoutes.js';
 import { authenticate } from '@/middleware/auth.middleware.js';
 
 const router = Router();
@@ -44,6 +45,9 @@ router.delete('/:id/like', authenticate, LikeController.unlike);
 
 // /api/v1/articles/:id/comments — Comments on an article
 router.use('/:id/comments', commentsRoutes);
+
+// /api/v1/articles/:id/quiz — AI-generated quiz on a published article
+router.use('/:id/quiz', quizRoutes);
 
 // DELETE /api/v1/articles/:id — Soft or hard delete an article
 router.delete('/:id', authenticate, remove);

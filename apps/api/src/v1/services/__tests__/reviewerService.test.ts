@@ -18,6 +18,13 @@ jest.unstable_mockModule('@services/notificationService.js', () => ({
   },
 }));
 
+jest.unstable_mockModule('@services/quizService.js', () => ({
+  default: {
+    generateQuiz: jest.fn(() => Promise.resolve()),
+    pregenerateFallbackQuiz: jest.fn(() => Promise.resolve()),
+  },
+}));
+
 jest.unstable_mockModule('@repositories/userRepository.js', () => ({
   default: {
     findById: jest.fn(),
