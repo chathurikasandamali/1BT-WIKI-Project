@@ -95,7 +95,7 @@ function ReviewArticleDetailContent(): React.JSX.Element {
   }
 
   //const authorName = article.authorName || article.author?.email || article.authorId;
-  const formattedDate = formatDate(article.createdAt);
+  const formattedDate = formatDate(article.updatedAt);
   const hasTags = Boolean(article.tags && article.tags.length > 0);
 
   return (
