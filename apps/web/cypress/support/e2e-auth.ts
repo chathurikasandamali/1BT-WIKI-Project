@@ -48,12 +48,22 @@ export function registerE2EApiAuth(): void {
     req.headers['x-test-user-role'] = currentIdentity.role;
 
     // Dynamically alias specific endpoints for observers
-    if (req.method === 'GET' && req.url.includes('/api/v1/users/me')) {
+    let pathname = '';
+    try {
+      pathname = new URL(req.url).pathname;
+    } catch {
+      // Fallback if URL parsing fails (e.g. relative path on same domain)
+      pathname = req.url.split('?')[0];
+    }
+
+    if (req.method === 'GET' && pathname.includes('/api/v1/users/me')) {
       req.alias = 'getCurrentUser';
-    } else if (req.method === 'POST' && req.url.match(/\/api\/v1\/articles\/?$/)) {
+    } else if (req.method === 'POST' && pathname.match(/^\/api\/v1\/articles\/?$/)) {
       req.alias = 'createArticle';
-    } else if (req.method === 'PATCH' && req.url.match(/\/api\/v1\/articles\/[^/]+$/)) {
+    } else if (req.method === 'PATCH' && pathname.match(/^\/api\/v1\/articles\/[^/]+$/)) {
       req.alias = 'updateArticle';
+    } else if (req.method === 'POST' && pathname.match(/^\/api\/v1\/articles\/[^/]+\/submit\/?$/)) {
+      req.alias = 'submitArticle';
     }
 
     // Continue the request to the real backend

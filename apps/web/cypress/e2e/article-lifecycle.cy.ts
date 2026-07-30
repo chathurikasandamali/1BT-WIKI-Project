@@ -133,5 +133,56 @@ describe('Article lifecycle', () => {
     cy.get('[data-cy="save-status-indicator"]')
       .should('be.visible')
       .and('contain.text', 'Draft saved');
+
+    // 16. Guard createdArticleId and narrow to local constant inside the command queue
+    cy.then(() => {
+      expect(createdArticleId).to.be.a('string').and.not.equal('');
+      if (!createdArticleId) {
+        throw new Error('Created article ID is unavailable before submission');
+      }
+      const articleId = createdArticleId;
+
+      // 17. Open confirmation modal
+      cy.get('[data-cy="submit-for-review-button"]').click();
+      cy.get('[data-cy="confirmation-modal"]').should('be.visible');
+
+      // 18. Confirm submission
+      cy.get('[data-cy="confirm-submit-button"]').click();
+
+      // 19. Wait for the real submit request
+      cy.wait('@submitArticle', { timeout: 10000 }).then((interception) => {
+        // Assert Request
+        expect(interception.request.method).to.eq('POST');
+        let pathname = '';
+        try {
+          pathname = new URL(interception.request.url).pathname;
+        } catch {
+          pathname = interception.request.url.split('?')[0];
+        }
+        expect(pathname).to.eq(`/api/v1/articles/${articleId}/submit`);
+
+        expect(interception.request.headers['x-test-user-id']).to.eq(E2E_AUTHOR.id);
+        expect(interception.request.headers['x-test-user-email']).to.eq(E2E_AUTHOR.email);
+        expect(interception.request.headers['x-test-user-role']).to.eq(E2E_AUTHOR.role);
+        // Request body assertion omitted (or relaxed) per user instructions for bodyless POSTs
+
+        // Assert Response
+        expect(interception.response?.statusCode).to.eq(200);
+        const responseBody = interception.response?.body;
+        expect(responseBody.success).to.eq(true);
+        expect(responseBody.data.id).to.eq(articleId);
+        expect(responseBody.data.status).to.eq('Pending');
+        if (responseBody.data.title !== undefined) {
+          expect(responseBody.data.title).to.eq(articleTitle);
+        }
+      });
+
+      // 20. Verify success UI and redirect
+      cy.get('[data-testid="success-toast"]').should('be.visible');
+      cy.url().should('include', '/my-articles');
+
+      // 21. Verify duplicate submission proof
+      cy.get('@submitArticle.all').should('have.length', 1);
+    });
   });
 });
