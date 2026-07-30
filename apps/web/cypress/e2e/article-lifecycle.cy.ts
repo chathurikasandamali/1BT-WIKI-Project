@@ -43,8 +43,16 @@ describe('Article lifecycle', () => {
 
     // 6 & 7. Wait for the real request and assert the backend response + outgoing headers
     cy.wait('@getCurrentUser').then((interception) => {
-      // 8. Assert that the request URL went to port 5001 (E2E API) and not 5000 (Dev API)
-      expect(interception.request.url).to.include(':5001');
+      // 8. Assert that the request URL reached the configured E2E API origin.
+      // Cypress.expose('apiUrl') is the Cypress-15 non-deprecated public config
+      // API (replaces Cypress.env). In CI it resolves to http://localhost:5000/api/v1;
+      // locally, set CYPRESS_API_URL=http://localhost:5001/api/v1 before running.
+      const configuredApiUrl = Cypress.expose('apiUrl');
+      expect(configuredApiUrl).to.be.a('string');
+      const expectedApiUrl = new URL(configuredApiUrl as string);
+      const actualRequestUrl = new URL(interception.request.url);
+      expect(actualRequestUrl.origin).to.eq(expectedApiUrl.origin);
+      expect(actualRequestUrl.pathname).to.eq('/api/v1/users/me');
 
       // Assert outgoing test headers
       expect(interception.request.headers['x-test-user-id']).to.eq(
@@ -211,9 +219,12 @@ describe('Article lifecycle', () => {
 
       // 25. Verify real backend recognises E2E_REVIEWER
       cy.wait('@getReviewerUser').then((interception) => {
-        const reqUrl = new URL(interception.request.url);
-        expect(reqUrl.port).to.eq('5001');
-        expect(reqUrl.pathname).to.eq('/api/v1/users/me');
+        const configuredApiUrl = Cypress.expose('apiUrl');
+        expect(configuredApiUrl).to.be.a('string');
+        const expectedApiUrl = new URL(configuredApiUrl as string);
+        const actualRequestUrl = new URL(interception.request.url);
+        expect(actualRequestUrl.origin).to.eq(expectedApiUrl.origin);
+        expect(actualRequestUrl.pathname).to.eq('/api/v1/users/me');
 
         expect(interception.request.headers['x-test-user-id']).to.eq(E2E_REVIEWER.id);
         expect(interception.request.headers['x-test-user-email']).to.eq(E2E_REVIEWER.email);
