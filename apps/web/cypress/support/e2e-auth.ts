@@ -66,6 +66,12 @@ export function registerE2EApiAuth(): void {
       req.alias = 'submitArticle';
     } else if (req.method === 'GET' && /^\/api\/v1\/reviewer\/articles\/pending\/?$/.test(pathname)) {
       req.alias = 'getPendingArticles';
+      delete req.headers['if-none-match'];
+      delete req.headers['if-modified-since'];
+    } else if (req.method === 'GET' && /^\/api\/v1\/reviewer\/articles\/[^/]+\/?$/.test(pathname)) {
+      req.alias = 'getReviewerArticle';
+    } else if (req.method === 'PATCH' && /^\/api\/v1\/reviewer\/articles\/[^/]+\/approve\/?$/.test(pathname)) {
+      req.alias = 'approveArticle';
     }
 
     // Continue the request to the real backend

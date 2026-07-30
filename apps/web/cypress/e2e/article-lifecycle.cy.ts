@@ -155,7 +155,11 @@ describe('Article lifecycle', () => {
       cy.get('[data-cy="confirmation-modal"]').should('be.visible');
 
       // 18. Confirm submission
-      cy.get('[data-cy="confirm-submit-button"]').click();
+      cy.get('[data-cy="confirmation-modal"]')
+        .filter(':visible')
+        .within(() => {
+          cy.get('[data-cy="confirm-submit-button"]').click();
+        });
 
       // 19. Wait for the real submit request
       cy.wait('@submitArticle', { timeout: 10000 }).then((interception) => {
@@ -281,8 +285,109 @@ describe('Article lifecycle', () => {
           cy.contains(articleTitle).should('be.visible');
           cy.get(`[data-testid="view-article-${articleId}"]`)
             .should('exist')
-            .and('have.attr', 'href', `/reviewer/approvals/${articleId}`);
+            .and('have.attr', 'href', `/reviewer/approvals/${articleId}`)
+            .click();
         });
+
+      // 29. Wait for Reviewer Detail Request
+      cy.wait('@getReviewerArticle').then((interception) => {
+        expect(interception.request.method).to.eq('GET');
+
+        let pathname = '';
+        try {
+          pathname = new URL(interception.request.url).pathname;
+        } catch {
+          pathname = interception.request.url.split('?')[0] ?? '';
+        }
+        expect(pathname).to.eq(`/api/v1/reviewer/articles/${articleId}`);
+
+        expect(interception.request.headers['x-test-user-id']).to.eq(E2E_REVIEWER.id);
+        expect(interception.request.headers['x-test-user-email']).to.eq(E2E_REVIEWER.email);
+        expect(interception.request.headers['x-test-user-role']).to.eq(E2E_REVIEWER.role);
+
+        expect(interception.response?.statusCode).to.eq(200);
+        const responseBody = interception.response?.body;
+        expect(responseBody.success).to.eq(true);
+        expect(responseBody.data.id).to.eq(articleId);
+        expect(responseBody.data.title).to.eq(articleTitle);
+        expect(responseBody.data.status).to.eq('Pending');
+
+        const bodyStr = JSON.stringify(responseBody.data.body);
+        expect(bodyStr).to.include('Cypress article lifecycle test');
+      });
+
+      // 30. Assert Detail UI
+      cy.get('[data-testid="review-article-page"]').should('be.visible');
+      cy.location('pathname').should('eq', `/reviewer/approvals/${articleId}`);
+
+      cy.contains(articleTitle).should('be.visible');
+      cy.get('[data-testid="article-status-badge"]').should('contain.text', 'Pending');
+      cy.get('[data-testid="review-article-content"]').should('contain.text', 'Cypress article lifecycle test');
+
+      cy.get('[data-testid="approve-button"]').should('be.visible');
+      cy.get('[data-testid="reject-button"]').should('exist');
+
+      // 31. Approval modal flow
+      cy.get('[data-testid="approve-button"]').click();
+      cy.get('[data-cy="confirmation-modal"]')
+        .filter(':visible')
+        .should('contain.text', 'Approve & Publish Article');
+
+      cy.get('[data-cy="confirmation-modal"]')
+        .filter(':visible')
+        .within(() => {
+          cy.get('[data-cy="confirm-submit-button"]').click();
+        });
+
+      // 32. Approval request assertions
+      cy.wait('@approveArticle').then((interception) => {
+        expect(interception.request.method).to.eq('PATCH');
+
+        let pathname = '';
+        try {
+          pathname = new URL(interception.request.url).pathname;
+        } catch {
+          pathname = interception.request.url.split('?')[0] ?? '';
+        }
+        expect(pathname).to.eq(`/api/v1/reviewer/articles/${articleId}/approve`);
+
+        expect(interception.request.headers['x-test-user-id']).to.eq(E2E_REVIEWER.id);
+        expect(interception.request.headers['x-test-user-email']).to.eq(E2E_REVIEWER.email);
+        expect(interception.request.headers['x-test-user-role']).to.eq(E2E_REVIEWER.role);
+
+        expect(interception.response?.statusCode).to.eq(200);
+        const responseBody = interception.response?.body;
+        expect(responseBody.success).to.eq(true);
+        expect(responseBody.data.id).to.eq(articleId);
+        expect(responseBody.data.status).to.eq('Published');
+      });
+
+      // 33. Assert exactly one approval request
+      cy.get('@approveArticle.all').should('have.length', 1);
+
+      // 35. Durable post-approval proof
+      cy.location('pathname').should('eq', '/reviewer/approvals');
+      cy.get('[data-testid="reviewer-approvals-page"]').should('be.visible');
+
+      // Wait for the UI to update and remove the approved article card
+      // This ensures the post-approval data fetch has completed.
+      cy.get(`[data-testid="article-card-${articleId}"]`).should('not.exist');
+
+      // Now inspect the LAST getPendingArticles request to prove the backend 200 response was clean
+      cy.get('@getPendingArticles.all').then((interceptions) => {
+        const lastInterception = interceptions[interceptions.length - 1];
+        expect(lastInterception.response?.statusCode).to.eq(200);
+        const responseBody = lastInterception.response?.body;
+        expect(responseBody.success).to.eq(true);
+        expect(responseBody.data.articles).to.be.an('array');
+
+        interface PendingArticle {
+          id: string;
+        }
+
+        const hasApprovedArticle = responseBody.data.articles.some((a: PendingArticle) => a.id === articleId);
+        expect(hasApprovedArticle).to.eq(false);
+      });
     });
   });
 });
