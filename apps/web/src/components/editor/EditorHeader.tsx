@@ -165,6 +165,7 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
               )}
             />
             <span
+              data-cy="save-status-indicator"
               className="text-xs font-medium text-brand-text-secondary max-w-[200px] truncate"
               title={
                 saveStatus === 'error' && lastError ? lastError : undefined

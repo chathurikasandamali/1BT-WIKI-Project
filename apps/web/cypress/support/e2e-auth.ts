@@ -50,6 +50,10 @@ export function registerE2EApiAuth(): void {
     // Dynamically alias specific endpoints for observers
     if (req.method === 'GET' && req.url.includes('/api/v1/users/me')) {
       req.alias = 'getCurrentUser';
+    } else if (req.method === 'POST' && req.url.match(/\/api\/v1\/articles\/?$/)) {
+      req.alias = 'createArticle';
+    } else if (req.method === 'PATCH' && req.url.match(/\/api\/v1\/articles\/[^/]+$/)) {
+      req.alias = 'updateArticle';
     }
 
     // Continue the request to the real backend
