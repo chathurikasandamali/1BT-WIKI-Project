@@ -63,6 +63,10 @@ describe('MyArticlesList', () => {
     expect(await screen.findByTestId('my-articles-empty')).toHaveTextContent(
       "You haven't written any articles yet."
     );
+
+    const emptyCreateLink = screen.getByRole('link', { name: /create your first article/i });
+    expect(emptyCreateLink).toBeInTheDocument();
+    expect(emptyCreateLink).toHaveAttribute('href', '/editor');
   });
 
   it('shows an error state when fetching fails', async () => {
@@ -118,6 +122,10 @@ describe('MyArticlesList', () => {
     expect(
       within(draftCard).getByText(new RegExp(`Last updated: ${formattedDraftDate}`))
     ).toBeInTheDocument();
+
+    const createLink = screen.getByRole('link', { name: /create new article/i });
+    expect(createLink).toBeInTheDocument();
+    expect(createLink).toHaveAttribute('href', '/editor');
   });
 
   it('filters articles by title via search', async () => {

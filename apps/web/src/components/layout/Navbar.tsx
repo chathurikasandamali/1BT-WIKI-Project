@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import React, { useRef, useState, useEffect } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
@@ -10,6 +12,7 @@ import { SearchIcon } from '@/components/shared/icons/SearchIcon';
 import { BellIcon } from '@/components/shared/icons/BellIcon';
 import { ChevronDownIcon } from '@/components/shared/icons/ChevronDownIcon';
 import { NotificationDropdown } from './NotificationDropdown';
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 
 interface NavbarProps {
   notificationCount?: number;
@@ -124,38 +127,40 @@ export function Navbar({
   return (
     <header
       ref={containerRef}
-      className="fixed top-0 left-60 right-0 h-16 bg-white border-b border-brand-border z-10
+      className="fixed top-0 right-0 h-16 bg-white border-b border-brand-border z-10
                  flex items-center gap-4 px-6"
+      style={{ left: isSidebarOpen ? '240px' : '78px' }}
       data-testid="navbar"
     >
       {onToggleSidebar && (
         <button
           type="button"
           onClick={onToggleSidebar}
-          className="flex flex-col justify-center items-center w-9 h-9 rounded-lg hover:bg-brand-hover cursor-pointer transition-colors"
-          data-testid="burger-button"
-          aria-label="Toggle Sidebar"
+          className="flex flex-col justify-center items-center w-9 h-9 rounded-lg hover:bg-brand-hover cursor-pointer transition-colors text-brand-dark"
+          data-testid="sidebar-toggle"
+          aria-label={isSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
         >
-          <span className="burger-line w-5 h-0.5 bg-brand-dark my-0.5 origin-center block"></span>
-          <span className="burger-line w-5 h-0.5 bg-brand-dark my-0.5 origin-center block"></span>
-          <span className="burger-line w-5 h-0.5 bg-brand-dark my-0.5 origin-center block"></span>
+          {isSidebarOpen ? <PanelLeftClose className="w-5 h-5" /> : <PanelLeftOpen className="w-5 h-5" />}
         </button>
       )}
 
-      <div
-        className="flex items-center gap-1.5 flex-shrink-0"
-        style={{ marginLeft: onToggleSidebar ? '8px' : '24px' }}
-        data-testid="logo"
-      >
-        <div className="h-10 w-10 bg-brand-red rounded flex items-center justify-center flex-shrink-0">
-          <span className="text-white text-xs font-black leading-none">
-            {BRAND_NAME}
+      {isSidebarOpen && (
+        <Link
+          href="/"
+          className="flex items-center gap-1.5 flex-shrink-0 hover:opacity-80 transition-opacity ml-2"
+          data-testid="logo"
+          aria-label="1BT Wiki home"
+        >
+          <div className="h-10 w-10 bg-brand-red rounded flex items-center justify-center flex-shrink-0">
+            <span className="text-white text-xs font-black leading-none">
+              {BRAND_NAME}
+            </span>
+          </div>
+          <span className="text-brand-text-secondary font-semibold text-base leading-none tracking-tight">
+            {BRAND_SUB_NAME}
           </span>
-        </div>
-        <span className="text-brand-text-secondary font-semibold text-base leading-none tracking-tight">
-          {BRAND_SUB_NAME}
-        </span>
-      </div>
+        </Link>
+      )}
 
       <div className="flex-1 px-4">
         <div className="relative max-w-xl mx-auto">

@@ -174,3 +174,34 @@ describe('Navbar Notification Bell', () => {
     expect(mockMarkAsRead).toHaveBeenCalledTimes(1); // Still 1
   });
 });
+
+describe('Navbar Logo Link', () => {
+  it('renders a logo link pointing to home when sidebar is open', () => {
+    render(<Navbar notificationCount={0} isSidebarOpen={true} />);
+    const logoLink = screen.getByRole('link', { name: /1bt wiki home/i });
+    expect(logoLink).toBeInTheDocument();
+    expect(logoLink).toHaveAttribute('href', '/');
+  });
+
+  it('hides the logo link when sidebar is collapsed', () => {
+    render(<Navbar notificationCount={0} isSidebarOpen={false} />);
+    expect(screen.queryByRole('link', { name: /1bt wiki home/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('Navbar Sidebar Toggle', () => {
+  it('renders Collapse sidebar button when expanded', () => {
+    render(<Navbar isSidebarOpen={true} onToggleSidebar={jest.fn()} />);
+    const button = screen.getByTestId('sidebar-toggle');
+    expect(button).toBeInTheDocument();
+    expect(button).toHaveAttribute('aria-label', 'Collapse sidebar');
+  });
+
+  it('renders Expand sidebar button when collapsed', () => {
+    render(<Navbar isSidebarOpen={false} onToggleSidebar={jest.fn()} />);
+    const button = screen.getByTestId('sidebar-toggle');
+    expect(button).toBeInTheDocument();
+    expect(button).toHaveAttribute('aria-label', 'Expand sidebar');
+  });
+});
+
