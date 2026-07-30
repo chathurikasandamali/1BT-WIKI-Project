@@ -1,7 +1,8 @@
 import { jest } from '@jest/globals';
 import crypto from 'node:crypto';
 import { AppError } from '@errors/AppError.js';
-import type { ArticleRepository } from '@repositories/articleRepository.js';
+import type { ArticleRepository, ArticleDetailRecord } from '@repositories/articleRepository.js';
+import type { ArticleStatus } from '@models/article.types.js';
 
 // Side-effect dependencies that aren't injected — still mock via module system
 jest.unstable_mockModule('@repositories/articleRepository.js', () => {
@@ -61,6 +62,12 @@ jest.unstable_mockModule('@v1/lib/b2Client.js', () => ({
   },
 }));
 
+jest.unstable_mockModule('@repositories/userRepository.js', () => ({
+  default: {
+    findManyByIds: jest.fn(),
+  },
+}));
+
 const { ArticleService } = await import('../articleService.js');
 const { default: ArticleAttachmentRepository } =
   await import('@repositories/articleAttachmentRepository.js');
@@ -90,6 +97,35 @@ const makeRepo = (): jest.Mocked<
   findByAuthor: jest.fn(),
   softDelete: jest.fn(),
   hardDelete: jest.fn(),
+});
+
+const makeUserRepo = () => ({
+  findManyByIds: jest.fn<() => Promise<unknown[]>>(),
+});
+
+// Shared fixtures for author enrichment assertions
+const AUTHOR_ALICE = { id: 'user-1', name: 'Alice', email: 'alice@example.com' };
+const AUTHOR_BOB = { id: 'user-2', name: 'Bob', email: 'bob@example.com' };
+const UNKNOWN_AUTHOR = { authorName: 'Unknown', authorEmail: null };
+const INVALID_STATUS_FILTER_ERROR = new AppError(
+  'Invalid status filter. Allowed: Pending, Published, Unpublished',
+  400
+);
+
+/** Typed builder for repository article rows — override only what a test cares about. */
+const makeArticleRecord = (
+  overrides: Partial<ArticleDetailRecord> = {}
+): ArticleDetailRecord => ({
+  id: 'article-123',
+  title: 'Test Article',
+  body: { type: 'doc' },
+  status: 'Published',
+  authorId: AUTHOR_ALICE.id,
+  views: 0,
+  tags: [],
+  createdAt: new Date('2024-01-01'),
+  updatedAt: new Date('2024-01-01'),
+  ...overrides,
 });
 
 describe('ArticleService.createArticle', () => {
@@ -300,6 +336,185 @@ describe('ArticleService.createArticle', () => {
         warnings: ['Failed to upload fail.png: Upload failed'],
       });
     });
+  });
+});
+
+describe('ArticleService.listAllArticles', () => {
+  let mockRepo: ReturnType<typeof makeRepo>;
+  let mockUserRepo: ReturnType<typeof makeUserRepo>;
+  let service: InstanceType<typeof ArticleService>;
+
+  beforeEach(() => {
+    mockRepo = makeRepo();
+    mockUserRepo = makeUserRepo();
+    service = new ArticleService(
+      mockRepo as unknown as ArticleRepository,
+      ArticleReviewRepository as any,
+      ArticleAttachmentRepository as any,
+      mockUserRepo as any
+    );
+    jest.clearAllMocks();
+  });
+
+  it('should call findByStatus with undefined status and exclude Drafts when no status filter is given', async () => {
+    mockRepo.findByStatus.mockResolvedValue({ articles: [], total: 0 } as never);
+    mockUserRepo.findManyByIds.mockResolvedValue([]);
+
+    const result = await service.listAllArticles(1, 20);
+
+    expect(mockRepo.findByStatus).toHaveBeenCalledWith(
+      undefined,
+      1,
+      20,
+      {
+        includeCounts: true,
+        search: undefined,
+        sort: undefined,
+        order: undefined,
+        excludeStatus: 'Draft',
+      }
+    );
+    expect(result).toEqual({ articles: [], total: 0, page: 1, limit: 20 });
+  });
+
+  it('should pass the status filter through to findByStatus when a valid status is provided', async () => {
+    mockRepo.findByStatus.mockResolvedValue({ articles: [], total: 0 } as never);
+    mockUserRepo.findManyByIds.mockResolvedValue([]);
+
+    await service.listAllArticles(1, 20, 'Pending');
+
+    expect(mockRepo.findByStatus).toHaveBeenCalledWith(
+      'Pending',
+      1,
+      20,
+      { includeCounts: true, search: undefined, sort: undefined, order: undefined }
+    );
+  });
+
+  it('should throw 400 for an invalid status filter', async () => {
+    await expect(
+      service.listAllArticles(1, 20, 'bogus')
+    ).rejects.toThrow(INVALID_STATUS_FILTER_ERROR);
+
+    expect(mockRepo.findByStatus).not.toHaveBeenCalled();
+  });
+
+  it('should throw 400 for the Draft status filter (drafts are private to authors)', async () => {
+    await expect(
+      service.listAllArticles(1, 20, 'Draft')
+    ).rejects.toThrow(INVALID_STATUS_FILTER_ERROR);
+
+    expect(mockRepo.findByStatus).not.toHaveBeenCalled();
+  });
+
+  it('should throw 400 for an invalid sort field', async () => {
+    await expect(
+      service.listAllArticles(1, 20, undefined, undefined, 'hackedField')
+    ).rejects.toThrow(new AppError('Invalid sort field. Allowed: title, createdAt, views', 400));
+
+    expect(mockRepo.findByStatus).not.toHaveBeenCalled();
+  });
+
+  it('should throw 400 for an invalid order value', async () => {
+    await expect(
+      service.listAllArticles(1, 20, undefined, undefined, 'createdAt', 'sideways')
+    ).rejects.toThrow(new AppError('Invalid sort order. Allowed: asc, desc', 400));
+
+    expect(mockRepo.findByStatus).not.toHaveBeenCalled();
+  });
+
+  it('should enrich articles with authorName and authorEmail via batched findManyByIds', async () => {
+    const mockArticles = [
+      makeArticleRecord({
+        id: 'article-1',
+        title: 'Pending Article',
+        status: 'Pending',
+        authorId: AUTHOR_ALICE.id,
+      }),
+      makeArticleRecord({
+        id: 'article-2',
+        title: 'Published Article',
+        status: 'Published',
+        authorId: AUTHOR_BOB.id,
+      }),
+    ];
+    const mockAuthors = [
+      AUTHOR_ALICE,
+      AUTHOR_BOB,
+    ];
+
+    mockRepo.findByStatus.mockResolvedValue({ articles: mockArticles, total: 2 } as never);
+    mockUserRepo.findManyByIds.mockResolvedValue(mockAuthors as never);
+
+    const result = await service.listAllArticles(1, 20);
+
+    expect(mockUserRepo.findManyByIds).toHaveBeenCalledWith(['user-1', 'user-2']);
+    expect(result.articles[0]).toMatchObject({ id: 'article-1', authorName: AUTHOR_ALICE.name, authorEmail: AUTHOR_ALICE.email });
+    expect(result.articles[1]).toMatchObject({ id: 'article-2', authorName: AUTHOR_BOB.name, authorEmail: AUTHOR_BOB.email });
+    expect(result.total).toBe(2);
+    expect(result.page).toBe(1);
+    expect(result.limit).toBe(20);
+  });
+
+  it('should fall back to Unknown and null when an author is not found in the batch result', async () => {
+    const mockArticles = [
+      makeArticleRecord({
+        id: 'article-1',
+        title: 'Orphaned Article',
+        status: 'Pending',
+        authorId: 'user-missing',
+      }),
+    ];
+
+    mockRepo.findByStatus.mockResolvedValue({ articles: mockArticles, total: 1 } as never);
+    mockUserRepo.findManyByIds.mockResolvedValue([]);
+
+    const result = await service.listAllArticles(1, 20);
+
+    expect(result.articles[0]).toMatchObject({
+      id: 'article-1',
+      ...UNKNOWN_AUTHOR,
+    });
+  });
+
+  it('should map rows to AdminArticleListItem without leaking body or _count', async () => {
+    const mockArticles = [
+      makeArticleRecord({
+        id: 'article-1',
+        title: 'Pending Article',
+        status: 'Pending',
+        authorId: AUTHOR_ALICE.id,
+        views: 7,
+        tags: ['a'],
+        _count: { likes: 3, comments: 2 },
+      }),
+    ];
+
+    mockRepo.findByStatus.mockResolvedValue({ articles: mockArticles, total: 1 } as never);
+    mockUserRepo.findManyByIds.mockResolvedValue([
+      AUTHOR_ALICE,
+    ] as never);
+
+    const result = await service.listAllArticles(1, 20);
+
+    expect(result.articles[0]).not.toHaveProperty('body');
+    expect(result.articles[0]).not.toHaveProperty('_count');
+    expect(result.articles[0]).toMatchObject({
+      id: 'article-1',
+      views: 7,
+      likeCount: 3,
+      commentCount: 2,
+      rejectionFeedback: null,
+    });
+  });
+
+  it('should accept all valid status filter values without throwing', async () => {
+    mockRepo.findByStatus.mockResolvedValue({ articles: [], total: 0 } as never);
+    mockUserRepo.findManyByIds.mockResolvedValue([]);
+
+    await expect(service.listAllArticles(1, 20, 'Pending')).resolves.not.toThrow();
+    await expect(service.listAllArticles(1, 20, 'Published')).resolves.not.toThrow();
+    await expect(service.listAllArticles(1, 20, 'Unpublished')).resolves.not.toThrow();
   });
 });
 
@@ -672,63 +887,62 @@ describe('ArticleService.getArticleById', () => {
   const articleId = 'article-123';
   const authorId = 'user-123';
   let mockRepo: ReturnType<typeof makeRepo>;
+  let mockUserRepo: ReturnType<typeof makeUserRepo>;
   let service: InstanceType<typeof ArticleService>;
 
   beforeEach(() => {
     mockRepo = makeRepo();
+    mockUserRepo = makeUserRepo();
     service = new ArticleService(
       mockRepo as unknown as ArticleRepository,
       ArticleReviewRepository as any,
-      ArticleAttachmentRepository as any
+      ArticleAttachmentRepository as any,
+      mockUserRepo as any
     );
     jest.clearAllMocks();
+    mockUserRepo.findManyByIds.mockResolvedValue([]);
   });
 
   it('should return the article with mapped likeCount and likedByMe when it exists and is Published', async () => {
-    const article = {
+    const record = makeArticleRecord({
       id: articleId,
       status: 'Published',
       title: 'My Article',
-      authorId: 'user-1',
       _count: { likes: 5, comments: 2 },
       likes: [{ id: 'like-1' }],
-    };
-    mockRepo.findById.mockResolvedValue(article as never);
+    });
+    mockRepo.findById.mockResolvedValue(record);
 
     const result = await service.getArticleById(articleId, authorId);
 
+    const { _count, likes, ...base } = record;
     expect(mockRepo.findById).toHaveBeenCalledWith(articleId, authorId);
     expect(result).toEqual({
-      id: articleId,
-      status: 'Published',
-      title: 'My Article',
-      authorId: 'user-1',
+      ...base,
       likeCount: 5,
       commentCount: 2,
       likedByMe: true,
+      ...UNKNOWN_AUTHOR,
     });
   });
 
   it('should return likeCount 0 and likedByMe false when no relations exist', async () => {
-    const article = {
+    const record = makeArticleRecord({
       id: articleId,
       status: 'Published',
       title: 'My Article',
-      authorId: 'user-1',
-    };
-    mockRepo.findById.mockResolvedValue(article as never);
+    });
+    mockRepo.findById.mockResolvedValue(record);
 
     const result = await service.getArticleById(articleId);
 
     expect(mockRepo.findById).toHaveBeenCalledWith(articleId, null);
     expect(result).toEqual({
-      id: articleId,
-      status: 'Published',
-      title: 'My Article',
-      authorId: 'user-1',
+      ...record,
       likeCount: 0,
       commentCount: 0,
       likedByMe: false,
+      ...UNKNOWN_AUTHOR,
     });
   });
 
@@ -740,104 +954,71 @@ describe('ArticleService.getArticleById', () => {
     );
   });
 
-  it('should throw 403 if article is Draft and no requesterId', async () => {
-    mockRepo.findById.mockResolvedValue({
-      id: articleId,
-      status: 'Draft',
-      authorId,
-    } as never);
+  it.each(['Draft', 'Pending', 'Unpublished'] as const)(
+    'should throw 403 if article is %s and no requesterId',
+    async (status) => {
+      mockRepo.findById.mockResolvedValue(
+        makeArticleRecord({ id: articleId, status, authorId })
+      );
 
-    await expect(service.getArticleById(articleId)).rejects.toThrow(
-      new AppError('Article not available', 403)
-    );
-  });
-
-  it('should throw 403 if article is Pending and no requesterId', async () => {
-    mockRepo.findById.mockResolvedValue({
-      id: articleId,
-      status: 'Pending',
-      authorId,
-    } as never);
-
-    await expect(service.getArticleById(articleId)).rejects.toThrow(
-      new AppError('Article not available', 403)
-    );
-  });
-
-  it('should throw 403 if article is Unpublished and no requesterId', async () => {
-    mockRepo.findById.mockResolvedValue({
-      id: articleId,
-      status: 'Unpublished',
-      authorId,
-    } as never);
-
-    await expect(service.getArticleById(articleId)).rejects.toThrow(
-      new AppError('Article not available', 403)
-    );
-  });
+      await expect(service.getArticleById(articleId)).rejects.toThrow(
+        new AppError('Article not available', 403)
+      );
+    }
+  );
 
   it('should return the article when the author requests their own Draft article', async () => {
-    const article = {
+    const record = makeArticleRecord({
       id: articleId,
       status: 'Draft',
       title: 'My Draft',
       authorId,
-      body: { type: 'doc' },
       tags: ['test'],
-    };
-    mockRepo.findById.mockResolvedValue(article as never);
+    });
+    mockRepo.findById.mockResolvedValue(record);
 
     const result = await service.getArticleById(articleId, authorId);
 
     expect(mockRepo.findById).toHaveBeenCalledWith(articleId, authorId);
     expect(result).toEqual({
-      id: articleId,
-      status: 'Draft',
-      title: 'My Draft',
-      authorId,
-      body: { type: 'doc' },
-      tags: ['test'],
+      ...record,
       likeCount: 0,
       commentCount: 0,
       likedByMe: false,
+      ...UNKNOWN_AUTHOR,
     });
   });
 
   it('should return the article when the author requests their own Rejected article', async () => {
-    const article = {
+    const record = makeArticleRecord({
       id: articleId,
-      status: 'Rejected',
+      status: 'Rejected' as ArticleStatus,
       title: 'My Rejected',
       authorId,
-      body: { type: 'doc' },
-      tags: [],
-    };
-    mockRepo.findById.mockResolvedValue(article as never);
+    });
+    mockRepo.findById.mockResolvedValue(record);
 
     const result = await service.getArticleById(articleId, authorId);
 
     expect(mockRepo.findById).toHaveBeenCalledWith(articleId, authorId);
     expect(result).toEqual({
-      id: articleId,
-      status: 'Rejected',
-      title: 'My Rejected',
-      authorId,
-      body: { type: 'doc' },
-      tags: [],
+      ...record,
       likeCount: 0,
       commentCount: 0,
       likedByMe: false,
+      ...UNKNOWN_AUTHOR,
     });
   });
 
   it("should throw 403 when a different user requests someone else's Draft article", async () => {
-    const article = {
-      id: articleId,
-      status: 'Draft',
-      title: 'Someone Else Draft',
-      authorId: 'other-author',
-    };
-    mockRepo.findById.mockResolvedValue(article as never);
+    mockRepo.findById.mockResolvedValue(
+      makeArticleRecord({
+        id: articleId,
+        status: 'Draft',
+        title: 'Someone Else Draft',
+        authorId: 'other-author',
+      })
+    );
 
     await expect(service.getArticleById(articleId, authorId)).rejects.toThrow(
       new AppError('Article not available', 403)
@@ -845,17 +1026,61 @@ describe('ArticleService.getArticleById', () => {
   });
 
   it('should throw 403 when unauthenticated (null requesterId) for a Draft article', async () => {
-    const article = {
-      id: articleId,
-      status: 'Draft',
-      title: 'Draft Article',
-      authorId,
-    };
-    mockRepo.findById.mockResolvedValue(article as never);
+    mockRepo.findById.mockResolvedValue(
+      makeArticleRecord({ id: articleId, status: 'Draft', authorId })
+    );
 
     await expect(service.getArticleById(articleId, null)).rejects.toThrow(
       new AppError('Article not available', 403)
     );
+  });
+
+  it.each(['Draft', 'Pending', 'Unpublished'] as const)(
+    "should allow an Admin to view someone else's %s article",
+    async (status) => {
+      mockRepo.findById.mockResolvedValue(
+        makeArticleRecord({
+          id: articleId,
+          status,
+          title: 'Oversight Target',
+          authorId: 'other-author',
+        })
+      );
+
+      const result = await service.getArticleById(articleId, authorId, 'Admin');
+
+      expect(result).toMatchObject({ id: articleId, status });
+    }
+  );
+
+  it("should still throw 403 for a non-admin role viewing someone else's Draft article", async () => {
+    mockRepo.findById.mockResolvedValue(
+      makeArticleRecord({
+        id: articleId,
+        status: 'Draft',
+        title: 'Someone Else Draft',
+        authorId: 'other-author',
+      })
+    );
+
+    await expect(
+      service.getArticleById(articleId, authorId, 'Employee' as never)
+    ).rejects.toThrow(new AppError('Article not available', 403));
+  });
+
+  it('should enrich the article with authorName and authorEmail when the author exists', async () => {
+    mockRepo.findById.mockResolvedValue(
+      makeArticleRecord({ id: articleId, authorId: AUTHOR_ALICE.id })
+    );
+    mockUserRepo.findManyByIds.mockResolvedValue([AUTHOR_ALICE]);
+
+    const result = await service.getArticleById(articleId);
+
+    expect(mockUserRepo.findManyByIds).toHaveBeenCalledWith([AUTHOR_ALICE.id]);
+    expect(result).toMatchObject({
+      authorName: AUTHOR_ALICE.name,
+      authorEmail: AUTHOR_ALICE.email,
+    });
   });
 });
 

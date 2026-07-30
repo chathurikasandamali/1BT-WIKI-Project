@@ -37,6 +37,8 @@ export interface ArticleDetail extends Article {
   likeCount: number;
   commentCount: number;
   likedByMe: boolean;
+  authorName?: string;
+  authorEmail?: string | null;
 }
 
 export interface ArticleListItem {
@@ -51,6 +53,15 @@ export interface ArticleListItem {
   commentCount: number;
   views: number;
   rejectionFeedback: string | null;
+}
+
+/**
+ * Row shape for the admin all-statuses article list (`GET /admin/articles`).
+ * Extends the public list item with author identity for oversight views.
+ */
+export interface AdminArticleListItem extends ArticleListItem {
+  authorName: string;
+  authorEmail: string | null;
 }
 
 export interface CreateArticleInput {

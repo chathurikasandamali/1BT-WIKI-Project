@@ -62,7 +62,7 @@ function ReviewerApprovalsContent(): React.JSX.Element {
                   <div className="flex items-center gap-2 mb-1">
                     <StatusBadge status={article.status} />
                     <span className="text-xs text-brand-text-secondary">
-                      Submitted: {formatDate(article.createdAt)}
+                      Submitted: {formatDate(article.updatedAt)}
                     </span>
                   </div>
                   <h2 className="text-base font-semibold text-brand-text-primary truncate">

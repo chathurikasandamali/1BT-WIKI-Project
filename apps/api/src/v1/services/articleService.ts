@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { ArticleRepository } from '@repositories/articleRepository.js';
 import { ArticleAttachmentRepository } from '@repositories/articleAttachmentRepository.js';
 import { ArticleReviewRepository } from '@repositories/articleReviewRepository.js';
+import UserRepository from '@repositories/userRepository.js';
 import b2Client from '@v1/lib/b2Client.js';
 import { AppError } from '@errors/AppError.js';
 import type { UserRole } from '@/types/userTypes.js';
@@ -15,6 +16,7 @@ import type {
   ArticleAttachment,
   JSONContent,
   ArticleListItem,
+  AdminArticleListItem,
 } from '@models/article.types.js';
 import { ArticleStatusValue, ARTICLE_SORT_FIELDS } from '@models/article.types.js';
 import { assertValidSort } from '../utils/queryHelpers.js';
@@ -106,11 +108,16 @@ const assertTransition = (
   );
 };
 
+// Draft articles are private to their authors and never appear in the admin
+// oversight list, so 'Draft' is not an accepted filter value.
+const ALLOWED_STATUS_FILTERS = ['Pending', 'Published', 'Unpublished'] as const;
+
 export class ArticleService {
   constructor(
     private repository: ArticleRepository = new ArticleRepository(),
     private reviewRepository: ArticleReviewRepository = new ArticleReviewRepository(),
-    private attachmentRepository: ArticleAttachmentRepository = new ArticleAttachmentRepository()
+    private attachmentRepository: ArticleAttachmentRepository = new ArticleAttachmentRepository(),
+    private userRepository: typeof UserRepository = UserRepository
   ) {}
 
   private async uploadArticleImages(
@@ -310,6 +317,67 @@ export class ArticleService {
     return { articles: mappedArticles, total, page, limit };
   }
 
+  async listAllArticles(
+    page: number = 1,
+    limit: number = 20,
+    status?: string,
+    search?: string,
+    sort?: string,
+    order?: string
+  ): Promise<{ articles: AdminArticleListItem[]; total: number; page: number; limit: number }> {
+    if (
+      status !== undefined &&
+      !(ALLOWED_STATUS_FILTERS as readonly string[]).includes(status)
+    ) {
+      throw new AppError(`Invalid status filter. Allowed: ${ALLOWED_STATUS_FILTERS.join(', ')}`, 400);
+    }
+    assertValidSort(ARTICLE_SORT_FIELDS, sort);
+    if (order !== undefined && order !== 'asc' && order !== 'desc') {
+      throw new AppError('Invalid sort order. Allowed: asc, desc', 400);
+    }
+
+    const { articles, total } = await this.repository.findByStatus(
+      status as ArticleStatus | undefined,
+      page,
+      limit,
+      {
+        includeCounts: true,
+        search,
+        sort,
+        order,
+        // No explicit status → all statuses except private Drafts.
+        ...(status === undefined && {
+          excludeStatus: ArticleStatusValue.Draft,
+        }),
+      }
+    );
+
+    const authorIds = articles.map((a) => a.authorId);
+    const authors = await this.userRepository.findManyByIds(authorIds);
+    const authorMap = new Map(authors.map((u) => [u.id, u]));
+
+    // Map to a DTO so heavy/internal columns (body, _count) never leave the service.
+    const enrichedArticles: AdminArticleListItem[] = articles.map(
+      (article: PublishedArticleRow) => ({
+        id: article.id,
+        title: article.title,
+        authorId: article.authorId,
+        tags: article.tags,
+        status: article.status as ArticleStatus,
+        views: article.views,
+        createdAt: article.createdAt,
+        updatedAt: article.updatedAt,
+        likeCount: article._count?.likes ?? 0,
+        commentCount: article._count?.comments ?? 0,
+        rejectionFeedback: null,
+        authorName: authorMap.get(article.authorId)?.name ?? 'Unknown',
+        authorEmail: authorMap.get(article.authorId)?.email ?? null,
+      })
+    );
+
+    return { articles: enrichedArticles, total, page, limit };
+  }
+
   async deleteArticle(
     articleId: string,
     userId: string,
@@ -343,16 +411,19 @@ export class ArticleService {
 
   async getArticleById(
     id: string,
-    requesterId: string | null = null
+    requesterId: string | null = null,
+    role: UserRole | null = null
   ): Promise<ArticleDetail> {
     const articleRecord = await this.repository.findById(id, requesterId);
     if (!articleRecord) {
       throw new AppError('Article not found', 404);
     }
 
+    // Admins may inspect articles in any status (oversight view).
     const isAvailable =
       articleRecord.status === ArticleStatusValue.Published ||
-      (requesterId && requesterId === articleRecord.authorId);
+      (requesterId && requesterId === articleRecord.authorId) ||
+      role === UserRoleValue.Admin;
 
     if (!isAvailable) {
       throw new AppError('Article not available', 403);
@@ -360,11 +431,17 @@ export class ArticleService {
 
     const { _count, likes, ...baseArticle } = articleRecord;
 
+    const [author] = await this.userRepository.findManyByIds([
+      articleRecord.authorId,
+    ]);
+
     return {
       ...baseArticle,
       likeCount: _count?.likes ?? 0,
       commentCount: _count?.comments ?? 0,
       likedByMe: likes ? likes.length > 0 : false,
+      authorName: author?.name ?? 'Unknown',
+      authorEmail: author?.email ?? null,
     };
   }
 

@@ -89,9 +89,26 @@ const updateById = async (
   return user ?? null;
 };
 
+/**
+ * Fetch multiple users by their primary keys in a single query.
+ * Returns an empty array when userIds is empty (avoids an unnecessary DB round-trip).
+ *
+ * Cross-role note: added by content-moderation-engineer for RV-06 batch author
+ * enrichment — flag for user-account-engineer review.
+ */
+const findManyByIds = async (userIds: string[]): Promise<User[]> => {
+  if (userIds.length === 0) return [];
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds } },
+    select: USER_SELECT,
+  });
+  return users;
+};
+
 export default {
   findByEmail,
   findById,
+  findManyByIds,
   updateRole,
   updateBanStatus,
   updateById,

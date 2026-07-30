@@ -115,6 +115,7 @@ export default function ArticlesPage(): React.JSX.Element {
         );
 
         if (isMounted && response.data) {
+          console.log('Fetched articles:', response.data.articles);
           setArticles(response.data.articles);
           setTotal(response.data.total);
         }

@@ -94,6 +94,7 @@ await jest.unstable_mockModule('@repositories/userRepository.js', () => ({
   default: {
     findByEmail: jest.fn<() => Promise<null>>().mockResolvedValue(null),
     findById: jest.fn<() => Promise<null>>().mockResolvedValue(null),
+    findManyByIds: jest.fn<() => Promise<unknown[]>>().mockResolvedValue([]),
     createAdminUser: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
     updateRole: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
     updateBanStatus: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
