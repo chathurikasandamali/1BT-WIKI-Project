@@ -2,7 +2,7 @@
 // strictly maps to apps/web/src in tsconfig.json. Cypress's default bundler does not
 // natively support tsconfig paths without additional preprocessor dependencies, so
 // adding a custom @e2e alias merely to hide this cross-workspace dependency is unwarranted.
-import { E2E_AUTHOR } from '../../../api/scripts/e2e-identities.js';
+import { E2E_AUTHOR, E2E_REVIEWER } from '../../../api/scripts/e2e-identities.js';
 import {
   setE2EIdentity,
   registerE2EApiAuth,
@@ -157,7 +157,7 @@ describe('Article lifecycle', () => {
         try {
           pathname = new URL(interception.request.url).pathname;
         } catch {
-          pathname = interception.request.url.split('?')[0];
+          pathname = interception.request.url.split('?')[0] ?? '';
         }
         expect(pathname).to.eq(`/api/v1/articles/${articleId}/submit`);
 
@@ -177,12 +177,101 @@ describe('Article lifecycle', () => {
         }
       });
 
-      // 20. Verify success UI and redirect
+      // 20. Success UI and Redirect
       cy.get('[data-testid="success-toast"]').should('be.visible');
       cy.url().should('include', '/my-articles');
 
       // 21. Verify duplicate submission proof
       cy.get('@submitArticle.all').should('have.length', 1);
+
+      // ---------------------------------------------------------
+      // REVIEWER PHASE
+      // ---------------------------------------------------------
+
+      // 22. Switch Identity securely inside the Cypress queue
+      cy.then(() => {
+        setE2EIdentity(E2E_REVIEWER);
+      });
+
+      // 23. Establish Reviewer Session
+      cy.session(
+        ['e2e-reviewer', E2E_REVIEWER.id],
+        () => {
+          mintE2EFrontendSession(E2E_REVIEWER);
+        },
+        {
+          validate: () => {
+            cy.getCookie(SESSION_TOKEN_COOKIE).should('exist');
+          },
+        }
+      );
+
+      // 24. Hard Navigation to Reviewer Approvals (Destroys stale React state)
+      cy.visit('/reviewer/approvals');
+
+      // 25. Verify real backend recognises E2E_REVIEWER
+      cy.wait('@getReviewerUser').then((interception) => {
+        const reqUrl = new URL(interception.request.url);
+        expect(reqUrl.port).to.eq('5001');
+        expect(reqUrl.pathname).to.eq('/api/v1/users/me');
+
+        expect(interception.request.headers['x-test-user-id']).to.eq(E2E_REVIEWER.id);
+        expect(interception.request.headers['x-test-user-email']).to.eq(E2E_REVIEWER.email);
+        expect(interception.request.headers['x-test-user-role']).to.eq(E2E_REVIEWER.role);
+
+        expect(interception.response?.statusCode).to.eq(200);
+        expect(interception.response?.body.success).to.eq(true);
+        expect(interception.response?.body.data.id).to.eq(E2E_REVIEWER.id);
+        expect(interception.response?.body.data.email).to.eq(E2E_REVIEWER.email);
+        expect(interception.response?.body.data.role).to.eq('Reviewer');
+      });
+
+      // 26. Assert RoleGuard / UI root
+      cy.get('[data-testid="reviewer-approvals-page"]').should('be.visible');
+      cy.url().should('include', '/reviewer/approvals');
+
+      // 27. Wait for Pending list request
+      cy.wait('@getPendingArticles').then((interception) => {
+        expect(interception.request.method).to.eq('GET');
+
+        const reqUrl = new URL(interception.request.url);
+        expect(reqUrl.pathname).to.eq('/api/v1/reviewer/articles/pending');
+        expect(reqUrl.searchParams.get('page')).to.eq('1');
+        expect(reqUrl.searchParams.get('limit')).to.eq('20');
+
+        expect(interception.request.headers['x-test-user-id']).to.eq(E2E_REVIEWER.id);
+        expect(interception.request.headers['x-test-user-email']).to.eq(E2E_REVIEWER.email);
+        expect(interception.request.headers['x-test-user-role']).to.eq(E2E_REVIEWER.role);
+
+        expect(interception.response?.statusCode).to.eq(200);
+        const responseBody = interception.response?.body;
+        expect(responseBody.success).to.eq(true);
+        expect(responseBody.data.articles).to.be.an('array');
+
+        interface PendingArticle {
+          id: string;
+          title: string;
+          status: string;
+        }
+
+        // Locate our specific article in the backend response
+        const foundArticle = responseBody.data.articles.find((a: PendingArticle) => a.id === articleId);
+        if (!foundArticle) {
+          throw new Error('Article was not found in pending list');
+        }
+        expect(foundArticle.status).to.eq('Pending');
+        expect(foundArticle.title).to.eq(articleTitle);
+      });
+
+      // 28. Exact UI Discovery
+      cy.get(`[data-testid="article-card-${articleId}"]`)
+        .should('be.visible')
+        .within(() => {
+          cy.contains(articleTitle).should('be.visible');
+          cy.get(`[data-testid="view-article-${articleId}"]`)
+            .should('exist')
+            .and('have.attr', 'href', `/reviewer/approvals/${articleId}`);
+        });
     });
   });
 });

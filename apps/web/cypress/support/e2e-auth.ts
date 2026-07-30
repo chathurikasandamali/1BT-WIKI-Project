@@ -53,17 +53,19 @@ export function registerE2EApiAuth(): void {
       pathname = new URL(req.url).pathname;
     } catch {
       // Fallback if URL parsing fails (e.g. relative path on same domain)
-      pathname = req.url.split('?')[0];
+      pathname = req.url.split('?')[0] ?? '';
     }
 
     if (req.method === 'GET' && pathname.includes('/api/v1/users/me')) {
-      req.alias = 'getCurrentUser';
+      req.alias = currentIdentity.role === 'Reviewer' ? 'getReviewerUser' : 'getCurrentUser';
     } else if (req.method === 'POST' && pathname.match(/^\/api\/v1\/articles\/?$/)) {
       req.alias = 'createArticle';
     } else if (req.method === 'PATCH' && pathname.match(/^\/api\/v1\/articles\/[^/]+$/)) {
       req.alias = 'updateArticle';
     } else if (req.method === 'POST' && pathname.match(/^\/api\/v1\/articles\/[^/]+\/submit\/?$/)) {
       req.alias = 'submitArticle';
+    } else if (req.method === 'GET' && /^\/api\/v1\/reviewer\/articles\/pending\/?$/.test(pathname)) {
+      req.alias = 'getPendingArticles';
     }
 
     // Continue the request to the real backend
