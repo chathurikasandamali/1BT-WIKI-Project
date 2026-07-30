@@ -23,6 +23,14 @@ function readCookieSecret(): string {
     return process.env.VERCEL_NEON_AUTH_COOKIE_SECRET;
   }
   try {
+    const envLocal = readFileSync(path.resolve(process.cwd(), '.env.local'), 'utf8');
+    const match = envLocal.match(/^VERCEL_NEON_AUTH_COOKIE_SECRET=(.*)$/m);
+    const value = match?.[1]?.trim().replace(/^["']|["']$/g, '');
+    if (value) return value;
+  } catch {
+    // ignore missing .env.local
+  }
+  try {
     const env = readFileSync(path.resolve(process.cwd(), '.env'), 'utf8');
     const match = env.match(/^VERCEL_NEON_AUTH_COOKIE_SECRET=(.*)$/m);
     const value = match?.[1]?.trim().replace(/^["']|["']$/g, '');

@@ -184,6 +184,9 @@ importers:
       '@types/react-dom':
         specifier: 19.2.2
         version: 19.2.2(@types/react@19.2.2)
+      cross-env:
+        specifier: ^10.1.0
+        version: 10.1.0
       cypress:
         specifier: ^15.19.0
         version: 15.19.0

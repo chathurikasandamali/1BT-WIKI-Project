@@ -68,7 +68,7 @@ export const UserAvatar = ({ format }: UserAvatarProps) => {
                         height={32}
                     /> */}
           <div className="flex flex-col">
-            <span className="text-xs font-medium text-gray-400">
+            <span data-cy="user-avatar-name" className="text-xs font-medium text-gray-400">
               {user.name}
             </span>
             <span className="text-xs font-medium text-gray-500">
