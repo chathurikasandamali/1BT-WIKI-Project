@@ -119,3 +119,50 @@ describe('Sidebar navigation', () => {
     expect(link).toHaveTextContent('Approvals');
   });
 });
+
+describe('Sidebar collapsed state', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockUseUser.mockReturnValue({
+      user: { id: 'u3', name: 'Admin User', role: 'Admin' },
+      loading: false,
+    });
+  });
+
+  it('renders compact logo when collapsed', () => {
+    render(<Sidebar isOpen={false} />);
+    const logo = screen.getByTestId('compact-logo');
+    expect(logo).toBeInTheDocument();
+    expect(logo).toHaveAttribute('href', '/');
+    expect(screen.queryByText('Menu')).not.toBeInTheDocument();
+  });
+
+  it('hides text labels and shows tooltips when collapsed', () => {
+    render(<Sidebar isOpen={false} />);
+    const articlesLink = screen.getByTestId('nav-articles');
+    
+    // The text 'Articles' should not be visibly rendered in the DOM except inside the tooltip.
+    // Tooltips are visible on hover, but present in DOM
+    const tooltip = screen.getByText('Articles');
+    expect(tooltip).toBeInTheDocument();
+    expect(tooltip).toHaveClass('opacity-0'); // visually hidden initially
+    
+    // The link should have aria-label for accessibility
+    expect(articlesLink).toHaveAttribute('aria-label', 'Articles');
+  });
+
+  it('preserves the sidebar component when collapsed', () => {
+    render(<Sidebar isOpen={false} />);
+    const sidebar = screen.getByTestId('sidebar');
+    expect(sidebar).toBeInTheDocument();
+    expect(sidebar).toHaveClass('w-[78px]');
+  });
+
+  it('shows Admin icon but hides Admin heading when collapsed', () => {
+    render(<Sidebar isOpen={false} />);
+    expect(screen.queryByText('Admin')).not.toBeInTheDocument();
+    const adminLink = screen.getByTestId('nav-admin-users');
+    expect(adminLink).toBeInTheDocument();
+    expect(adminLink).toHaveAttribute('aria-label', 'User Management');
+  });
+});
