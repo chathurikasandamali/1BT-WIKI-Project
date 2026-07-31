@@ -76,9 +76,10 @@ jobs:
           VERCEL_DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
           DATABASE_URL:        ${{ secrets.E2E_DATABASE_URL }}
 
-          # Activate test-header bypass.
-          NODE_ENV:      test
-          E2E_TEST_MODE: "true"
+          # Activate test-header bypass and E2E cleanup route.
+          NODE_ENV:               test
+          E2E_TEST_MODE:          "true"
+          E2E_DATABASE_CONFIRMED: "true"
 
           # Shared deterministic cookie secret.
           VERCEL_NEON_AUTH_COOKIE_SECRET: "ci-only-e2e-cookie-secret-1bt-wiki-32c"
