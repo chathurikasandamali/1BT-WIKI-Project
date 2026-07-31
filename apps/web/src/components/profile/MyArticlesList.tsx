@@ -41,9 +41,6 @@ function ArticleCard({ article, onDeleteClick, isAdmin }: { article: ArticleList
       data-testid={`article-card-${article.id}`}
     >
       <div className="flex items-center gap-4">
-        <div className="w-16 h-16 rounded bg-brand-bg border border-brand-border flex-shrink-0 flex items-center justify-center text-brand-text-secondary text-xs">
-          No image
-        </div>
 
         <div className="min-w-0 flex-1">
           <p className="font-medium text-brand-text-primary truncate">

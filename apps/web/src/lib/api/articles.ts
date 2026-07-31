@@ -21,7 +21,8 @@ export interface ArticleDetail {
   likedByMe: boolean;
   views?: number;
   authorName?: string;
-  authorEmail?: string | null;
+  authorEmail?: string | null; 
+  authorImage?: string | null; 
 }
 
 export interface ArticleListItem {

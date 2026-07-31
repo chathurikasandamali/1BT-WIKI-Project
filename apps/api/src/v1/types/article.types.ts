@@ -39,6 +39,7 @@ export interface ArticleDetail extends Article {
   commentCount: number;
   likedByMe: boolean;
   authorEmail?: string | null;
+  authorImage?: string | null;
 }
 
 export interface ArticleListItem {

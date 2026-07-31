@@ -24,6 +24,14 @@ jest.mock('@/components/article-detail/CommentsSection', () => ({
   CommentsSection: () => <div data-testid="comments-section">Comments</div>,
 }));
 
+jest.mock('@/components/UserAvatar', () => ({
+  UserAvatar: ({ name, avatarUrl, format }: { name?: string; avatarUrl?: string | null; format?: string }) => (
+    <div data-testid="user-avatar" data-name={name} data-avatarurl={avatarUrl ?? ''} data-format={format}>
+      UserAvatar Mock - {name}
+    </div>
+  ),
+}));
+
 const mockGetArticle = getArticle as jest.Mock;
 
 describe('ArticleDetailPage', () => {
@@ -127,5 +135,58 @@ describe('ArticleDetailPage', () => {
     expect(screen.getByTestId('like-button')).toHaveTextContent(
       `Like Button - ID: ${mockValidId} - Count: 0 - Liked: false`
     );
+  });
+
+  it('renders UserAvatar with author name and authorImage props when provided', async () => {
+    const avatarUrl = 'https://example.com/avatar.jpg';
+    mockGetArticle.mockResolvedValue({
+      ...mockArticle,
+      authorName: 'Jane Doe',
+      authorImage: avatarUrl,
+    });
+
+    await act(async () => {
+      render(
+        <React.Suspense fallback={<div>Suspense fallback</div>}>
+          <ArticleDetailPage params={Promise.resolve({ id: mockValidId })} />
+        </React.Suspense>
+      );
+    });
+
+    await waitFor(() => {
+      const avatar = screen.getByTestId('user-avatar');
+      expect(avatar).toBeInTheDocument();
+      expect(avatar).toHaveAttribute('data-name', 'Jane Doe');
+      expect(avatar).toHaveAttribute('data-avatarurl', avatarUrl);
+      expect(avatar).toHaveAttribute('data-format', 'detail');
+    });
+
+    expect(screen.queryByText(/https?:\/\//)).not.toBeInTheDocument();
+  });
+
+  it('renders UserAvatar with null avatarUrl when authorImage is missing', async () => {
+    mockGetArticle.mockResolvedValue({
+      ...mockArticle,
+      authorName: 'John Smith',
+      authorImage: null,
+    });
+
+    await act(async () => {
+      render(
+        <React.Suspense fallback={<div>Suspense fallback</div>}>
+          <ArticleDetailPage params={Promise.resolve({ id: mockValidId })} />
+        </React.Suspense>
+      );
+    });
+
+    await waitFor(() => {
+      const avatar = screen.getByTestId('user-avatar');
+      expect(avatar).toBeInTheDocument();
+      expect(avatar).toHaveAttribute('data-name', 'John Smith');
+      expect(avatar).toHaveAttribute('data-avatarurl', '');
+      expect(avatar).toHaveAttribute('data-format', 'detail');
+    });
+
+    expect(screen.queryByText(/https?:\/\//)).not.toBeInTheDocument();
   });
 });
