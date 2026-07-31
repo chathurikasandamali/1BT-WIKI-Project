@@ -12,6 +12,8 @@ import {
 } from '../support/e2e-auth';
 
 describe('Article lifecycle', () => {
+  let createdArticleId: string | null = null;
+
   beforeEach(() => {
     // 1. Select E2E Author identity
     cy.then(() => setE2EIdentity(E2E_AUTHOR));
@@ -85,7 +87,6 @@ describe('Article lifecycle', () => {
     // 11. Create the draft
     const articleTitle = `Cypress Draft ${Date.now()}`;
     const articleContent = 'This draft was created by the Cypress article lifecycle test.';
-    let createdArticleId: string | null = null;
 
     // Type the unique title and trigger the real blur behaviour
     cy.get('[data-cy="article-title-input"]').type(articleTitle).blur();
@@ -524,5 +525,38 @@ describe('Article lifecycle', () => {
         expect(successfulRequest).to.not.equal(undefined);
       });
     });
+  });
+
+  after(() => {
+    if (createdArticleId) {
+      cy.then(() => {
+        expect(createdArticleId).to.be.a('string').and.not.equal('');
+
+        const apiUrl = Cypress.expose('apiUrl');
+        const cleanupUrl = `${apiUrl}/e2e/articles/${createdArticleId}`;
+
+        cy.request({
+          method: 'DELETE',
+          url: cleanupUrl,
+          headers: {
+            'x-test-user-id': E2E_AUTHOR.id,
+            'x-test-user-email': E2E_AUTHOR.email,
+            'x-test-user-role': E2E_AUTHOR.role,
+          },
+          failOnStatusCode: false,
+        }).then((response) => {
+          expect(response.status).to.eq(200);
+          expect(response.body.success).to.eq(true);
+          expect(response.body.data.articleId).to.eq(createdArticleId);
+          expect(response.body.data.verifiedAbsent).to.eq(true);
+
+          if (response.body.data.alreadyAbsent) {
+            expect(response.body.data.articleDeleteCount).to.eq(0);
+          } else {
+            expect(response.body.data.articleDeleteCount).to.eq(1);
+          }
+        });
+      });
+    }
   });
 });
