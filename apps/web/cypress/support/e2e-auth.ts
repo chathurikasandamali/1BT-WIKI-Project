@@ -57,6 +57,8 @@ export function registerE2EApiAuth(): void {
     }
 
     if (req.method === 'GET' && pathname.includes('/api/v1/users/me')) {
+      delete req.headers['if-none-match'];
+      delete req.headers['if-modified-since'];
       req.alias = currentIdentity.role === 'Reviewer' ? 'getReviewerUser' : 'getCurrentUser';
     } else if (req.method === 'POST' && pathname.match(/^\/api\/v1\/articles\/?$/)) {
       req.alias = 'createArticle';
@@ -72,6 +74,19 @@ export function registerE2EApiAuth(): void {
       req.alias = 'getReviewerArticle';
     } else if (req.method === 'PATCH' && /^\/api\/v1\/reviewer\/articles\/[^/]+\/approve\/?$/.test(pathname)) {
       req.alias = 'approveArticle';
+    } else if (req.method === 'GET' && /^\/api\/v1\/articles\/?$/.test(pathname)) {
+      delete req.headers['if-none-match'];
+      delete req.headers['if-modified-since'];
+      const search = new URL(req.url).searchParams.get('search');
+      if (search && search.trim() !== '') {
+        req.alias = 'searchPublishedArticles';
+      } else {
+        req.alias = 'getPublishedArticles';
+      }
+    } else if (req.method === 'GET' && /^\/api\/v1\/articles\/(?!mine\b)[^/]+\/?$/.test(pathname)) {
+      delete req.headers['if-none-match'];
+      delete req.headers['if-modified-since'];
+      req.alias = 'getPublishedArticleDetail';
     }
 
     // Continue the request to the real backend

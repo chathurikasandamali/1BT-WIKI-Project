@@ -84,6 +84,7 @@ describe('Article lifecycle', () => {
 
     // 11. Create the draft
     const articleTitle = `Cypress Draft ${Date.now()}`;
+    const articleContent = 'This draft was created by the Cypress article lifecycle test.';
     let createdArticleId: string | null = null;
 
     // Type the unique title and trigger the real blur behaviour
@@ -112,7 +113,7 @@ describe('Article lifecycle', () => {
     // 13. Update content
     cy.get('[data-cy="article-content-editor"]')
       .click()
-      .type('This draft was created by the Cypress article lifecycle test.');
+      .type(articleContent);
 
     // 14. Wait for the real PATCH autosave request
     // The application has a 3000ms debounce, so we must allow a slightly longer timeout
@@ -128,7 +129,7 @@ describe('Article lifecycle', () => {
       if (patchResponseData.body) {
         // TipTap JSON bodies have text inside nested nodes
         const bodyStr = JSON.stringify(patchResponseData.body);
-        expect(bodyStr).to.include('Cypress article lifecycle test');
+        expect(bodyStr).to.include(articleContent);
       } else {
         cy.log(
           'PATCH succeeded but body not returned in response DTO. Content persistence relies on status 200.'
@@ -387,6 +388,140 @@ describe('Article lifecycle', () => {
 
         const hasApprovedArticle = responseBody.data.articles.some((a: PendingArticle) => a.id === articleId);
         expect(hasApprovedArticle).to.eq(false);
+      });
+
+      // ---------------------------------------------------------
+      // AUTHOR PHASE - PUBLISHED ARTICLE VERIFICATION
+      // ---------------------------------------------------------
+
+      cy.then(() => {
+        setE2EIdentity(E2E_AUTHOR);
+      });
+
+      cy.session(
+        ['e2e-author-phase-2', E2E_AUTHOR.id],
+        () => {
+          mintE2EFrontendSession(E2E_AUTHOR);
+        },
+        {
+          validate: () => {
+            cy.getCookie(SESSION_TOKEN_COOKIE).should('exist');
+          },
+        }
+      );
+
+      // Hard Navigation to reset React state
+      cy.visit('/articles');
+
+      cy.wait('@getCurrentUser').then((interception) => {
+        const configuredApiUrl = Cypress.expose('apiUrl');
+        expect(configuredApiUrl).to.be.a('string');
+        const expectedApiUrl = new URL(configuredApiUrl as string);
+        const actualRequestUrl = new URL(interception.request.url);
+        expect(actualRequestUrl.origin).to.eq(expectedApiUrl.origin);
+        expect(actualRequestUrl.pathname).to.eq('/api/v1/users/me');
+
+        expect(interception.request.headers['x-test-user-id']).to.eq(E2E_AUTHOR.id);
+        expect(interception.request.headers['x-test-user-email']).to.eq(E2E_AUTHOR.email);
+        expect(interception.request.headers['x-test-user-role']).to.eq(E2E_AUTHOR.role);
+
+        expect(interception.response?.statusCode).to.eq(200);
+        expect(interception.response?.body.success).to.eq(true);
+        expect(interception.response?.body.data.id).to.eq(E2E_AUTHOR.id);
+        expect(interception.response?.body.data.email).to.eq(E2E_AUTHOR.email);
+        expect(interception.response?.body.data.role).to.eq('User');
+      });
+
+      cy.get('[data-testid="search-input"][placeholder="Search by title..."]').type(articleTitle);
+
+      cy.wait('@searchPublishedArticles').then((interception) => {
+        expect(interception.request.method).to.eq('GET');
+        const reqUrl = new URL(interception.request.url);
+        expect(reqUrl.pathname).to.eq('/api/v1/articles');
+        expect(reqUrl.searchParams.get('search')).to.eq(articleTitle);
+        // actual page, limit, sort and order parameters match current frontend behaviour
+        expect(reqUrl.searchParams.get('page')).to.eq('1');
+        expect(reqUrl.searchParams.get('limit')).to.eq('12');
+        expect(reqUrl.searchParams.get('sort')).to.eq('createdAt');
+        expect(reqUrl.searchParams.get('order')).to.eq('desc');
+
+        expect(interception.request.headers['x-test-user-id']).to.eq(E2E_AUTHOR.id);
+        expect(interception.request.headers['x-test-user-email']).to.eq(E2E_AUTHOR.email);
+        expect(interception.request.headers['x-test-user-role']).to.eq(E2E_AUTHOR.role);
+
+        expect(interception.response?.statusCode).to.eq(200);
+        const responseBody = interception.response?.body;
+        expect(responseBody.success).to.eq(true);
+        expect(responseBody.data.articles).to.be.an('array');
+
+        interface PublishedArticle {
+          id: string;
+          title: string;
+          status: string;
+        }
+
+        const publishedArticle = responseBody.data.articles.find(
+          (article: PublishedArticle) => article.id === articleId
+        );
+        if (!publishedArticle) {
+          throw new Error('Article was not found in published list');
+        }
+
+        expect(publishedArticle.id).to.eq(articleId);
+        expect(publishedArticle.title).to.eq(articleTitle);
+        expect(publishedArticle.status).to.eq('Published');
+      });
+
+      cy.get(`[data-testid="article-card-${articleId}"]`)
+        .should('be.visible')
+        .within(() => {
+          cy.contains(articleTitle).should('be.visible');
+          cy.root().should('have.attr', 'href', `/articles/${articleId}`).click();
+        });
+
+      cy.wait('@getPublishedArticleDetail').then((interception) => {
+        expect(interception.request.method).to.eq('GET');
+        const reqUrl = new URL(interception.request.url);
+        expect(reqUrl.pathname).to.eq(`/api/v1/articles/${articleId}`);
+
+        expect(interception.request.headers['x-test-user-id']).to.eq(E2E_AUTHOR.id);
+        expect(interception.request.headers['x-test-user-email']).to.eq(E2E_AUTHOR.email);
+        expect(interception.request.headers['x-test-user-role']).to.eq(E2E_AUTHOR.role);
+
+        expect(interception.response?.statusCode).to.eq(200);
+        const responseBody = interception.response?.body;
+        expect(responseBody.success).to.eq(true);
+        expect(responseBody.data.id).to.eq(articleId);
+        expect(responseBody.data.title).to.eq(articleTitle);
+        expect(responseBody.data.status).to.eq('Published');
+
+        const bodyStr = JSON.stringify(responseBody.data.body);
+        expect(bodyStr).to.include(articleContent);
+      });
+
+      cy.location('pathname').should('eq', `/articles/${articleId}`);
+      cy.get('h1').contains(articleTitle).should('be.visible');
+      cy.get('[data-testid="article-content"]').should('contain.text', articleContent);
+
+      cy.get('@getPublishedArticleDetail.all').then((interceptions) => {
+        expect(interceptions.length).to.be.greaterThan(0);
+
+        const successfulRequest = interceptions.find((interception) => {
+          const response = interception.response;
+
+          if (
+            response?.statusCode === 200 &&
+            response.body?.success === true &&
+            response.body?.data?.id === articleId &&
+            response.body?.data?.status === 'Published'
+          ) {
+            const bodyStr = JSON.stringify(response.body?.data?.body);
+            return bodyStr.includes(articleContent);
+          }
+          return false;
+        });
+
+        expect(successfulRequest).to.not.equal(undefined);
       });
     });
   });
