@@ -107,7 +107,7 @@ const makeUserRepo = () => ({
 // Shared fixtures for author enrichment assertions
 const AUTHOR_ALICE = { id: 'user-1', name: 'Alice', email: 'alice@example.com' };
 const AUTHOR_BOB = { id: 'user-2', name: 'Bob', email: 'bob@example.com' };
-const UNKNOWN_AUTHOR = { authorName: 'Unknown', authorEmail: null };
+const UNKNOWN_AUTHOR = { authorName: 'Unknown', authorEmail: null, authorImage: null };
 const INVALID_STATUS_FILTER_ERROR = new AppError(
   'Invalid status filter. Allowed: Pending, Published, Unpublished',
   400

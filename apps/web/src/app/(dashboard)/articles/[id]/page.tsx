@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getArticle, ArticleDetail } from '@/lib/api/articles';
+import { UserAvatar } from '@/components/UserAvatar';
 import { ArticleContent } from '@/components/article-detail/ArticleContent';
 import { LikeButton } from '@/components/article-detail/LikeButton';
 import { CommentsSection } from '@/components/article-detail/CommentsSection';
@@ -81,6 +82,7 @@ export default function ArticleDetailPage(props: ArticlePageProps) {
     }
   );
 
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 pb-24">
       <div className="mb-6">
@@ -112,9 +114,11 @@ export default function ArticleDetailPage(props: ArticlePageProps) {
 
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-brand-border flex items-center justify-center text-brand-text-secondary">
-                <span className="text-sm font-medium">?</span>
-              </div>
+              <UserAvatar
+                format="detail"
+                name={article.authorName}
+                avatarUrl={article.authorImage}
+              />
               <div>
                 <p className="font-semibold text-brand-dark">
                   {article.authorName || 'Unknown Author'}
