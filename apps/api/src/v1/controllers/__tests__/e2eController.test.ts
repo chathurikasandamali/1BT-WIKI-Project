@@ -47,7 +47,13 @@ describe('E2eController', () => {
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({
       success: true,
-      data: { articleId: '123', alreadyAbsent: false },
+      data: {
+        articleId: '123',
+        articleDeleteCount: 1,
+        notificationDeleteCount: 0,
+        alreadyAbsent: false,
+        verifiedAbsent: true,
+      },
       message: 'E2E article and dependencies successfully deleted',
     });
   });
@@ -67,7 +73,13 @@ describe('E2eController', () => {
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({
       success: true,
-      data: { articleId: '123', alreadyAbsent: true },
+      data: {
+        articleId: '123',
+        articleDeleteCount: 0,
+        notificationDeleteCount: 0,
+        alreadyAbsent: true,
+        verifiedAbsent: true,
+      },
       message: 'Article is already absent',
     });
   });
