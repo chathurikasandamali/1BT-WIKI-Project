@@ -1,8 +1,9 @@
 import { jest } from '@jest/globals';
 import type { Request, Response, NextFunction } from 'express';
+import type { E2eCleanupService } from '../../services/e2eCleanupService.js';
 
 const mockService = {
-  deleteArticle: jest.fn(),
+  deleteArticle: jest.fn() as jest.MockedFunction<E2eCleanupService['deleteArticle']>,
 };
 
 jest.unstable_mockModule('../../services/e2eCleanupService.js', () => ({
@@ -32,9 +33,12 @@ describe('E2eController', () => {
   });
 
   it('calls service and returns success for new deletion', async () => {
-    (mockService.deleteArticle as jest.Mock).mockResolvedValue({
+    mockService.deleteArticle.mockResolvedValue({
       articleId: '123',
+      articleDeleteCount: 1,
+      notificationDeleteCount: 0,
       alreadyAbsent: false,
+      verifiedAbsent: true,
     });
 
     await controller.deleteArticle(req as Request, res as Response, next);
@@ -49,9 +53,12 @@ describe('E2eController', () => {
   });
 
   it('calls service and returns success for already absent', async () => {
-    (mockService.deleteArticle as jest.Mock).mockResolvedValue({
+    mockService.deleteArticle.mockResolvedValue({
       articleId: '123',
+      articleDeleteCount: 0,
+      notificationDeleteCount: 0,
       alreadyAbsent: true,
+      verifiedAbsent: true,
     });
 
     await controller.deleteArticle(req as Request, res as Response, next);
@@ -67,7 +74,7 @@ describe('E2eController', () => {
 
   it('calls next with error if service throws', async () => {
     const error = new Error('Service Error');
-    (mockService.deleteArticle as jest.Mock).mockRejectedValue(error);
+    mockService.deleteArticle.mockRejectedValue(error);
 
     await controller.deleteArticle(req as Request, res as Response, next);
 
