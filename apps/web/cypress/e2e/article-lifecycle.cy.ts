@@ -89,7 +89,7 @@ describe('Article lifecycle', () => {
     const articleContent = 'This draft was created by the Cypress article lifecycle test.';
 
     // Type the unique title and trigger the real blur behaviour
-    cy.get('[data-cy="article-title-input"]').type(articleTitle).blur();
+    cy.get('[data-cy="article-title-input"]').type(articleTitle, { delay: 0 }).blur();
 
     // Wait for the real POST request
     cy.wait('@createArticle').then((interception) => {
@@ -112,13 +112,22 @@ describe('Article lifecycle', () => {
     cy.get('@createArticle.all').should('have.length', 1);
 
     // 13. Update content
+    cy.intercept('PATCH', '**/api/v1/articles/*', (req) => {
+      const bodyString = typeof req.body === 'string' 
+        ? req.body 
+        : JSON.stringify(req.body);
+      if (bodyString.includes(articleContent)) {
+        req.alias = 'finalArticleAutosave';
+      }
+    });
+
     cy.get('[data-cy="article-content-editor"]')
       .click()
-      .type(articleContent);
+      .type(articleContent, { delay: 0 });
 
     // 14. Wait for the real PATCH autosave request
     // The application has a 3000ms debounce, so we must allow a slightly longer timeout
-    cy.wait('@updateArticle', { timeout: 10000 }).then((interception) => {
+    cy.wait('@finalArticleAutosave', { timeout: 10000 }).then((interception) => {
       // Assert PATCH URL contains createdArticleId
       expect(interception.request.url).to.include(createdArticleId);
       // Assert successful response and persistence
@@ -243,11 +252,7 @@ describe('Article lifecycle', () => {
         expect(interception.response?.body.data.role).to.eq('Reviewer');
       });
 
-      // 26. Assert RoleGuard / UI root
-      cy.get('[data-testid="reviewer-approvals-page"]').should('be.visible');
-      cy.url().should('include', '/reviewer/approvals');
-
-      // 27. Wait for Pending list request
+      // 26. Wait for Pending list request
       cy.wait('@getPendingArticles').then((interception) => {
         expect(interception.request.method).to.eq('GET');
 
@@ -274,11 +279,17 @@ describe('Article lifecycle', () => {
         // Locate our specific article in the backend response
         const foundArticle = responseBody.data.articles.find((a: PendingArticle) => a.id === articleId);
         if (!foundArticle) {
-          throw new Error('Article was not found in pending list');
+          throw new Error(
+            `Article ID ${articleId} not found in /reviewer/articles/pending list.`
+          );
         }
-        expect(foundArticle.status).to.eq('Pending');
         expect(foundArticle.title).to.eq(articleTitle);
+        expect(foundArticle.status).to.eq('Pending');
       });
+
+      // 27. Assert RoleGuard / UI root
+      cy.get('[data-testid="reviewer-approvals-page"]').should('be.visible');
+      cy.url().should('include', '/reviewer/approvals');
 
       // 28. Exact UI Discovery
       cy.get(`[data-testid="article-card-${articleId}"]`)
@@ -375,10 +386,14 @@ describe('Article lifecycle', () => {
       // This ensures the post-approval data fetch has completed.
       cy.get(`[data-testid="article-card-${articleId}"]`).should('not.exist');
 
-      // Now inspect the LAST getPendingArticles request to prove the backend 200 response was clean
-      cy.get('@getPendingArticles.all').then((interceptions) => {
-        const lastInterception = interceptions[interceptions.length - 1];
+      // Now wait for the background revalidation request to complete before inspecting it
+      cy.get('@getPendingArticles.all').should((interceptions) => {
+        const completedInterceptions = interceptions.filter((i: any) => i.response);
+        expect(completedInterceptions.length).to.be.greaterThan(0, 'No completed getPendingArticles requests found');
+        
+        const lastInterception = completedInterceptions[completedInterceptions.length - 1];
         expect(lastInterception.response?.statusCode).to.eq(200);
+        
         const responseBody = lastInterception.response?.body;
         expect(responseBody.success).to.eq(true);
         expect(responseBody.data.articles).to.be.an('array');
@@ -388,7 +403,7 @@ describe('Article lifecycle', () => {
         }
 
         const hasApprovedArticle = responseBody.data.articles.some((a: PendingArticle) => a.id === articleId);
-        expect(hasApprovedArticle).to.eq(false);
+        expect(hasApprovedArticle).to.eq(false, 'The approved article should no longer be in the pending list');
       });
 
       // ---------------------------------------------------------
@@ -433,7 +448,7 @@ describe('Article lifecycle', () => {
         expect(interception.response?.body.data.role).to.eq('User');
       });
 
-      cy.get('[data-testid="search-input"][placeholder="Search by title..."]').type(articleTitle);
+      cy.get('[data-testid="search-input"][placeholder="Search by title..."]').type(articleTitle, { delay: 0 });
 
       cy.wait('@searchPublishedArticles').then((interception) => {
         expect(interception.request.method).to.eq('GET');
