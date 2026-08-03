@@ -65,6 +65,7 @@ jest.unstable_mockModule('@v1/lib/b2Client.js', () => ({
 jest.unstable_mockModule('@repositories/userRepository.js', () => ({
   default: {
     findManyByIds: jest.fn(),
+    findById: jest.fn(),
   },
 }));
 
@@ -106,7 +107,7 @@ const makeUserRepo = () => ({
 // Shared fixtures for author enrichment assertions
 const AUTHOR_ALICE = { id: 'user-1', name: 'Alice', email: 'alice@example.com' };
 const AUTHOR_BOB = { id: 'user-2', name: 'Bob', email: 'bob@example.com' };
-const UNKNOWN_AUTHOR = { authorName: 'Unknown', authorEmail: null };
+const UNKNOWN_AUTHOR = { authorName: 'Unknown', authorEmail: null, authorImage: null };
 const INVALID_STATUS_FILTER_ERROR = new AppError(
   'Invalid status filter. Allowed: Pending, Published, Unpublished',
   400
@@ -125,6 +126,7 @@ const makeArticleRecord = (
   tags: [],
   createdAt: new Date('2024-01-01'),
   updatedAt: new Date('2024-01-01'),
+  authorName: AUTHOR_ALICE.name,
   ...overrides,
 });
 

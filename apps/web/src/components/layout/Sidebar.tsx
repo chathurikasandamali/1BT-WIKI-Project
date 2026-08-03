@@ -273,15 +273,19 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
             </Link>
             <Link
               href="/admin/articles"
-              className={itemClasses('/admin/articles')}
-              style={{ paddingLeft: '20px' }}
+              className={cn(
+                itemClasses('/admin/articles'),
+                isCollapsed ? 'pl-[31px] gap-0' : 'pl-[20px] gap-[16px]'
+              )}
               data-testid="nav-admin-articles"
+              aria-label={isCollapsed ? "Article Management" : undefined}
             >
               {isActive('/admin/articles') && (
                 <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-3/4 bg-brand-red active-indicator rounded-r-full" />
               )}
               <ArticleIcon className="w-4 h-4 relative z-10" />
-              <span className="relative z-10">Article Management</span>
+              {!isCollapsed && <span className="relative z-10">Article Management</span>}
+              <Tooltip text="Article Management" />
             </Link>
           </nav>
         </>

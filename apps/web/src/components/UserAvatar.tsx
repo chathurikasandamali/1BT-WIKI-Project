@@ -1,84 +1,34 @@
 /* eslint-disable @next/next/no-img-element */
 
 'use client';
+import { useState } from 'react';
 import { useUser } from '@/lib/hooks/useUser';
 
 interface UserAvatarProps {
-  format: 'collapsed' | 'expanded';
+  format?: 'collapsed' | 'expanded' | 'detail';
+  name?: string;
+  avatarUrl?: string | null;
 }
 
-export const UserAvatar = ({ format }: UserAvatarProps) => {
+export const UserAvatar = ({ format = 'collapsed', name, avatarUrl }: UserAvatarProps) => {
   const { user } = useUser();
+  const [imageError, setImageError] = useState(false);
 
-  if (user) {
-    if (format === 'collapsed') {
-      return (
-        <div className="h-8 w-8 rounded-full bg-gray-300">
-          {user.avatarUrl ? (
-            <img
-              src={user.avatarUrl}
-              alt="User Avatar"
-              className="cover rounded-full h-8 w-8 object-cover"
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center rounded-full bg-gray-500 text-sm font-semibold text-white">
-              {user.name
-                .split(' ')
-                .map((n) => n[0])
-                .join('')
-                .toUpperCase()
-                .slice(0, 2)}
-            </div>
-          )}
-          {/* <Image 
-                        src={user.avatarUrl || user.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                        alt="User Avatar"
-                        className="cover rounded-full"
-                        width={32}
-                        height={32}
-                    /> */}
-        </div>
-      );
-    } else if (format === 'expanded') {
-      return (
-        <div className="flex items-center gap-2">
-          {user.avatarUrl ? (
-            <img
-              src={user.avatarUrl}
-              alt="User Avatar"
-              className="h-8 w-8 rounded-full object-cover"
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-500 text-sm font-semibold text-white">
-              {user.name
-                .split(' ')
-                .map((n) => n[0])
-                .join('')
-                .toUpperCase()
-                .slice(0, 2)}
-            </div>
-          )}
-          {/* <Image 
-                        src={user.avatarUrl || user.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                        alt="User Avatar"
-                        className="h-8 w-8 rounded-full"
-                        width={32}
-                        height={32}
-                    /> */}
-          <div className="flex flex-col">
-            <span data-cy="user-avatar-name" className="text-xs font-medium text-gray-400">
-              {user.name}
-            </span>
-            <span className="text-xs font-medium text-gray-500">
-              {user.role}
-            </span>
-          </div>
-        </div>
-      );
-    }
-  } else {
+  const effectiveName = name ?? user?.name ?? 'Guest';
+  const effectiveAvatarUrl = avatarUrl !== undefined ? avatarUrl : user?.avatarUrl;
+
+  const initials = (effectiveName || 'Author')
+    .split(' ')
+    .filter(Boolean)
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2) || '?';
+
+  const hasValidImage = Boolean(effectiveAvatarUrl) && !imageError;
+  const isGuestWithoutUser = !name && avatarUrl === undefined && !user;
+
+  if (isGuestWithoutUser) {
     return (
       <div className="flex items-center gap-2">
         <div className="h-8 w-8 rounded-full bg-gray-300"></div>
@@ -86,4 +36,45 @@ export const UserAvatar = ({ format }: UserAvatarProps) => {
       </div>
     );
   }
+
+  const avatarSizeClasses =
+    format === 'detail' ? 'h-12 w-12 text-base' : 'h-8 w-8 text-sm';
+
+  const avatarCircle = (
+    <div className={`relative rounded-full ${avatarSizeClasses}`}>
+      {hasValidImage ? (
+        <img
+          src={effectiveAvatarUrl!}
+          alt={effectiveName}
+          className={`rounded-full object-cover ${avatarSizeClasses}`}
+          referrerPolicy="no-referrer"
+          onError={() => setImageError(true)}
+        />
+      ) : (
+        <div className={`flex h-full w-full items-center justify-center rounded-full bg-gray-500 font-semibold text-white ${avatarSizeClasses}`}>
+          {initials}
+        </div>
+      )}
+    </div>
+  );
+
+  if (format === 'expanded') {
+    return (
+      <div className="flex items-center gap-2">
+        {avatarCircle}
+        <div className="flex flex-col">
+          <span data-cy="user-avatar-name" className="text-xs font-medium text-gray-400">
+            {effectiveName}
+          </span>
+          {user?.role && (
+            <span className="text-xs font-medium text-gray-500">
+              {user.role}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return avatarCircle;
 };

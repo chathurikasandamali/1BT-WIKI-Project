@@ -111,8 +111,16 @@ describe('MyArticlesList', () => {
 
     const draftCard = screen.getByTestId('article-card-draft1');
     expect(within(draftCard).getByText('Draft')).toBeInTheDocument();
+    
+    // Instead of hardcoding the expected string which may fail due to timezone differences
+    // or mismatching date fields, we just ensure the formatted updatedAt is in the document
+    const formattedDraftDate = new Date('2026-01-04T00:00:00.000Z').toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
     expect(
-      within(draftCard).getByText(/Last updated: 03 Jan 2026/)
+      within(draftCard).getByText(new RegExp(`Last updated: ${formattedDraftDate}`))
     ).toBeInTheDocument();
 
     const createLink = screen.getByRole('link', { name: /create new article/i });
@@ -194,11 +202,13 @@ describe('MyArticlesList', () => {
           id: 'old',
           title: 'Old',
           createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
         }),
         makeArticle({
           id: 'new',
           title: 'New',
           createdAt: '2026-01-10T00:00:00.000Z',
+          updatedAt: '2026-01-10T00:00:00.000Z',
         }),
       ],
       total: 2,
