@@ -20,6 +20,7 @@
         "VERCEL_NEON_AUTH_BASE_URL",
         "VERCEL_NEON_AUTH_COOKIE_SECRET",
         "DATABASE_URL",
+        "CYPRESS_API_URL",
         "PORT"
       ],
       "cache": false

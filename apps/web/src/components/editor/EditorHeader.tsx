@@ -165,6 +165,7 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
               )}
             />
             <span
+              data-cy="save-status-indicator"
               className="text-xs font-medium text-brand-text-secondary max-w-[200px] truncate"
               title={
                 saveStatus === 'error' && lastError ? lastError : undefined
@@ -215,6 +216,7 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
           </button>
 
           <button
+            data-cy="submit-for-review-button"
             onClick={() => setIsConfirmModalOpen(true)}
             disabled={isSaving || isPublished}
             className="rounded-lg bg-brand-red px-5 py-2 text-sm font-bold text-white shadow-md hover:bg-brand-red-hover disabled:bg-brand-red-disabled transition-colors"
