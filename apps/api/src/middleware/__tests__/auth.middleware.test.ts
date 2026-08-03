@@ -311,32 +311,97 @@ describe('authenticate middleware', () => {
     expect(req.user?.role).toBe('Admin');
   });
 
-  // ── h. NODE_ENV=test mode ────────────────────────────────────────────────
+  // ── h. Test Mode Guard (E2E) ─────────────────────────────────────────────
 
-  it('allows integration tests to inject synthetic users via X-Test-User-* headers in test mode', async () => {
-    // Arrange
-    process.env.NODE_ENV = 'test';
-    const req = makeReq({
-      headers: {
-        'x-test-user-id': 'test-id',
-        'x-test-user-email': 'test-email@example.com',
-        'x-test-user-role': 'Admin',
-      },
+  describe('Test Mode Guard (E2E_TEST_MODE)', () => {
+    afterEach(() => {
+      delete process.env.E2E_TEST_MODE;
     });
-    const res = makeRes();
-    const next = makeNext();
 
-    // Act
-    await authenticate(req, res, next);
+    it('accepts test headers when both NODE_ENV=test and E2E_TEST_MODE=true', async () => {
+      process.env.NODE_ENV = 'test';
+      process.env.E2E_TEST_MODE = 'true';
+      const req = makeReq({
+        headers: {
+          'x-test-user-id': 'test-id',
+          'x-test-user-email': 'test-email@example.com',
+          'x-test-user-role': 'Admin',
+        },
+      });
+      const res = makeRes();
+      const next = makeNext();
 
-    // Assert
-    expect(mockJwtVerify).not.toHaveBeenCalled();
-    expect(mockFindById).not.toHaveBeenCalled();
-    expect(next).toHaveBeenCalledTimes(1);
-    expect(req.user).toEqual({
-      userId: 'test-id',
-      email: 'test-email@example.com',
-      role: 'Admin',
+      await authenticate(req, res, next);
+
+      expect(mockJwtVerify).not.toHaveBeenCalled();
+      expect(mockFindById).not.toHaveBeenCalled();
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.user).toEqual({
+        userId: 'test-id',
+        email: 'test-email@example.com',
+        role: 'Admin',
+      });
+    });
+
+    it('ignores test headers when E2E_TEST_MODE is missing (falls through to Bearer)', async () => {
+      process.env.NODE_ENV = 'test';
+      delete process.env.E2E_TEST_MODE;
+      const req = makeReq({
+        headers: {
+          'x-test-user-id': 'test-id',
+          'x-test-user-email': 'test-email@example.com',
+          'x-test-user-role': 'Admin',
+        },
+      });
+      const res = makeRes();
+      const next = makeNext();
+
+      await authenticate(req, res, next);
+
+      // Falls through to bearer token logic which returns 401
+      expect(mockJwtVerify).not.toHaveBeenCalled();
+      expect(next).not.toHaveBeenCalled();
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('ignores test headers when E2E_TEST_MODE is false (falls through to Bearer)', async () => {
+      process.env.NODE_ENV = 'test';
+      process.env.E2E_TEST_MODE = 'false';
+      const req = makeReq({
+        headers: {
+          'x-test-user-id': 'test-id',
+          'x-test-user-email': 'test-email@example.com',
+          'x-test-user-role': 'Admin',
+        },
+      });
+      const res = makeRes();
+      const next = makeNext();
+
+      await authenticate(req, res, next);
+
+      expect(mockJwtVerify).not.toHaveBeenCalled();
+      expect(next).not.toHaveBeenCalled();
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('ignores test headers in non-test environment', async () => {
+      process.env.NODE_ENV = 'production';
+      process.env.E2E_TEST_MODE = 'true'; // Even if someone maliciously sets this
+      const req = makeReq({
+        headers: {
+          'x-test-user-id': 'test-id',
+          'x-test-user-email': 'test-email@example.com',
+          'x-test-user-role': 'Admin',
+        },
+      });
+      const res = makeRes();
+      const next = makeNext();
+
+      await authenticate(req, res, next);
+
+      expect(mockJwtVerify).not.toHaveBeenCalled();
+      expect(next).not.toHaveBeenCalled();
+      expect(res.statusCode).toBe(401);
     });
   });
 });
