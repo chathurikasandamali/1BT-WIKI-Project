@@ -388,7 +388,7 @@ describe('Article lifecycle', () => {
 
       // Now wait for the background revalidation request to complete before inspecting it
       cy.get('@getPendingArticles.all').should((interceptions) => {
-        const completedInterceptions = interceptions.filter((i: any) => i.response);
+        const completedInterceptions = (interceptions as import('cypress/types/net-stubbing').Interception[]).filter(i => i.response);
         expect(completedInterceptions.length).to.be.greaterThan(0, 'No completed getPendingArticles requests found');
         
         const lastInterception = completedInterceptions[completedInterceptions.length - 1];
