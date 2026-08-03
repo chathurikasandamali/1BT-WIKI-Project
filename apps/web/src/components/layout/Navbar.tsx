@@ -1,23 +1,35 @@
 'use client';
 
+import Link from 'next/link';
+
 import React, { useRef, useState, useEffect } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { UserAvatar } from '@/components/UserAvatar';
 import { isE2E } from '@/lib/e2e';
 import { BRAND_NAME, BRAND_SUB_NAME } from '@/lib/constants/brand';
 import { SearchIcon } from '@/components/shared/icons/SearchIcon';
 import { BellIcon } from '@/components/shared/icons/BellIcon';
-import { ChevronDownIcon } from '@/components/shared/icons/ChevronDownIcon';
 import { NotificationDropdown } from './NotificationDropdown';
+import { UserAccountMenu } from './UserAccountMenu';
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+/**
+ * Which dropdown is currently open.
+ * Only one can be open at a time — opening one always closes the other.
+ */
+type OpenDropdown = 'notifications' | 'account' | null;
 
 interface NavbarProps {
   notificationCount?: number;
-  userInitials?: string;
-  userName?: string;
   isSidebarOpen?: boolean;
   onToggleSidebar?: () => void;
 }
+
+// ---------------------------------------------------------------------------
 
 gsap.registerPlugin(useGSAP);
 
@@ -28,22 +40,34 @@ export function Navbar({
 }: NavbarProps): React.JSX.Element {
   const containerRef = useRef<HTMLElement>(null);
   const bellRef = useRef<HTMLButtonElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const notificationDropdownRef = useRef<HTMLDivElement>(null);
 
+  /** Mutual-exclusive dropdown state. Only 'notifications' or 'account' (or null) can be open. */
+  const [openDropdown, setOpenDropdown] = useState<OpenDropdown>(null);
+
+  const isNotificationOpen = openDropdown === 'notifications';
+  const isAccountOpen = openDropdown === 'account';
+
+  // ----- Outside-click for notification dropdown only ---------------------
+  // (UserAccountMenu manages its own outside-click internally.)
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node) &&
+        notificationDropdownRef.current &&
+        !notificationDropdownRef.current.contains(event.target as Node) &&
         bellRef.current &&
         !bellRef.current.contains(event.target as Node)
       ) {
-        setIsNotificationOpen(false);
+        if (openDropdown === 'notifications') {
+          setOpenDropdown(null);
+        }
       }
     };
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsNotificationOpen(false);
+      if (e.key === 'Escape' && openDropdown === 'notifications') {
+        setOpenDropdown(null);
+        bellRef.current?.focus();
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleEscape);
@@ -51,7 +75,23 @@ export function Navbar({
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleEscape);
     };
-  }, []);
+  }, [openDropdown]);
+
+  // ----- Handlers ---------------------------------------------------------
+
+  const handleBellToggle = () => {
+    setOpenDropdown((current) => (current === 'notifications' ? null : 'notifications'));
+  };
+
+  const handleAccountToggle = () => {
+    setOpenDropdown((current) => (current === 'account' ? null : 'account'));
+  };
+
+  const handleAccountClose = () => {
+    setOpenDropdown(null);
+  };
+
+  // ----- GSAP animations --------------------------------------------------
 
   useGSAP(
     () => {
@@ -124,38 +164,40 @@ export function Navbar({
   return (
     <header
       ref={containerRef}
-      className="fixed top-0 left-60 right-0 h-16 bg-white border-b border-brand-border z-10
+      className="fixed top-0 right-0 h-16 bg-white border-b border-brand-border z-10
                  flex items-center gap-4 px-6"
+      style={{ left: isSidebarOpen ? '240px' : '78px' }}
       data-testid="navbar"
     >
       {onToggleSidebar && (
         <button
           type="button"
           onClick={onToggleSidebar}
-          className="flex flex-col justify-center items-center w-9 h-9 rounded-lg hover:bg-brand-hover cursor-pointer transition-colors"
-          data-testid="burger-button"
-          aria-label="Toggle Sidebar"
+          className="flex flex-col justify-center items-center w-9 h-9 rounded-lg hover:bg-brand-hover cursor-pointer transition-colors text-brand-dark"
+          data-testid="sidebar-toggle"
+          aria-label={isSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
         >
-          <span className="burger-line w-5 h-0.5 bg-brand-dark my-0.5 origin-center block"></span>
-          <span className="burger-line w-5 h-0.5 bg-brand-dark my-0.5 origin-center block"></span>
-          <span className="burger-line w-5 h-0.5 bg-brand-dark my-0.5 origin-center block"></span>
+          {isSidebarOpen ? <PanelLeftClose className="w-5 h-5" /> : <PanelLeftOpen className="w-5 h-5" />}
         </button>
       )}
 
-      <div
-        className="flex items-center gap-1.5 flex-shrink-0"
-        style={{ marginLeft: onToggleSidebar ? '8px' : '24px' }}
-        data-testid="logo"
-      >
-        <div className="h-10 w-10 bg-brand-red rounded flex items-center justify-center flex-shrink-0">
-          <span className="text-white text-xs font-black leading-none">
-            {BRAND_NAME}
+      {isSidebarOpen && (
+        <Link
+          href="/"
+          className="flex items-center gap-1.5 flex-shrink-0 hover:opacity-80 transition-opacity ml-2"
+          data-testid="logo"
+          aria-label="1BT Wiki home"
+        >
+          <div className="h-10 w-10 bg-brand-red rounded flex items-center justify-center flex-shrink-0">
+            <span className="text-white text-xs font-black leading-none">
+              {BRAND_NAME}
+            </span>
+          </div>
+          <span className="text-brand-text-secondary font-semibold text-base leading-none tracking-tight">
+            {BRAND_SUB_NAME}
           </span>
-        </div>
-        <span className="text-brand-text-secondary font-semibold text-base leading-none tracking-tight">
-          {BRAND_SUB_NAME}
-        </span>
-      </div>
+        </Link>
+      )}
 
       <div className="flex-1 px-4">
         <div className="relative max-w-xl mx-auto">
@@ -176,11 +218,12 @@ export function Navbar({
       </div>
 
       <div className="flex items-center gap-4 flex-shrink-0">
+        {/* ---- Notification bell ---- */}
         <div className="relative">
           <button
             ref={bellRef}
             type="button"
-            onClick={() => setIsNotificationOpen((current) => !current)}
+            onClick={handleBellToggle}
             aria-label="Notifications"
             aria-haspopup="dialog"
             aria-expanded={isNotificationOpen}
@@ -198,12 +241,12 @@ export function Navbar({
               </span>
             )}
           </button>
-          
+
           {isNotificationOpen && (
-            <div ref={dropdownRef} className="absolute right-0 top-full mt-2 z-50">
+            <div ref={notificationDropdownRef} className="absolute right-0 top-full mt-2 z-50">
               <NotificationDropdown
                 id="notification-dropdown"
-                onClose={() => setIsNotificationOpen(false)}
+                onClose={() => setOpenDropdown(null)}
               />
             </div>
           )}
@@ -211,14 +254,12 @@ export function Navbar({
 
         <div className="w-px h-6 bg-brand-border" />
 
-        <button
-          type="button"
-          className="flex items-center gap-2 hover:bg-brand-hover rounded-lg px-2 py-1 transition-colors"
-          data-testid="user-avatar"
-        >
-          <UserAvatar format="collapsed" />
-          <ChevronDownIcon className="h-3 w-3 text-brand-text-secondary ml-1" />
-        </button>
+        {/* ---- User account trigger + menu (controlled) ---- */}
+        <UserAccountMenu
+          isOpen={isAccountOpen}
+          onToggle={handleAccountToggle}
+          onClose={handleAccountClose}
+        />
       </div>
     </header>
   );

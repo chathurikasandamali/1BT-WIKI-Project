@@ -372,6 +372,7 @@ export class ArticleService {
         rejectionFeedback: null,
         authorName: authorMap.get(article.authorId)?.name ?? 'Unknown',
         authorEmail: authorMap.get(article.authorId)?.email ?? null,
+        authorImage: authorMap.get(article.authorId)?.image ?? null,
       })
     );
 
@@ -442,6 +443,7 @@ export class ArticleService {
       likedByMe: likes ? likes.length > 0 : false,
       authorName: author?.name ?? 'Unknown',
       authorEmail: author?.email ?? null,
+      authorImage: author?.image ?? null,
     };
   }
 
