@@ -74,7 +74,6 @@ export function ConfirmationModal({
     >
       <div
         ref={modalRef}
-        data-cy="confirmation-modal"
         className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
       >
         <div className="flex items-center justify-between border-b border-brand-border px-6 py-4">
@@ -101,7 +100,6 @@ export function ConfirmationModal({
             {cancelText}
           </button>
           <button
-            data-cy="confirm-submit-button"
             onClick={onConfirm}
             disabled={isConfirming}
             className="flex items-center gap-2 rounded-lg bg-brand-red px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-red-hover disabled:bg-brand-red-disabled transition-colors"

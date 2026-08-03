@@ -17,11 +17,16 @@ app.get('/api/v1/health', (_req, res) => {
 });
 
 export const appReady: Promise<void> = (async () => {
-  // Let route-loading failures reject appReady so the server does not start.
-  const { default: v1Router } = await import('@routes/index.js');
+  try {
+    const { default: v1Router } = await import('@routes/index.js');
 
-  // Mount all v1 routes under /api/v1
-  app.use('/api/v1', v1Router);
+    // Mount all v1 routes under /api/v1
+    app.use('/api/v1', v1Router);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    // eslint-disable-next-line no-console
+    console.warn('Routes not mounted:', err);
+  }
 
   // ---------------------------------------------------------------------------
   // Global error handler — MUST be registered AFTER all routes.

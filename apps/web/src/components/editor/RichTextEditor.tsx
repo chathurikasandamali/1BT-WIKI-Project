@@ -187,7 +187,6 @@ export function RichTextEditor({ onOpenImageEmbed }: RichTextEditorProps) {
       attributes: {
         class:
           'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto focus:outline-none max-w-none p-6 min-h-[400px]',
-        'data-cy': 'article-content-editor',
       },
     },
     onUpdate: ({ editor: ed }) => {
@@ -222,7 +221,6 @@ export function RichTextEditor({ onOpenImageEmbed }: RichTextEditorProps) {
           Article Title
         </p>
         <input
-          data-cy="article-title-input"
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}

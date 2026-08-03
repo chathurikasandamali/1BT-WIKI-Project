@@ -11,9 +11,7 @@
     "start": "node dist/index.js",
     "lint": "tsc --noEmit",
     "test": "cross-env NODE_ENV=test node --experimental-vm-modules node_modules/jest/bin/jest.js --forceExit",
-    "test:watch": "cross-env NODE_ENV=test node --experimental-vm-modules node_modules/jest/bin/jest.js --watch --forceExit",
-    "dev:e2e": "cross-env NODE_ENV=test E2E_TEST_MODE=true PORT=5001 tsx --env-file=.env.e2e src/index.ts",
-    "db:seed:e2e": "cross-env NODE_ENV=test E2E_TEST_MODE=true E2E_DATABASE_CONFIRMED=true tsx --env-file=.env.e2e scripts/seed-e2e.ts"
+    "test:watch": "cross-env NODE_ENV=test node --experimental-vm-modules node_modules/jest/bin/jest.js --watch --forceExit"
   },
   "jest": {
     "preset": "ts-jest/presets/default-esm",

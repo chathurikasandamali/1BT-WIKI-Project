@@ -59,9 +59,7 @@ export const authenticate = async (
   // ── TEST MODE: allow integration tests to inject a synthetic user ──────────
   // Tests mock this module via jest.unstable_mockModule(), so this branch is
   // only reached in integration tests that deliberately skip the mock.
-  const isTestMode = process.env.NODE_ENV === 'test' && process.env.E2E_TEST_MODE === 'true';
-
-  if (isTestMode) {
+  if (process.env.NODE_ENV === 'test') {
     const userId = req.headers['x-test-user-id'] as string | undefined;
     const email = req.headers['x-test-user-email'] as string | undefined;
     const role = req.headers['x-test-user-role'] as string | undefined;
@@ -71,6 +69,9 @@ export const authenticate = async (
       next();
       return;
     }
+
+    res.status(401).json(errorResponse('Authentication required'));
+    return;
   }
 
   // ── PRODUCTION: validate via Neon Auth ────────────────────────────────────

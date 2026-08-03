@@ -63,7 +63,7 @@ export const UserAvatar = ({ format = 'collapsed', name, avatarUrl }: UserAvatar
       <div className="flex items-center gap-2">
         {avatarCircle}
         <div className="flex flex-col">
-          <span data-cy="user-avatar-name" className="text-xs font-medium text-gray-400">
+          <span className="text-xs font-medium text-gray-400">
             {effectiveName}
           </span>
           {user?.role && (
