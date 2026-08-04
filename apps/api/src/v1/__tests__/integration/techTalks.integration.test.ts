@@ -45,15 +45,15 @@ await jest.unstable_mockModule('@middleware/auth.middleware.js', () => ({
     },
 }));
 
-const MockTechTalkRepository = {
+const mockTechTalkRepository = {
   create: jest.fn<any>().mockResolvedValue({}),
   findById: jest.fn<any>().mockResolvedValue(null),
   updateStatus: jest.fn<any>().mockResolvedValue({}),
 };
 
 await jest.unstable_mockModule('@repositories/techTalkRepository.js', () => ({
-  default: MockTechTalkRepository,
-  TechTalkRepository: jest.fn().mockImplementation(() => MockTechTalkRepository),
+  default: mockTechTalkRepository,
+  TechTalkRepository: jest.fn().mockImplementation(() => mockTechTalkRepository),
 }));
 
 await jest.unstable_mockModule('@v1/lib/b2Client.js', () => ({
@@ -141,7 +141,7 @@ describe('POST /api/v1/techTalks - Integration', () => {
       createdBy: 'admin-1',
     };
 
-    MockTechTalkRepository.create.mockResolvedValue(expectedResponse as any);
+    mockTechTalkRepository.create.mockResolvedValue(expectedResponse as any);
 
     const res = await request(app)
       .post(techtalkPath)
@@ -182,7 +182,7 @@ describe('POST /api/v1/techTalks/:id/publish - Integration', () => {
   });
 
   it('returns 404 when tech talk is not found', async () => {
-    MockTechTalkRepository.findById.mockResolvedValue(null);
+    mockTechTalkRepository.findById.mockResolvedValue(null);
 
     const res = await request(app)
       .post(publishPath('non-existent-id'))
@@ -195,7 +195,7 @@ describe('POST /api/v1/techTalks/:id/publish - Integration', () => {
   });
 
   it('returns 400 when tech talk status is already published', async () => {
-    MockTechTalkRepository.findById.mockResolvedValue({
+    mockTechTalkRepository.findById.mockResolvedValue({
       id: 'tt-1',
       status: 'published',
     });
@@ -213,7 +213,7 @@ describe('POST /api/v1/techTalks/:id/publish - Integration', () => {
   });
 
   it('returns 400 when tech talk status is unpublished', async () => {
-    MockTechTalkRepository.findById.mockResolvedValue({
+    mockTechTalkRepository.findById.mockResolvedValue({
       id: 'tt-1',
       status: 'unpublished',
     });
@@ -241,8 +241,8 @@ describe('POST /api/v1/techTalks/:id/publish - Integration', () => {
       status: 'published',
     };
 
-    MockTechTalkRepository.findById.mockResolvedValue(draftTalk);
-    MockTechTalkRepository.updateStatus.mockResolvedValue(publishedTalk);
+    mockTechTalkRepository.findById.mockResolvedValue(draftTalk);
+    mockTechTalkRepository.updateStatus.mockResolvedValue(publishedTalk);
 
     const res = await request(app)
       .post(publishPath('tt-draft-1'))
@@ -251,8 +251,8 @@ describe('POST /api/v1/techTalks/:id/publish - Integration', () => {
       .set('x-test-user-role', 'Admin');
 
     expect(res.status).toBe(200);
-    expect(MockTechTalkRepository.findById).toHaveBeenCalledWith('tt-draft-1');
-    expect(MockTechTalkRepository.updateStatus).toHaveBeenCalledWith(
+    expect(mockTechTalkRepository.findById).toHaveBeenCalledWith('tt-draft-1');
+    expect(mockTechTalkRepository.updateStatus).toHaveBeenCalledWith(
       'tt-draft-1',
       'published'
     );

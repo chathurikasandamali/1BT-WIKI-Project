@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import b2Client from '@v1/lib/b2Client.js';
 import { AppError } from '@errors/AppError.js';
-import { TechTalkRepository } from '@repositories/techTalkRepository.js';
+import techTalkRepository from '@repositories/techTalkRepository.js';
 import type {
   TechTalk,
   CreateTechTalkInput,
@@ -10,7 +10,7 @@ import { TechTalkStatusValue } from '@models/techTalk.types.js';
 
 export class TechTalkService {
   constructor(
-    private repository: TechTalkRepository = new TechTalkRepository()
+    private repository: typeof techTalkRepository = techTalkRepository
   ) {}
 
   async createTechTalk(

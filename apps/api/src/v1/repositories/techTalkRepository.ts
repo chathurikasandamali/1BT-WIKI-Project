@@ -1,7 +1,7 @@
 import { prisma } from '@repo/db';
 import type { TechTalk, TechTalkStatus } from '@models/techTalk.types.js';
 
-export class TechTalkRepository {
+class TechTalkRepository {
   async create(data: {
     title: string;
     description: string | null;
@@ -25,4 +25,5 @@ export class TechTalkRepository {
   }
 }
 
-export default new TechTalkRepository();
+const techTalkRepository = new TechTalkRepository();
+export default techTalkRepository;

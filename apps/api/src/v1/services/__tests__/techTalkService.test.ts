@@ -1,18 +1,24 @@
 import { jest } from '@jest/globals';
 import { AppError } from '@errors/AppError.js';
-import type { TechTalkRepository } from '@repositories/techTalkRepository.js';
+import techTalkRepository from '@repositories/techTalkRepository.js';
 import type { CreateTechTalkInput } from '@models/techTalk.types.js';
 
 jest.unstable_mockModule('@repositories/techTalkRepository.js', () => {
   const mockCreate = jest.fn();
   const mockFindById = jest.fn();
   const mockUpdateStatus = jest.fn();
+
+  const mockInstance = {
+    create: mockCreate,
+    findById: mockFindById,
+    updateStatus: mockUpdateStatus,
+  };
+
   return {
-    TechTalkRepository: jest.fn().mockImplementation(() => ({
-      create: mockCreate,
-      findById: mockFindById,
-      updateStatus: mockUpdateStatus,
-    })),
+    // Mocks the named class blueprint export
+    techTalkRepository: jest.fn().mockImplementation(() => mockInstance),
+    // Mocks the default camelCase object instance export
+    default: mockInstance,
   };
 });
 
@@ -42,7 +48,7 @@ describe('TechTalkService', () => {
       updateStatus: jest.fn<any>(),
     };
     service = new TechTalkService(
-      mockRepo as unknown as TechTalkRepository
+      mockRepo as unknown as typeof techTalkRepository
     );
   });
 
