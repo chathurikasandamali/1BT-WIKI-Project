@@ -23,7 +23,7 @@ export function ArticleContent({ body }: ArticleContentProps) {
   });
 
   return (
-    <div>
+    <div data-testid="article-content">
       <EditorContent editor={editor} />
     </div>
   );
