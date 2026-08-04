@@ -79,6 +79,20 @@ export class TechTalkService {
     });
   }
 
+  async publishTechTalk(id: string): Promise<TechTalk> {
+    const techTalk = await this.repository.findById(id);
+    if (!techTalk) {
+      throw new AppError('Tech Talk not found', 404);
+    }
+    if (techTalk.status !== TechTalkStatusValue.Draft) {
+      throw new AppError(
+        `Cannot publish a Tech Talk with status "${techTalk.status}". Only Draft Tech Talks can be published.`,
+        400
+      );
+    }
+    return this.repository.updateStatus(id, TechTalkStatusValue.Published);
+  }
+
   private validateSlidesFile(file: Express.Multer.File): void {
     const maxSizeBytes = 20 * 1024 * 1024; // 20MB
     if (file.size > maxSizeBytes) {

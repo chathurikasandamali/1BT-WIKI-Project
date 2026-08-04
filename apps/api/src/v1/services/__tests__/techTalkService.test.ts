@@ -5,9 +5,13 @@ import type { CreateTechTalkInput } from '@models/techTalk.types.js';
 
 jest.unstable_mockModule('@repositories/techTalkRepository.js', () => {
   const mockCreate = jest.fn();
+  const mockFindById = jest.fn();
+  const mockUpdateStatus = jest.fn();
   return {
     TechTalkRepository: jest.fn().mockImplementation(() => ({
       create: mockCreate,
+      findById: mockFindById,
+      updateStatus: mockUpdateStatus,
     })),
   };
 });
@@ -24,12 +28,18 @@ const b2Client = b2ClientModule.default;
 
 describe('TechTalkService', () => {
   let service: InstanceType<typeof TechTalkService>;
-  let mockRepo: { create: jest.MockedFunction<any> };
+  let mockRepo: {
+    create: jest.MockedFunction<any>;
+    findById: jest.MockedFunction<any>;
+    updateStatus: jest.MockedFunction<any>;
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockRepo = {
       create: jest.fn<any>(),
+      findById: jest.fn<any>(),
+      updateStatus: jest.fn<any>(),
     };
     service = new TechTalkService(
       mockRepo as unknown as TechTalkRepository
@@ -228,6 +238,52 @@ describe('TechTalkService', () => {
         service.createTechTalk(validPayload, 'admin-123', invalidFile)
       ).rejects.toThrow(
         new AppError('Only PDF, PPT, and PPTX files are allowed for slides', 400)
+      );
+    });
+  });
+
+  describe('publishTechTalk', () => {
+    it('publishes a draft tech talk successfully', async () => {
+      const draftTechTalk = { id: 'tt-1', status: 'draft', title: 'Test Talk' };
+      const publishedTechTalk = { ...draftTechTalk, status: 'published' };
+
+      mockRepo.findById.mockResolvedValue(draftTechTalk);
+      mockRepo.updateStatus.mockResolvedValue(publishedTechTalk);
+
+      const result = await service.publishTechTalk('tt-1');
+
+      expect(mockRepo.findById).toHaveBeenCalledWith('tt-1');
+      expect(mockRepo.updateStatus).toHaveBeenCalledWith('tt-1', 'published');
+      expect(result).toEqual(publishedTechTalk);
+    });
+
+    it('rejects publishing when tech talk is not found (404)', async () => {
+      mockRepo.findById.mockResolvedValue(null);
+
+      await expect(service.publishTechTalk('non-existent')).rejects.toThrow(
+        new AppError('Tech Talk not found', 404)
+      );
+    });
+
+    it('rejects publishing when tech talk is already published (400)', async () => {
+      mockRepo.findById.mockResolvedValue({ id: 'tt-1', status: 'published' });
+
+      await expect(service.publishTechTalk('tt-1')).rejects.toThrow(
+        new AppError(
+          'Cannot publish a Tech Talk with status "published". Only Draft Tech Talks can be published.',
+          400
+        )
+      );
+    });
+
+    it('rejects publishing when tech talk is unpublished (400)', async () => {
+      mockRepo.findById.mockResolvedValue({ id: 'tt-1', status: 'unpublished' });
+
+      await expect(service.publishTechTalk('tt-1')).rejects.toThrow(
+        new AppError(
+          'Cannot publish a Tech Talk with status "unpublished". Only Draft Tech Talks can be published.',
+          400
+        )
       );
     });
   });

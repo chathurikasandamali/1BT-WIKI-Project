@@ -10,8 +10,9 @@ jest.unstable_mockModule('@services/techTalkService.js', () => ({
 
 const { TechTalkController } = await import('../techTalkController.js');
 
-const makeMockService = (): jest.Mocked<Pick<TechTalkService, 'createTechTalk'>> => ({
+const makeMockService = (): jest.Mocked<Pick<TechTalkService, 'createTechTalk' | 'publishTechTalk'>> => ({
   createTechTalk: jest.fn(),
+  publishTechTalk: jest.fn(),
 });
 
 describe('TechTalkController', () => {
@@ -66,6 +67,34 @@ describe('TechTalkController', () => {
         data: expectedCreated,
         message: 'Tech Talk created successfully',
       });
+    });
+  });
+
+  describe('publish', () => {
+    it('should call service.publishTechTalk with id and return 200 on success', async () => {
+      req.params = { id: 'tt-123' };
+      const publishedTalk = { id: 'tt-123', status: 'published', title: 'Tech Talk 1' };
+      mockService.publishTechTalk.mockResolvedValue(publishedTalk as any);
+
+      await controller.publish(req as Request, res as Response, next);
+
+      expect(mockService.publishTechTalk).toHaveBeenCalledWith('tt-123');
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: publishedTalk,
+        message: 'Tech Talk published successfully',
+      });
+    });
+
+    it('should forward errors to next', async () => {
+      req.params = { id: 'tt-invalid' };
+      const error = new AppError('Tech Talk not found', 404);
+      mockService.publishTechTalk.mockRejectedValue(error);
+
+      await controller.publish(req as Request, res as Response, next);
+
+      expect(next).toHaveBeenCalledWith(error);
     });
   });
 });
