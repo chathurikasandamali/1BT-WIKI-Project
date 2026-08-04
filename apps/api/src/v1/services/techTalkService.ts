@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import b2Client from '@v1/lib/b2Client.js';
 import { AppError } from '@errors/AppError.js';
-import { TechTalkRepository } from '@repositories/techTalkRepository.js';
+import techTalkRepository from '@repositories/techTalkRepository.js';
 import type {
   TechTalk,
   CreateTechTalkInput,
@@ -10,7 +10,7 @@ import { TechTalkStatusValue } from '@models/techTalk.types.js';
 
 export class TechTalkService {
   constructor(
-    private repository: TechTalkRepository = new TechTalkRepository()
+    private repository: typeof techTalkRepository = techTalkRepository
   ) {}
 
   async createTechTalk(
@@ -77,6 +77,20 @@ export class TechTalkService {
       status,
       createdBy: adminId,
     });
+  }
+
+  async publishTechTalk(id: string): Promise<TechTalk> {
+    const techTalk = await this.repository.findById(id);
+    if (!techTalk) {
+      throw new AppError('Tech Talk not found', 404);
+    }
+    if (techTalk.status !== TechTalkStatusValue.Draft) {
+      throw new AppError(
+        `Cannot publish a Tech Talk with status "${techTalk.status}". Only Draft Tech Talks can be published.`,
+        400
+      );
+    }
+    return this.repository.updateStatus(id, TechTalkStatusValue.Published);
   }
 
   private validateSlidesFile(file: Express.Multer.File): void {

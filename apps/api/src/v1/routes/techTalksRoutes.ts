@@ -7,7 +7,7 @@ import { TechTalkController } from '@controllers/techTalkController.js';
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 const techTalkController = new TechTalkController();
-const { create } = techTalkController;
+const { create, publish } = techTalkController;
 
 router.post(
   '/',
@@ -16,5 +16,7 @@ router.post(
   upload.array('slides'),
   create
 );
+
+router.post('/:id/publish', authenticate, requireRole('Admin'), publish);
 
 export default router;

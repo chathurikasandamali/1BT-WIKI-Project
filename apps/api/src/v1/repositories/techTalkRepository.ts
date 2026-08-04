@@ -1,7 +1,7 @@
 import { prisma } from '@repo/db';
 import type { TechTalk, TechTalkStatus } from '@models/techTalk.types.js';
 
-export class TechTalkRepository {
+class TechTalkRepository {
   async create(data: {
     title: string;
     description: string | null;
@@ -15,6 +15,15 @@ export class TechTalkRepository {
   }): Promise<TechTalk> {
     return prisma.techTalk.create({ data });
   }
+
+  async findById(id: string): Promise<TechTalk | null> {
+    return prisma.techTalk.findFirst({ where: { id, deletedAt: null } });
+  }
+
+  async updateStatus(id: string, status: TechTalkStatus): Promise<TechTalk> {
+    return prisma.techTalk.update({ where: { id }, data: { status } });
+  }
 }
 
-export default new TechTalkRepository();
+const techTalkRepository = new TechTalkRepository();
+export default techTalkRepository;

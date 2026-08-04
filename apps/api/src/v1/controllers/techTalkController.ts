@@ -37,4 +37,22 @@ export class TechTalkController {
       next(error);
     }
   };
+
+  publish = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const techTalk = await this.service.publishTechTalk(id);
+      res.status(200).json({
+        success: true,
+        data: techTalk,
+        message: 'Tech Talk published successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 }
