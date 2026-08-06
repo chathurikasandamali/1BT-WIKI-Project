@@ -5,6 +5,7 @@ await jest.unstable_mockModule('@repo/db', () => ({
   prisma: {
     techTalk: {
       create: jest.fn(),
+      update: jest.fn(),
     },
   },
 }));
@@ -49,6 +50,7 @@ const mockTechTalkRepository = {
   create: jest.fn<any>().mockResolvedValue({}),
   findById: jest.fn<any>().mockResolvedValue(null),
   updateStatus: jest.fn<any>().mockResolvedValue({}),
+  update: jest.fn<any>().mockResolvedValue({}),
 };
 
 await jest.unstable_mockModule('@repositories/techTalkRepository.js', () => ({
@@ -263,3 +265,102 @@ describe('POST /api/v1/techTalks/:id/publish - Integration', () => {
     });
   });
 });
+
+describe('PATCH /api/v1/techTalks/:id - Integration', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  const patchPath = (id: string) => `/api/v1/techTalks/${id}`;
+
+  const publishedTechTalk = {
+    id: 'tt-pub-1',
+    title: 'Original Title',
+    description: 'Original description',
+    presenters: ['Alice'],
+    tags: ['React'],
+    eventDate: '2026-06-01T10:00:00.000Z',
+    slidesUrl: null,
+    youtubeVideoId: null,
+    status: 'published',
+    createdBy: 'admin-1',
+    deletedAt: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+
+  it('returns 401 when unauthenticated', async () => {
+    const res = await request(app)
+      .patch(patchPath('tt-pub-1'))
+      .field('data', JSON.stringify({ title: 'New' }));
+
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 403 when authenticated as non-Admin', async () => {
+    const res = await request(app)
+      .patch(patchPath('tt-pub-1'))
+      .set('x-test-user-id', 'emp-1')
+      .set('x-test-user-email', 'employee@test.com')
+      .set('x-test-user-role', 'Employee')
+      .field('data', JSON.stringify({ title: 'New' }));
+
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 404 when tech talk does not exist', async () => {
+    mockTechTalkRepository.findById.mockResolvedValue(null);
+
+    const res = await request(app)
+      .patch(patchPath('non-existent-id'))
+      .set('x-test-user-id', 'admin-1')
+      .set('x-test-user-email', 'admin@test.com')
+      .set('x-test-user-role', 'Admin')
+      .field('data', JSON.stringify({ title: 'New' }));
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Tech Talk not found');
+  });
+
+  it('returns 400 for invalid fields (empty title)', async () => {
+    mockTechTalkRepository.findById.mockResolvedValue(publishedTechTalk);
+
+    const res = await request(app)
+      .patch(patchPath('tt-pub-1'))
+      .set('x-test-user-id', 'admin-1')
+      .set('x-test-user-email', 'admin@test.com')
+      .set('x-test-user-role', 'Admin')
+      .field('data', JSON.stringify({ title: '' }));
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Title is required');
+  });
+
+  it('returns 200 for Admin editing a Published Tech Talk and confirms status resets to draft', async () => {
+    const updatedTalk = {
+      ...publishedTechTalk,
+      title: 'Updated Title',
+      status: 'draft',
+    };
+
+    mockTechTalkRepository.findById.mockResolvedValue(publishedTechTalk);
+    mockTechTalkRepository.update.mockResolvedValue(updatedTalk);
+
+    const res = await request(app)
+      .patch(patchPath('tt-pub-1'))
+      .set('x-test-user-id', 'admin-1')
+      .set('x-test-user-email', 'admin@test.com')
+      .set('x-test-user-role', 'Admin')
+      .field('data', JSON.stringify({ title: 'Updated Title' }));
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.status).toBe('draft');
+    expect(res.body.message).toBe('Tech Talk updated successfully');
+    expect(mockTechTalkRepository.update).toHaveBeenCalledWith(
+      'tt-pub-1',
+      expect.objectContaining({ title: 'Updated Title', status: 'draft' })
+    );
+  });
+});
+

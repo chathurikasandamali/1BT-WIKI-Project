@@ -10,9 +10,10 @@ jest.unstable_mockModule('@services/techTalkService.js', () => ({
 
 const { TechTalkController } = await import('../techTalkController.js');
 
-const makeMockService = (): jest.Mocked<Pick<TechTalkService, 'createTechTalk' | 'publishTechTalk'>> => ({
+const makeMockService = (): jest.Mocked<Pick<TechTalkService, 'createTechTalk' | 'publishTechTalk' | 'updateTechTalk'>> => ({
   createTechTalk: jest.fn(),
   publishTechTalk: jest.fn(),
+  updateTechTalk: jest.fn(),
 });
 
 describe('TechTalkController', () => {
@@ -93,6 +94,56 @@ describe('TechTalkController', () => {
       mockService.publishTechTalk.mockRejectedValue(error);
 
       await controller.publish(req as Request, res as Response, next);
+
+      expect(next).toHaveBeenCalledWith(error);
+    });
+  });
+
+  describe('update', () => {
+    it('should throw AppError if data field is missing', async () => {
+      req.params = { id: 'tt-1' };
+      req.body = {};
+      await controller.update(req as Request, res as Response, next);
+      expect(next).toHaveBeenCalledWith(expect.any(AppError));
+      expect((next.mock.calls[0][0] as AppError).message).toBe('The "data" field is required');
+    });
+
+    it('should throw AppError if data JSON is invalid', async () => {
+      req.params = { id: 'tt-1' };
+      req.body = { data: '{bad json' };
+      await controller.update(req as Request, res as Response, next);
+      expect(next).toHaveBeenCalledWith(expect.any(AppError));
+      expect((next.mock.calls[0][0] as AppError).message).toBe('Invalid JSON in "data" field');
+    });
+
+    it('should parse multipart data + file, call service.updateTechTalk, and return 200', async () => {
+      const input = { title: 'Updated Title', tags: ['Node'] };
+      req.params = { id: 'tt-42' };
+      req.body = { data: JSON.stringify(input) };
+      const slidesFile = { originalname: 'updated.pdf' } as Express.Multer.File;
+      req.files = [slidesFile];
+
+      const updatedTalk = { id: 'tt-42', ...input, status: 'draft' };
+      mockService.updateTechTalk.mockResolvedValue(updatedTalk as any);
+
+      await controller.update(req as Request, res as Response, next);
+
+      expect(mockService.updateTechTalk).toHaveBeenCalledWith('tt-42', input, slidesFile);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: updatedTalk,
+        message: 'Tech Talk updated successfully',
+      });
+    });
+
+    it('should forward service errors to next', async () => {
+      req.params = { id: 'tt-99' };
+      req.body = { data: JSON.stringify({ title: 'X' }) };
+      const error = new AppError('Tech Talk not found', 404);
+      mockService.updateTechTalk.mockRejectedValue(error);
+
+      await controller.update(req as Request, res as Response, next);
 
       expect(next).toHaveBeenCalledWith(error);
     });
