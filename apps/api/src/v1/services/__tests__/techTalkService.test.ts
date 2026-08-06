@@ -1,17 +1,19 @@
 import { jest } from '@jest/globals';
 import { AppError } from '@errors/AppError.js';
 import techTalkRepository from '@repositories/techTalkRepository.js';
-import type { CreateTechTalkInput } from '@models/techTalk.types.js';
+import type { CreateTechTalkInput, UpdateTechTalkInput } from '@models/techTalk.types.js';
 
 jest.unstable_mockModule('@repositories/techTalkRepository.js', () => {
   const mockCreate = jest.fn();
   const mockFindById = jest.fn();
   const mockUpdateStatus = jest.fn();
+  const mockUpdate = jest.fn();
 
   const mockInstance = {
     create: mockCreate,
     findById: mockFindById,
     updateStatus: mockUpdateStatus,
+    update: mockUpdate,
   };
 
   return {
@@ -38,6 +40,7 @@ describe('TechTalkService', () => {
     create: jest.MockedFunction<any>;
     findById: jest.MockedFunction<any>;
     updateStatus: jest.MockedFunction<any>;
+    update: jest.MockedFunction<any>;
   };
 
   beforeEach(() => {
@@ -46,6 +49,7 @@ describe('TechTalkService', () => {
       create: jest.fn<any>(),
       findById: jest.fn<any>(),
       updateStatus: jest.fn<any>(),
+      update: jest.fn<any>(),
     };
     service = new TechTalkService(
       mockRepo as unknown as typeof techTalkRepository
@@ -290,6 +294,144 @@ describe('TechTalkService', () => {
           'Cannot publish a Tech Talk with status "unpublished". Only Draft Tech Talks can be published.',
           400
         )
+      );
+    });
+  });
+
+  describe('updateTechTalk', () => {
+    const existingTechTalk = {
+      id: 'tt-1',
+      title: 'Old Title',
+      description: 'Old description',
+      presenters: ['Alice'],
+      tags: ['React'],
+      eventDate: new Date('2026-06-01T10:00:00.000Z'),
+      slidesUrl: null,
+      youtubeVideoId: null,
+      status: 'draft' as const,
+      createdBy: 'admin-1',
+      deletedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    it('returns 404 when tech talk does not exist', async () => {
+      mockRepo.findById.mockResolvedValue(null);
+
+      await expect(
+        service.updateTechTalk('non-existent', {})
+      ).rejects.toThrow(new AppError('Tech Talk not found', 404));
+    });
+
+    it('always resets status to draft when prior status is draft', async () => {
+      mockRepo.findById.mockResolvedValue({ ...existingTechTalk, status: 'draft' });
+      mockRepo.update.mockResolvedValue({ ...existingTechTalk, status: 'draft' });
+
+      await service.updateTechTalk('tt-1', { title: 'New Title' });
+
+      expect(mockRepo.update).toHaveBeenCalledWith(
+        'tt-1',
+        expect.objectContaining({ status: 'draft' })
+      );
+    });
+
+    it('always resets status to draft when prior status is published', async () => {
+      mockRepo.findById.mockResolvedValue({ ...existingTechTalk, status: 'published' });
+      mockRepo.update.mockResolvedValue({ ...existingTechTalk, status: 'draft' });
+
+      await service.updateTechTalk('tt-1', { title: 'Updated' });
+
+      expect(mockRepo.update).toHaveBeenCalledWith(
+        'tt-1',
+        expect.objectContaining({ status: 'draft' })
+      );
+    });
+
+    it('always resets status to draft when prior status is unpublished', async () => {
+      mockRepo.findById.mockResolvedValue({ ...existingTechTalk, status: 'unpublished' });
+      mockRepo.update.mockResolvedValue({ ...existingTechTalk, status: 'draft' });
+
+      await service.updateTechTalk('tt-1', {});
+
+      expect(mockRepo.update).toHaveBeenCalledWith(
+        'tt-1',
+        expect.objectContaining({ status: 'draft' })
+      );
+    });
+
+    it('updates only provided fields (partial update)', async () => {
+      mockRepo.findById.mockResolvedValue(existingTechTalk);
+      mockRepo.update.mockResolvedValue({ ...existingTechTalk, title: 'New Title', status: 'draft' });
+
+      await service.updateTechTalk('tt-1', { title: 'New Title' });
+
+      const callArg = mockRepo.update.mock.calls[0][1] as Record<string, unknown>;
+      expect(callArg).toHaveProperty('title', 'New Title');
+      expect(callArg).toHaveProperty('status', 'draft');
+      // Fields not in input should not be in the update payload
+      expect(callArg).not.toHaveProperty('description');
+      expect(callArg).not.toHaveProperty('presenters');
+      expect(callArg).not.toHaveProperty('tags');
+    });
+
+    it('rejects empty title', async () => {
+      mockRepo.findById.mockResolvedValue(existingTechTalk);
+
+      await expect(
+        service.updateTechTalk('tt-1', { title: '   ' })
+      ).rejects.toThrow(new AppError('Title is required', 400));
+    });
+
+    it('rejects empty presenters array', async () => {
+      mockRepo.findById.mockResolvedValue(existingTechTalk);
+
+      await expect(
+        service.updateTechTalk('tt-1', { presenters: [] })
+      ).rejects.toThrow(new AppError('At least one presenter is required', 400));
+    });
+
+    it('rejects invalid event date', async () => {
+      mockRepo.findById.mockResolvedValue(existingTechTalk);
+
+      await expect(
+        service.updateTechTalk('tt-1', { eventDate: 'not-a-date' })
+      ).rejects.toThrow(new AppError('Invalid event date', 400));
+    });
+
+    it('rejects invalid YouTube video ID', async () => {
+      mockRepo.findById.mockResolvedValue(existingTechTalk);
+
+      await expect(
+        service.updateTechTalk('tt-1', { youtubeVideoId: 'short' })
+      ).rejects.toThrow(new AppError('Invalid YouTube video ID', 400));
+    });
+
+    it('handles new slides upload and sets slidesUrl', async () => {
+      const mockFile = {
+        originalname: 'updated.pdf',
+        mimetype: 'application/pdf',
+        size: 512 * 1024,
+        buffer: Buffer.from('pdf content'),
+      } as Express.Multer.File;
+
+      (b2Client.uploadFile as jest.MockedFunction<any>).mockResolvedValue({
+        fileUrl: 'https://b2.example.com/tech-talks/updated.pdf',
+      });
+      mockRepo.findById.mockResolvedValue(existingTechTalk);
+      mockRepo.update.mockResolvedValue({
+        ...existingTechTalk,
+        slidesUrl: 'https://b2.example.com/tech-talks/updated.pdf',
+        status: 'draft',
+      });
+
+      await service.updateTechTalk('tt-1', {}, mockFile);
+
+      expect(b2Client.uploadFile).toHaveBeenCalled();
+      expect(mockRepo.update).toHaveBeenCalledWith(
+        'tt-1',
+        expect.objectContaining({
+          slidesUrl: 'https://b2.example.com/tech-talks/updated.pdf',
+        })
       );
     });
   });

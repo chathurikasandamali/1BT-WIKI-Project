@@ -31,3 +31,12 @@ export interface CreateTechTalkInput {
   youtubeVideoId?: string;
   publishImmediately?: boolean;
 }
+
+export interface UpdateTechTalkInput {
+  title?: string;
+  description?: string;
+  presenters?: string[];
+  tags?: string[];
+  eventDate?: string; // ISO date string
+  youtubeVideoId?: string;
+}

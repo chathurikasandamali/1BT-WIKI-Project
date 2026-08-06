@@ -5,6 +5,7 @@ import techTalkRepository from '@repositories/techTalkRepository.js';
 import type {
   TechTalk,
   CreateTechTalkInput,
+  UpdateTechTalkInput,
 } from '@models/techTalk.types.js';
 import { TechTalkStatusValue } from '@models/techTalk.types.js';
 
@@ -40,26 +41,7 @@ export class TechTalkService {
 
     let slidesUrl: string | null = null;
     if (slidesFile) {
-      this.validateSlidesFile(slidesFile);
-
-      try {
-        const sanitizedName = slidesFile.originalname.replace(
-          /[^a-zA-Z0-9.-]/g,
-          '_'
-        );
-        const fileName = `tech-talks/${crypto.randomUUID()}-${sanitizedName}`;
-        const { fileUrl } = await b2Client.uploadFile(
-          fileName,
-          slidesFile.buffer,
-          slidesFile.mimetype
-        );
-        slidesUrl = fileUrl;
-      } catch (error) {
-        if (error instanceof AppError) {
-          throw error;
-        }
-        throw new AppError('Failed to upload slides file', 500);
-      }
+      slidesUrl = await this.uploadSlides(crypto.randomUUID(), slidesFile);
     }
 
     const status = input.publishImmediately
@@ -91,6 +73,87 @@ export class TechTalkService {
       );
     }
     return this.repository.updateStatus(id, TechTalkStatusValue.Published);
+  }
+
+  async updateTechTalk(
+    id: string,
+    input: UpdateTechTalkInput,
+    slidesFile?: Express.Multer.File
+  ): Promise<TechTalk> {
+    const existing = await this.repository.findById(id);
+    if (!existing) {
+      throw new AppError('Tech Talk not found', 404);
+    }
+
+    const updateFields: Partial<{
+      title: string;
+      description: string | null;
+      presenters: string[];
+      tags: string[];
+      eventDate: Date;
+      slidesUrl: string | null;
+      youtubeVideoId: string | null;
+      status: (typeof TechTalkStatusValue)[keyof typeof TechTalkStatusValue];
+    }> = {};
+
+    if (input.title !== undefined) {
+      if (input.title.trim() === '') throw new AppError('Title is required', 400);
+      updateFields.title = input.title.trim();
+    }
+    if (input.description !== undefined) {
+      updateFields.description = input.description;
+    }
+    if (input.presenters !== undefined) {
+      if (input.presenters.length === 0) {
+        throw new AppError('At least one presenter is required', 400);
+      }
+      updateFields.presenters = input.presenters;
+    }
+    if (input.tags !== undefined) {
+      updateFields.tags = input.tags;
+    }
+    if (input.eventDate !== undefined) {
+      const eventDate = new Date(input.eventDate);
+      if (isNaN(eventDate.getTime())) throw new AppError('Invalid event date', 400);
+      updateFields.eventDate = eventDate;
+    }
+    if (input.youtubeVideoId !== undefined) {
+      if (!this.isValidYoutubeVideoId(input.youtubeVideoId)) {
+        throw new AppError('Invalid YouTube video ID', 400);
+      }
+      updateFields.youtubeVideoId = input.youtubeVideoId;
+    }
+    if (slidesFile) {
+      updateFields.slidesUrl = await this.uploadSlides(id, slidesFile);
+    }
+
+    // Per SRS 3.5.2: editing always resets status to Draft, regardless of
+    // the Tech Talk's current status (Draft, Published, or Unpublished).
+    updateFields.status = TechTalkStatusValue.Draft;
+
+    return this.repository.update(id, updateFields);
+  }
+
+  private async uploadSlides(
+    techTalkId: string,
+    file: Express.Multer.File
+  ): Promise<string> {
+    this.validateSlidesFile(file);
+    try {
+      const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const fileName = `tech-talks/${techTalkId}-${sanitizedName}`;
+      const { fileUrl } = await b2Client.uploadFile(
+        fileName,
+        file.buffer,
+        file.mimetype
+      );
+      return fileUrl;
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new AppError('Failed to upload slides file', 500);
+    }
   }
 
   private validateSlidesFile(file: Express.Multer.File): void {
