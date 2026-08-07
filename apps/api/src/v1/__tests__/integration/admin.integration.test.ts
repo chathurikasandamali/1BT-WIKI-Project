@@ -11,6 +11,7 @@ import {
 // ─── Module mocks (must precede all dynamic imports) ─────────────────────────
 
 await jest.unstable_mockModule('@repo/db', () => ({
+  TechTalkStatus: { draft: 'draft', published: 'published', unpublished: 'unpublished' },
   prisma: {
     user: {
       findFirst: jest.fn(),

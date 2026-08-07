@@ -1,10 +1,4 @@
-export type TechTalkStatus = 'draft' | 'published' | 'unpublished';
-
-export const TechTalkStatusValue = {
-  Draft: 'draft',
-  Published: 'published',
-  Unpublished: 'unpublished',
-} as const satisfies Record<'Draft' | 'Published' | 'Unpublished', TechTalkStatus>;
+import type { TechTalkStatus } from '@repo/db';
 
 export const TECH_TALK_SORT_FIELDS = ['title', 'eventDate'] as const;
 
@@ -55,4 +49,15 @@ export interface UpdateTechTalkInput {
   tags?: string[];
   eventDate?: string; // ISO date string
   youtubeVideoId?: string;
+}
+
+export interface PaginationQuery {
+  page: number;
+  limit: number;
+}
+
+export interface TechTalkListQuery extends PaginationQuery {
+  search?: string;
+  sort?: string;
+  order?: string;
 }

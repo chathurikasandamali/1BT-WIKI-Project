@@ -459,13 +459,10 @@ describe('TechTalkService', () => {
       ];
       mockRepo.findPublished.mockResolvedValue({ techTalks: mockTalks, total: 1 });
 
-      const result = await service.listPublished();
+      const query = { page: 1, limit: 20 };
+      const result = await service.listPublished(query);
 
-      expect(mockRepo.findPublished).toHaveBeenCalledWith(1, 20, {
-        search: undefined,
-        sort: undefined,
-        order: undefined,
-      });
+      expect(mockRepo.findPublished).toHaveBeenCalledWith(query);
       expect(result).toEqual({
         techTalks: mockTalks,
         total: 1,
@@ -477,38 +474,34 @@ describe('TechTalkService', () => {
     it('passes search, sort, and order parameters to repository', async () => {
       mockRepo.findPublished.mockResolvedValue({ techTalks: [], total: 0 });
 
-      await service.listPublished(2, 10, 'React', 'title', 'asc');
+      const query = { page: 2, limit: 10, search: 'React', sort: 'title', order: 'asc' };
+      await service.listPublished(query);
 
-      expect(mockRepo.findPublished).toHaveBeenCalledWith(2, 10, {
-        search: 'React',
-        sort: 'title',
-        order: 'asc',
-      });
+      expect(mockRepo.findPublished).toHaveBeenCalledWith(query);
     });
 
     it('supports eventDate sort in desc direction', async () => {
       mockRepo.findPublished.mockResolvedValue({ techTalks: [], total: 0 });
 
-      await service.listPublished(1, 20, undefined, 'eventDate', 'desc');
+      const query = { page: 1, limit: 20, sort: 'eventDate', order: 'desc' };
+      await service.listPublished(query);
 
-      expect(mockRepo.findPublished).toHaveBeenCalledWith(1, 20, {
-        search: undefined,
-        sort: 'eventDate',
-        order: 'desc',
-      });
+      expect(mockRepo.findPublished).toHaveBeenCalledWith(query);
     });
 
     it('rejects invalid sort field with AppError 400', async () => {
+      const query = { page: 1, limit: 20, sort: 'invalidField', order: 'asc' };
       await expect(
-        service.listPublished(1, 20, undefined, 'invalidField', 'asc')
+        service.listPublished(query)
       ).rejects.toThrow(
         new AppError('Invalid sort field. Allowed: title, eventDate', 400)
       );
     });
 
     it('rejects invalid sort order with AppError 400', async () => {
+      const query = { page: 1, limit: 20, sort: 'title', order: 'invalidOrder' };
       await expect(
-        service.listPublished(1, 20, undefined, 'title', 'invalidOrder')
+        service.listPublished(query)
       ).rejects.toThrow(
         new AppError('Invalid sort order. Allowed: asc, desc', 400)
       );

@@ -2,6 +2,7 @@ import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import request from 'supertest';
 
 await jest.unstable_mockModule('@repo/db', () => ({
+  TechTalkStatus: { draft: 'draft', published: 'published', unpublished: 'unpublished' },
   prisma: {
     techTalk: {
       create: jest.fn(),
@@ -404,7 +405,9 @@ describe('GET /api/v1/techTalks - Integration', () => {
       .set('x-test-user-role', 'Employee');
 
     expect(res.status).toBe(200);
-    expect(mockTechTalkRepository.findPublished).toHaveBeenCalledWith(1, 10, {
+    expect(mockTechTalkRepository.findPublished).toHaveBeenCalledWith({
+      page: 1,
+      limit: 10,
       search: 'React',
       sort: 'title',
       order: 'asc',

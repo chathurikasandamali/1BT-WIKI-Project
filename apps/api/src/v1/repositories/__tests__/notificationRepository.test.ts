@@ -15,6 +15,7 @@ const mockUpdate = jest.fn<any>();
 const mockCount = jest.fn<any>();
 
 await jest.unstable_mockModule('@repo/db', () => ({
+  TechTalkStatus: { draft: 'draft', published: 'published', unpublished: 'unpublished' },
   prisma: {
     notification: {
       create: mockCreate,

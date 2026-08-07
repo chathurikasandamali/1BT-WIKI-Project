@@ -1,23 +1,28 @@
-import { prisma } from '@repo/db';
-import type { TechTalk, TechTalkStatus } from '@models/techTalk.types.js';
-import { TECH_TALK_SORT_FIELDS, TechTalkStatusValue } from '@models/techTalk.types.js';
+import { prisma, TechTalkStatus } from '@repo/db';
+import type { TechTalk } from '@models/techTalk.types.js';
+import { TECH_TALK_SORT_FIELDS } from '@models/techTalk.types.js';
 import { buildSearchFilter, buildSortOrder } from '@utils/queryHelpers.js';
+import type { TechTalkListQuery } from '@models/techTalk.types.js';
 
 class TechTalkRepository {
-  async findPublished(
-    page: number,
-    limit: number,
-    options?: { search?: string; sort?: string; order?: string }
+  async findPublished(query: TechTalkListQuery
   ): Promise<{ techTalks: TechTalk[]; total: number }> {
+    const {
+    page,
+    limit,
+    search,
+    sort,
+    order,
+  } = query;
     const where = {
-      status: TechTalkStatusValue.Published,
+      status: TechTalkStatus.published,
       deletedAt: null,
-      ...buildSearchFilter('title', options?.search),
+      ...buildSearchFilter('title', search),
     };
     const orderBy = buildSortOrder(
       TECH_TALK_SORT_FIELDS,
-      options?.sort,
-      options?.order,
+      sort,
+      order,
       'eventDate'
     );
 

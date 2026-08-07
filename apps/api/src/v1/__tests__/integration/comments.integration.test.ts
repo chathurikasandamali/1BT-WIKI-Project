@@ -4,6 +4,7 @@ import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 
 // Mock Prisma DB from @repo/db
 await jest.unstable_mockModule('@repo/db', () => ({
+  TechTalkStatus: { draft: 'draft', published: 'published', unpublished: 'unpublished' },
   prisma: {
     user: {
       findFirst: jest.fn(),

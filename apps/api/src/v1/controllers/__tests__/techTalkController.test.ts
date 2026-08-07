@@ -6,6 +6,7 @@ import { makeMockReqResNext } from '@v1/__tests__/helpers/mockExpress.helpers.js
 
 jest.unstable_mockModule('@services/techTalkService.js', () => ({
   TechTalkService: jest.fn(),
+  techTalkService: {},
 }));
 
 const { TechTalkController } = await import('../techTalkController.js');
@@ -52,13 +53,13 @@ describe('TechTalkController', () => {
 
       await controller.listPublished(req as Request, res as Response, next);
 
-      expect(mockService.listPublished).toHaveBeenCalledWith(
-        2,
-        10,
-        'Architecture',
-        'title',
-        'asc'
-      );
+      expect(mockService.listPublished).toHaveBeenCalledWith({
+        page: 2,
+        limit: 10,
+        search: 'Architecture',
+        sort: 'title',
+        order: 'asc',
+      });
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
@@ -74,13 +75,13 @@ describe('TechTalkController', () => {
 
       await controller.listPublished(req as Request, res as Response, next);
 
-      expect(mockService.listPublished).toHaveBeenCalledWith(
-        1,
-        20,
-        undefined,
-        undefined,
-        undefined
-      );
+      expect(mockService.listPublished).toHaveBeenCalledWith({
+        page: 1,
+        limit: 20,
+        search: undefined,
+        sort: undefined,
+        order: undefined,
+      });
     });
 
     it('should forward service errors to next', async () => {
