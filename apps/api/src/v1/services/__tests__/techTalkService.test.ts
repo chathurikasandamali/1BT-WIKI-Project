@@ -8,18 +8,19 @@ jest.unstable_mockModule('@repositories/techTalkRepository.js', () => {
   const mockFindById = jest.fn();
   const mockUpdateStatus = jest.fn();
   const mockUpdate = jest.fn();
+  const mockFindPublished = jest.fn();
 
   const mockInstance = {
     create: mockCreate,
     findById: mockFindById,
     updateStatus: mockUpdateStatus,
     update: mockUpdate,
+    findPublished: mockFindPublished,
   };
 
   return {
-    // Mocks the named class blueprint export
-    techTalkRepository: jest.fn().mockImplementation(() => mockInstance),
-    // Mocks the default camelCase object instance export
+    TechTalkRepository: jest.fn().mockImplementation(() => mockInstance),
+    techTalkRepository: mockInstance,
     default: mockInstance,
   };
 });
@@ -27,6 +28,16 @@ jest.unstable_mockModule('@repositories/techTalkRepository.js', () => {
 jest.unstable_mockModule('@v1/lib/b2Client.js', () => ({
   default: {
     uploadFile: jest.fn(),
+  },
+}));
+
+// Prevent real Prisma client from initialising (no DATABASE_URL in unit tests)
+jest.unstable_mockModule('@repo/db', () => ({
+  prisma: {}, // not used directly by the service — goes through the repository
+  TechTalkStatus: {
+    draft: 'draft',
+    published: 'published',
+    unpublished: 'unpublished',
   },
 }));
 
@@ -41,6 +52,7 @@ describe('TechTalkService', () => {
     findById: jest.MockedFunction<any>;
     updateStatus: jest.MockedFunction<any>;
     update: jest.MockedFunction<any>;
+    findPublished: jest.MockedFunction<any>;
   };
 
   beforeEach(() => {
@@ -50,6 +62,7 @@ describe('TechTalkService', () => {
       findById: jest.fn<any>(),
       updateStatus: jest.fn<any>(),
       update: jest.fn<any>(),
+      findPublished: jest.fn<any>(),
     };
     service = new TechTalkService(
       mockRepo as unknown as typeof techTalkRepository
@@ -433,6 +446,84 @@ describe('TechTalkService', () => {
           slidesUrl: 'https://b2.example.com/tech-talks/updated.pdf',
         })
       );
+    });
+  });
+
+  describe('listPublished', () => {
+    it('defaults to page 1, limit 20 when query parameters are omitted', async () => {
+      const mockTalks = [
+        {
+          id: 'tt-1',
+          title: 'React 19 Features',
+          description: 'Overview of React 19',
+          presenters: ['Alice'],
+          tags: ['React'],
+          eventDate: new Date('2026-08-01T00:00:00.000Z'),
+          slidesUrl: null,
+          youtubeVideoId: null,
+          status: 'published',
+          createdAt: new Date('2026-07-01T00:00:00.000Z'),
+          updatedAt: new Date('2026-07-01T00:00:00.000Z'),
+        },
+      ];
+      mockRepo.findPublished.mockResolvedValue({ techTalks: mockTalks, total: 1 });
+
+      const query = {} as any;
+      const result = await service.listPublished(query);
+
+      expect(mockRepo.findPublished).toHaveBeenCalledWith({ page: 1, limit: 20 });
+      expect(result).toEqual({
+        techTalks: mockTalks,
+        total: 1,
+        page: 1,
+        limit: 20,
+      });
+    });
+
+    it('passes search, sort, and order parameters to repository', async () => {
+      mockRepo.findPublished.mockResolvedValue({ techTalks: [], total: 0 });
+
+      const query = { page: 2, limit: 10, search: 'React', sort: 'title', order: 'asc' };
+      await service.listPublished(query);
+
+      expect(mockRepo.findPublished).toHaveBeenCalledWith(query);
+    });
+
+    it('supports eventDate sort in desc direction', async () => {
+      mockRepo.findPublished.mockResolvedValue({ techTalks: [], total: 0 });
+
+      const query = { page: 1, limit: 20, sort: 'eventDate', order: 'desc' };
+      await service.listPublished(query);
+
+      expect(mockRepo.findPublished).toHaveBeenCalledWith(query);
+    });
+
+    it('passes an invalid sort field through to the repository without throwing (permissive fallback)', async () => {
+      mockRepo.findPublished.mockResolvedValue({ techTalks: [], total: 0 });
+
+      const query = { page: 1, limit: 20, sort: 'invalidField', order: 'asc' };
+      // Should NOT throw — buildSortOrder in the repository silently falls back to the default sort
+      await expect(service.listPublished(query)).resolves.toEqual({
+        techTalks: [],
+        total: 0,
+        page: 1,
+        limit: 20,
+      });
+      expect(mockRepo.findPublished).toHaveBeenCalledWith(query);
+    });
+
+    it('passes an invalid sort order through to the repository without throwing (permissive fallback)', async () => {
+      mockRepo.findPublished.mockResolvedValue({ techTalks: [], total: 0 });
+
+      const query = { page: 1, limit: 20, sort: 'title', order: 'invalidOrder' };
+      // Should NOT throw — buildSortOrder in the repository silently falls back to 'desc'
+      await expect(service.listPublished(query)).resolves.toEqual({
+        techTalks: [],
+        total: 0,
+        page: 1,
+        limit: 20,
+      });
+      expect(mockRepo.findPublished).toHaveBeenCalledWith(query);
     });
   });
 });

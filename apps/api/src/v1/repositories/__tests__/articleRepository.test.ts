@@ -9,6 +9,7 @@ const mockCount = jest.fn<any>();
 const mockFindFirst = jest.fn<any>();
 
 await jest.unstable_mockModule('@repo/db', () => ({
+  TechTalkStatus: { draft: 'draft', published: 'published', unpublished: 'unpublished' },
   prisma: {
     article: {
       findMany: mockFindMany,

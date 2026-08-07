@@ -1,7 +1,38 @@
-import { prisma } from '@repo/db';
-import type { TechTalk, TechTalkStatus } from '@models/techTalk.types.js';
+import { prisma, TechTalkStatus } from '@repo/db';
+import type { TechTalk } from '@models/techTalk.types.js';
+import { TECH_TALK_SORT_FIELDS } from '@models/techTalk.types.js';
+import { buildSearchFilter, buildSortOrder } from '@utils/queryHelpers.js';
+import type { TechTalkListQuery } from '@models/techTalk.types.js';
 
-class TechTalkRepository {
+export class TechTalkRepository {
+  async findPublished(
+    query: TechTalkListQuery
+  ): Promise<{ techTalks: TechTalk[]; total: number }> {
+    const { page, limit, search, sort, order } = query;
+    const where = {
+      status: TechTalkStatus.published,
+      deletedAt: null,
+      ...buildSearchFilter('title', search),
+    };
+    const orderBy = buildSortOrder(
+      TECH_TALK_SORT_FIELDS,
+      sort,
+      order,
+      'eventDate'
+    );
+
+    const [techTalks, total] = await Promise.all([
+      prisma.techTalk.findMany({
+        where,
+        orderBy,
+        skip: ((page ?? 1) - 1) * (limit ?? 20),
+        take: limit ?? 20,
+      }),
+      prisma.techTalk.count({ where }),
+    ]);
+    return { techTalks, total };
+  }
+
   async create(data: {
     title: string;
     description: string | null;
@@ -41,5 +72,5 @@ class TechTalkRepository {
   }
 }
 
-const techTalkRepository = new TechTalkRepository();
-export default techTalkRepository;
+export const techTalkRepository = new TechTalkRepository();
+export default techTalkRepository;

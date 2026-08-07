@@ -7,7 +7,9 @@ import { TechTalkController } from '@controllers/techTalkController.js';
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 const techTalkController = new TechTalkController();
-const { create, publish, update } = techTalkController;
+const { create, publish, update, listPublished } = techTalkController;
+
+router.get('/', authenticate, listPublished);
 
 router.post(
   '/',
