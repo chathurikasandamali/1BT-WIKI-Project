@@ -7,6 +7,7 @@ import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/lib/hooks/useUser';
 import { BRAND_FULL_NAME } from '@/lib/constants/brand';
+import { HomepageArticleThread } from '@/components/article-listing/HomepageArticleThread';
 
 export default function HomePage(): React.JSX.Element {
   const { user, loading } = useUser();
@@ -30,13 +31,6 @@ export default function HomePage(): React.JSX.Element {
   }
 
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-semibold text-brand-textPrimary">
-        Welcome to {BRAND_FULL_NAME}
-      </h1>
-      <p className="mt-2 text-brand-textSecondary text-sm">
-        Your internal knowledge base. Article feed coming soon.
-      </p>
-    </div>
+    <HomepageArticleThread />
   );
 }
