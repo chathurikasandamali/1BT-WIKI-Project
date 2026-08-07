@@ -105,7 +105,7 @@ export async function fetchPublishedArticles(
   limit = 20
 ): Promise<PublishedArticleListResult> {
   const result = await apiFetch<PublishedArticleListResult>(
-    `/article?page=${page}&limit=${limit}`
+    `/articles?page=${page}&limit=${limit}`
   );
 
   if (!result.success || !result.data) {
@@ -113,7 +113,7 @@ export async function fetchPublishedArticles(
 
   }
 
-  return result.data
+  return result.data;
 }
 
 export async function fetchMyArticles(
