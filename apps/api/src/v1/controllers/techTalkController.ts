@@ -6,6 +6,28 @@ import type { CreateTechTalkInput, UpdateTechTalkInput } from '@models/techTalk.
 export class TechTalkController {
   constructor(private service: TechTalkService = new TechTalkService()) {}
 
+  listPublished = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const page = Number(req.query.page) || 1;
+      const limit = Number(req.query.limit) || 20;
+      const search = req.query.search as string | undefined;
+      const sort = req.query.sort as string | undefined;
+      const order = req.query.order as string | undefined;
+      const result = await this.service.listPublished(page, limit, search, sort, order);
+      res.status(200).json({
+        success: true,
+        data: result,
+        message: 'Tech Talks retrieved successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
   create = async (
     req: Request,
     res: Response,

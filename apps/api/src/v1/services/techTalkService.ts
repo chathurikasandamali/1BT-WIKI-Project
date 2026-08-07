@@ -4,15 +4,38 @@ import { AppError } from '@errors/AppError.js';
 import techTalkRepository from '@repositories/techTalkRepository.js';
 import type {
   TechTalk,
+  TechTalkListItem,
   CreateTechTalkInput,
   UpdateTechTalkInput,
 } from '@models/techTalk.types.js';
-import { TechTalkStatusValue } from '@models/techTalk.types.js';
+import { TECH_TALK_SORT_FIELDS, TechTalkStatusValue } from '@models/techTalk.types.js';
+import { assertValidSort } from '../utils/queryHelpers.js';
 
 export class TechTalkService {
   constructor(
     private repository: typeof techTalkRepository = techTalkRepository
   ) {}
+
+  async listPublished(
+    page: number = 1,
+    limit: number = 20,
+    search?: string,
+    sort?: string,
+    order?: string
+  ): Promise<{ techTalks: TechTalkListItem[]; total: number; page: number; limit: number }> {
+    assertValidSort(TECH_TALK_SORT_FIELDS, sort);
+    if (order !== undefined && order !== 'asc' && order !== 'desc') {
+      throw new AppError('Invalid sort order. Allowed: asc, desc', 400);
+    }
+
+    const { techTalks, total } = await this.repository.findPublished(page, limit, {
+      search,
+      sort,
+      order,
+    });
+
+    return { techTalks, total, page, limit };
+  }
 
   async createTechTalk(
     input: CreateTechTalkInput,

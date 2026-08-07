@@ -6,6 +6,22 @@ export const TechTalkStatusValue = {
   Unpublished: 'unpublished',
 } as const satisfies Record<'Draft' | 'Published' | 'Unpublished', TechTalkStatus>;
 
+export const TECH_TALK_SORT_FIELDS = ['title', 'eventDate'] as const;
+
+export interface TechTalkListItem {
+  id: string;
+  title: string;
+  description: string | null;
+  presenters: string[];
+  tags: string[];
+  eventDate: Date;
+  slidesUrl: string | null;
+  youtubeVideoId: string | null;
+  status: TechTalkStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface TechTalk {
   id: string;
   title: string;

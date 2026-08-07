@@ -8,12 +8,14 @@ jest.unstable_mockModule('@repositories/techTalkRepository.js', () => {
   const mockFindById = jest.fn();
   const mockUpdateStatus = jest.fn();
   const mockUpdate = jest.fn();
+  const mockFindPublished = jest.fn();
 
   const mockInstance = {
     create: mockCreate,
     findById: mockFindById,
     updateStatus: mockUpdateStatus,
     update: mockUpdate,
+    findPublished: mockFindPublished,
   };
 
   return {
@@ -41,6 +43,7 @@ describe('TechTalkService', () => {
     findById: jest.MockedFunction<any>;
     updateStatus: jest.MockedFunction<any>;
     update: jest.MockedFunction<any>;
+    findPublished: jest.MockedFunction<any>;
   };
 
   beforeEach(() => {
@@ -50,6 +53,7 @@ describe('TechTalkService', () => {
       findById: jest.fn<any>(),
       updateStatus: jest.fn<any>(),
       update: jest.fn<any>(),
+      findPublished: jest.fn<any>(),
     };
     service = new TechTalkService(
       mockRepo as unknown as typeof techTalkRepository
@@ -432,6 +436,81 @@ describe('TechTalkService', () => {
         expect.objectContaining({
           slidesUrl: 'https://b2.example.com/tech-talks/updated.pdf',
         })
+      );
+    });
+  });
+
+  describe('listPublished', () => {
+    it('defaults to page 1, limit 20 and no search/sort/order', async () => {
+      const mockTalks = [
+        {
+          id: 'tt-1',
+          title: 'React 19 Features',
+          description: 'Overview of React 19',
+          presenters: ['Alice'],
+          tags: ['React'],
+          eventDate: new Date('2026-08-01T00:00:00.000Z'),
+          slidesUrl: null,
+          youtubeVideoId: null,
+          status: 'published',
+          createdAt: new Date('2026-07-01T00:00:00.000Z'),
+          updatedAt: new Date('2026-07-01T00:00:00.000Z'),
+        },
+      ];
+      mockRepo.findPublished.mockResolvedValue({ techTalks: mockTalks, total: 1 });
+
+      const result = await service.listPublished();
+
+      expect(mockRepo.findPublished).toHaveBeenCalledWith(1, 20, {
+        search: undefined,
+        sort: undefined,
+        order: undefined,
+      });
+      expect(result).toEqual({
+        techTalks: mockTalks,
+        total: 1,
+        page: 1,
+        limit: 20,
+      });
+    });
+
+    it('passes search, sort, and order parameters to repository', async () => {
+      mockRepo.findPublished.mockResolvedValue({ techTalks: [], total: 0 });
+
+      await service.listPublished(2, 10, 'React', 'title', 'asc');
+
+      expect(mockRepo.findPublished).toHaveBeenCalledWith(2, 10, {
+        search: 'React',
+        sort: 'title',
+        order: 'asc',
+      });
+    });
+
+    it('supports eventDate sort in desc direction', async () => {
+      mockRepo.findPublished.mockResolvedValue({ techTalks: [], total: 0 });
+
+      await service.listPublished(1, 20, undefined, 'eventDate', 'desc');
+
+      expect(mockRepo.findPublished).toHaveBeenCalledWith(1, 20, {
+        search: undefined,
+        sort: 'eventDate',
+        order: 'desc',
+      });
+    });
+
+    it('rejects invalid sort field with AppError 400', async () => {
+      await expect(
+        service.listPublished(1, 20, undefined, 'invalidField', 'asc')
+      ).rejects.toThrow(
+        new AppError('Invalid sort field. Allowed: title, eventDate', 400)
+      );
+    });
+
+    it('rejects invalid sort order with AppError 400', async () => {
+      await expect(
+        service.listPublished(1, 20, undefined, 'title', 'invalidOrder')
+      ).rejects.toThrow(
+        new AppError('Invalid sort order. Allowed: asc, desc', 400)
       );
     });
   });
