@@ -41,28 +41,18 @@ jobs:
       - name: Build Web
         run: pnpm --filter web build
 
-      - name: Verify E2E database secret
-        # Fail before DB build if isolated secret is absent.
-        env:
-          E2E_DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
-        run: |
-          if [ -z "$E2E_DATABASE_URL" ]; then
-            echo "E2E_DATABASE_URL is required and must point to the isolated E2E database."
-            exit 1
-          fi
-          echo "E2E database secret is configured."
 
       - name: Build DB Package
         # Requires DATABASE_URL for Prisma Neon HTTP adapter initialization.
         env:
-          DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: pnpm --filter @repo/db build
 
       - name: Seed E2E database
         # Upsert E2E users into isolated DB. Both DB env vars must be isolated.
         env:
-          DATABASE_URL:           ${{ secrets.E2E_DATABASE_URL }}
-          VERCEL_DATABASE_URL:    ${{ secrets.E2E_DATABASE_URL }}
+          DATABASE_URL:           ${{ secrets.DATABASE_URL }}
+          VERCEL_DATABASE_URL:    ${{ secrets.DATABASE_URL }}
           NODE_ENV:               test
           E2E_TEST_MODE:          "true"
           E2E_DATABASE_CONFIRMED: "true"
@@ -73,8 +63,8 @@ jobs:
       - name: Run Cypress E2E
         env:
           # Both database connections must use the same isolated DB.
-          VERCEL_DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
-          DATABASE_URL:        ${{ secrets.E2E_DATABASE_URL }}
+          VERCEL_DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL:        ${{ secrets.DATABASE_URL }}
 
           # Activate test-header bypass and E2E cleanup route.
           NODE_ENV:               test
