@@ -32,6 +32,16 @@ jest.unstable_mockModule('@v1/lib/b2Client.js', () => ({
   },
 }));
 
+// Prevent real Prisma client from initialising (no DATABASE_URL in unit tests)
+jest.unstable_mockModule('@repo/db', () => ({
+  prisma: {}, // not used directly by the service — goes through the repository
+  TechTalkStatus: {
+    draft: 'draft',
+    published: 'published',
+    unpublished: 'unpublished',
+  },
+}));
+
 const { TechTalkService } = await import('../techTalkService.js');
 const b2ClientModule = await import('@v1/lib/b2Client.js');
 const b2Client = b2ClientModule.default;
