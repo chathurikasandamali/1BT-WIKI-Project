@@ -4,16 +4,11 @@ import { TECH_TALK_SORT_FIELDS } from '@models/techTalk.types.js';
 import { buildSearchFilter, buildSortOrder } from '@utils/queryHelpers.js';
 import type { TechTalkListQuery } from '@models/techTalk.types.js';
 
-class TechTalkRepository {
-  async findPublished(query: TechTalkListQuery
+export class TechTalkRepository {
+  async findPublished(
+    query: TechTalkListQuery
   ): Promise<{ techTalks: TechTalk[]; total: number }> {
-    const {
-    page,
-    limit,
-    search,
-    sort,
-    order,
-  } = query;
+    const { page, limit, search, sort, order } = query;
     const where = {
       status: TechTalkStatus.published,
       deletedAt: null,
@@ -30,8 +25,8 @@ class TechTalkRepository {
       prisma.techTalk.findMany({
         where,
         orderBy,
-        skip: (page - 1) * limit,
-        take: limit,
+        skip: ((page ?? 1) - 1) * (limit ?? 20),
+        take: limit ?? 20,
       }),
       prisma.techTalk.count({ where }),
     ]);
@@ -77,5 +72,5 @@ class TechTalkRepository {
   }
 }
 
-const techTalkRepository = new TechTalkRepository();
-export default techTalkRepository;
+export const techTalkRepository = new TechTalkRepository();
+export default techTalkRepository;

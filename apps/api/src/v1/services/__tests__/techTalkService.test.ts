@@ -19,9 +19,8 @@ jest.unstable_mockModule('@repositories/techTalkRepository.js', () => {
   };
 
   return {
-    // Mocks the named class blueprint export
-    techTalkRepository: jest.fn().mockImplementation(() => mockInstance),
-    // Mocks the default camelCase object instance export
+    TechTalkRepository: jest.fn().mockImplementation(() => mockInstance),
+    techTalkRepository: mockInstance,
     default: mockInstance,
   };
 });
@@ -451,7 +450,7 @@ describe('TechTalkService', () => {
   });
 
   describe('listPublished', () => {
-    it('defaults to page 1, limit 20 and no search/sort/order', async () => {
+    it('defaults to page 1, limit 20 when query parameters are omitted', async () => {
       const mockTalks = [
         {
           id: 'tt-1',
@@ -469,10 +468,10 @@ describe('TechTalkService', () => {
       ];
       mockRepo.findPublished.mockResolvedValue({ techTalks: mockTalks, total: 1 });
 
-      const query = { page: 1, limit: 20 };
+      const query = {} as any;
       const result = await service.listPublished(query);
 
-      expect(mockRepo.findPublished).toHaveBeenCalledWith(query);
+      expect(mockRepo.findPublished).toHaveBeenCalledWith({ page: 1, limit: 20 });
       expect(result).toEqual({
         techTalks: mockTalks,
         total: 1,
@@ -499,22 +498,32 @@ describe('TechTalkService', () => {
       expect(mockRepo.findPublished).toHaveBeenCalledWith(query);
     });
 
-    it('rejects invalid sort field with AppError 400', async () => {
+    it('passes an invalid sort field through to the repository without throwing (permissive fallback)', async () => {
+      mockRepo.findPublished.mockResolvedValue({ techTalks: [], total: 0 });
+
       const query = { page: 1, limit: 20, sort: 'invalidField', order: 'asc' };
-      await expect(
-        service.listPublished(query)
-      ).rejects.toThrow(
-        new AppError('Invalid sort field. Allowed: title, eventDate', 400)
-      );
+      // Should NOT throw — buildSortOrder in the repository silently falls back to the default sort
+      await expect(service.listPublished(query)).resolves.toEqual({
+        techTalks: [],
+        total: 0,
+        page: 1,
+        limit: 20,
+      });
+      expect(mockRepo.findPublished).toHaveBeenCalledWith(query);
     });
 
-    it('rejects invalid sort order with AppError 400', async () => {
+    it('passes an invalid sort order through to the repository without throwing (permissive fallback)', async () => {
+      mockRepo.findPublished.mockResolvedValue({ techTalks: [], total: 0 });
+
       const query = { page: 1, limit: 20, sort: 'title', order: 'invalidOrder' };
-      await expect(
-        service.listPublished(query)
-      ).rejects.toThrow(
-        new AppError('Invalid sort order. Allowed: asc, desc', 400)
-      );
+      // Should NOT throw — buildSortOrder in the repository silently falls back to 'desc'
+      await expect(service.listPublished(query)).resolves.toEqual({
+        techTalks: [],
+        total: 0,
+        page: 1,
+        limit: 20,
+      });
+      expect(mockRepo.findPublished).toHaveBeenCalledWith(query);
     });
   });
 });

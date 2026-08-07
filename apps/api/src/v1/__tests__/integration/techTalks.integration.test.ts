@@ -57,6 +57,7 @@ const mockTechTalkRepository = {
 
 await jest.unstable_mockModule('@repositories/techTalkRepository.js', () => ({
   default: mockTechTalkRepository,
+  techTalkRepository: mockTechTalkRepository,
   TechTalkRepository: jest.fn().mockImplementation(() => mockTechTalkRepository),
 }));
 
@@ -424,15 +425,20 @@ describe('GET /api/v1/techTalks - Integration', () => {
     });
   });
 
-  it('returns 400 when invalid sort field is passed', async () => {
+  it('returns 200 with default sort when an invalid sort field is passed (permissive fallback)', async () => {
+    mockTechTalkRepository.findPublished.mockResolvedValue({ techTalks: [], total: 0 });
+
     const res = await request(app)
       .get(`${getPath}?sort=invalidField`)
       .set('x-test-user-id', 'emp-1')
       .set('x-test-user-email', 'employee@test.com')
       .set('x-test-user-role', 'Employee');
 
-    expect(res.status).toBe(400);
-    expect(res.body.error).toContain('Invalid sort field');
+    // Invalid sort is silently ignored — repository falls back to eventDate desc
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(mockTechTalkRepository.findPublished).toHaveBeenCalledWith(
+      expect.objectContaining({ sort: 'invalidField' })
+    );
   });
 });
-

@@ -2,44 +2,42 @@ import crypto from 'node:crypto';
 import { TechTalkStatus } from '@repo/db';
 import b2Client from '@v1/lib/b2Client.js';
 import { AppError } from '@errors/AppError.js';
-import techTalkRepository from '@repositories/techTalkRepository.js';
+import {
+  TechTalkRepository,
+  techTalkRepository as techTalkRepositoryInstance,
+} from '@repositories/techTalkRepository.js';
 import type {
   TechTalk,
   TechTalkListItem,
   CreateTechTalkInput,
   UpdateTechTalkInput,
-  TechTalkListQuery
+  TechTalkListQuery,
+  PaginationMeta
 } from '@models/techTalk.types.js';
-import { TECH_TALK_SORT_FIELDS } from '@models/techTalk.types.js';
-import { assertValidSort } from '../utils/queryHelpers.js';
 
 export class TechTalkService {
   constructor(
-    private repository: typeof techTalkRepository = techTalkRepository
-  ) { }
+    private readonly techTalkRepository: TechTalkRepository = techTalkRepositoryInstance
+  ) {}
 
-
+  /**
+   * Lists published Tech Talks with optional search, sort, and pagination.
+   *
+   * Invalid `sort` or `order` values are silently ignored — `buildSortOrder`
+   * in the repository falls back to the default (`eventDate desc`) rather than
+   * throwing, intentionally keeping this public-facing endpoint permissive.
+   */
   async listPublished(
     query: TechTalkListQuery
-  ): Promise<{
-    techTalks: TechTalkListItem[];
-    total: number;
-    page: number;
-    limit: number;
-  }> {
-    const {
-      page = 1,
-      limit = 20,
-      search,
-      sort,
-      order,
-    } = query;
-    assertValidSort(TECH_TALK_SORT_FIELDS, sort);
-    if (order !== undefined && order !== 'asc' && order !== 'desc') {
-      throw new AppError('Invalid sort order. Allowed: asc, desc', 400);
-    }
+  ): Promise<{ techTalks: TechTalkListItem[] } & PaginationMeta> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
 
-    const { techTalks, total } = await this.repository.findPublished(query);
+    const { techTalks, total } = await this.techTalkRepository.findPublished({
+      ...query,
+      page,
+      limit,
+    });
 
     return { techTalks, total, page, limit };
   }
@@ -78,7 +76,7 @@ export class TechTalkService {
       ? TechTalkStatus.published
       : TechTalkStatus.draft;
 
-    return this.repository.create({
+    return this.techTalkRepository.create({
       title: input.title.trim(),
       description: input.description ?? null,
       presenters: input.presenters,
@@ -92,7 +90,7 @@ export class TechTalkService {
   }
 
   async publishTechTalk(id: string): Promise<TechTalk> {
-    const techTalk = await this.repository.findById(id);
+    const techTalk = await this.techTalkRepository.findById(id);
     if (!techTalk) {
       throw new AppError('Tech Talk not found', 404);
     }
@@ -102,7 +100,7 @@ export class TechTalkService {
         400
       );
     }
-    return this.repository.updateStatus(id, TechTalkStatus.published);
+    return this.techTalkRepository.updateStatus(id, TechTalkStatus.published);
   }
 
   async updateTechTalk(
@@ -110,7 +108,7 @@ export class TechTalkService {
     input: UpdateTechTalkInput,
     slidesFile?: Express.Multer.File
   ): Promise<TechTalk> {
-    const existing = await this.repository.findById(id);
+    const existing = await this.techTalkRepository.findById(id);
     if (!existing) {
       throw new AppError('Tech Talk not found', 404);
     }
@@ -161,7 +159,7 @@ export class TechTalkService {
     // the Tech Talk's current status (Draft, Published, or Unpublished).
     updateFields.status = TechTalkStatus.draft;
 
-    return this.repository.update(id, updateFields);
+    return this.techTalkRepository.update(id, updateFields);
   }
 
   private async uploadSlides(

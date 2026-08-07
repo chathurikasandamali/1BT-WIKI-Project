@@ -51,13 +51,15 @@ export interface UpdateTechTalkInput {
   youtubeVideoId?: string;
 }
 
-export interface PaginationQuery {
-  page: number;
-  limit: number;
-}
-
-export interface TechTalkListQuery extends PaginationQuery {
+export interface TechTalkListQuery {
+  page?: number;
+  limit?: number;
   search?: string;
   sort?: string;
   order?: string;
 }
+
+export interface PaginationMeta
+  extends Required<Pick<TechTalkListQuery, 'page' | 'limit'>> {
+  total: number;
+}
