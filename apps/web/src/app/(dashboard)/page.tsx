@@ -6,7 +6,6 @@
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/lib/hooks/useUser';
-import { BRAND_FULL_NAME } from '@/lib/constants/brand';
 import { HomepageArticleThread } from '@/components/article-listing/HomepageArticleThread';
 
 export default function HomePage(): React.JSX.Element {
