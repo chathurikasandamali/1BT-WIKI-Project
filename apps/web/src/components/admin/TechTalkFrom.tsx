@@ -7,6 +7,7 @@ import {
 } from '@/lib/api/techTalks';
 import { Toast } from '@/components/shared/Toast';
 import { useToast } from '@/lib/hooks/useToast';
+import { ConfirmationModal } from '@/components/shared/ConfirmationModal';
 
 export function TechTalkForm(): React.JSX.Element {
     const [title, setTitle] = useState('');
@@ -19,6 +20,8 @@ export function TechTalkForm(): React.JSX.Element {
     const [isSaving, setIsSaving] = useState(false);
     const [validationError, setValidationError] = useState<string | null>(null);
     const { toast, showToast } = useToast();
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+    const [isPublishing, setIsPublishing] = useState(false);
 
     //add presenters for this tech talk ( one tech talk have multiple presenters )
     const addPresenter = (presenter: string) => {
@@ -95,6 +98,49 @@ export function TechTalkForm(): React.JSX.Element {
             );
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const handleOpenPublishModal = () => {
+        const error = validateForm();
+
+        if (error) {
+            setValidationError(error);
+            return;
+        }
+
+        setValidationError(null);
+        setIsConfirmModalOpen(true);
+    };
+
+    const handleSaveAndPublish = async () => {
+        setIsPublishing(true);
+
+        try {
+            const data: CreateTechTalkData = {
+                title: title.trim(),
+                description: description.trim() || undefined,
+                presenters,
+                tags,
+                eventDate: new Date(eventDate).toISOString(),
+                youtubeVideoId: youtubeVideoId.trim() || undefined,
+                publishImmediately: true,
+            };
+
+            await createTechTalk(data, slidesFile ?? undefined);
+
+            setIsConfirmModalOpen(false);
+
+            showToast('Tech Talk published successfully', 'success');
+        } catch (error) {
+            setIsConfirmModalOpen(false);
+
+            showToast(
+                error instanceof Error ? error.message : 'Failed to publish Tech Talk',
+                'error'
+            );
+        } finally {
+            setIsPublishing(false);
         }
     };
 
@@ -234,11 +280,29 @@ export function TechTalkForm(): React.JSX.Element {
                 <button
                     type="button"
                     onClick={handleSaveDraft}
-                    disabled={isSaving}
+                    disabled={isSaving || isPublishing}
                 >
                     {isSaving ? 'Saving...' : 'Save Draft'}
                 </button>
+
+                <button
+                    type="button"
+                    onClick={handleOpenPublishModal}
+                    disabled={isSaving || isPublishing}
+                >
+                    Save & Publish
+                </button>
             </form>
+
+            <ConfirmationModal
+                isOpen={isConfirmModalOpen}
+                title="Publish Tech Talk"
+                message="Are you sure you want to save and publish this Tech Talk?"
+                confirmText="Publish"
+                onConfirm={handleSaveAndPublish}
+                onCancel={() => setIsConfirmModalOpen(false)}
+                isConfirming={isPublishing}
+            />
 
             <Toast
                 visible={toast.visible}
@@ -247,6 +311,7 @@ export function TechTalkForm(): React.JSX.Element {
             />
 
         </>
+
 
 
 
