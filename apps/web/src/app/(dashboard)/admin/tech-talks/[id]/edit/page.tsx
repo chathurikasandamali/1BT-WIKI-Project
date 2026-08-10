@@ -4,10 +4,8 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 
 import { RoleGuard } from '@/components/auth/RoleGuard';
-import {
-    getTechTalkById,
-    type TechTalkDetail,
-} from '@/lib/api/techTalks';
+import { getTechTalkById } from '@/lib/api/techTalks';
+import type { TechTalkDetail } from '@/lib/api/techTalks';
 import { TechTalkForm } from '@/components/admin/TechTalkForm';
 
 function EditTechTalkContent(): React.JSX.Element {

@@ -5,9 +5,12 @@ import {
     createTechTalk,
     updateTechTalk,
     publishTechTalk,
-    type CreateTechTalkData,
-    type UpdateTechTalkData,
-    type TechTalkDetail,
+} from '@/lib/api/techTalks';
+
+import type {
+    CreateTechTalkData,
+    UpdateTechTalkData,
+    TechTalkDetail,
 } from '@/lib/api/techTalks';
 import { Toast } from '@/components/shared/Toast';
 import { useToast } from '@/lib/hooks/useToast';
