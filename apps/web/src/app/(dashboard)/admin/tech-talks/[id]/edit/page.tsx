@@ -20,28 +20,30 @@ function EditTechTalkContent(): React.JSX.Element {
             return;
         }
 
-        let cancelled = false;
+        const controller = new AbortController();
 
         const fetchTechTalk = async () => {
             try {
                 setLoading(true);
 
-                const data = await getTechTalkById(id);
+                const data = await getTechTalkById(id, {
+                    signal: controller.signal,
+                });
 
-                if (!cancelled) {
-                    setTechTalk(data);
-                    setError(null);
-                }
+                setTechTalk(data);
+                setError(null);
             } catch (error) {
-                if (!cancelled) {
-                    setError(
-                        error instanceof Error
-                            ? error.message
-                            : 'Failed to load Tech Talk'
-                    );
+                if (error instanceof Error && error.name === 'AbortError') {
+                    return;
                 }
+
+                setError(
+                    error instanceof Error
+                        ? error.message
+                        : 'Failed to load Tech Talk'
+                );
             } finally {
-                if (!cancelled) {
+                if (!controller.signal.aborted) {
                     setLoading(false);
                 }
             }
@@ -50,7 +52,7 @@ function EditTechTalkContent(): React.JSX.Element {
         fetchTechTalk();
 
         return () => {
-            cancelled = true;
+            controller.abort();
         };
     }, [id]);
 

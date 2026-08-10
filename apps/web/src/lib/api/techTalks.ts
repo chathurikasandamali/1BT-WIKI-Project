@@ -104,9 +104,13 @@ export async function publishTechTalk(
 }
 
 export async function getTechTalkById(
-    id: string
+    id: string,
+    options?: RequestInit
 ): Promise<TechTalkDetail> {
-    const result = await apiFetch<TechTalkDetail>(`/techTalks/${id}`);
+    const result = await apiFetch<TechTalkDetail>(
+        `/techTalks/${id}`,
+        options
+    );
 
     if (!result.success || !result.data) {
         throw new Error(result.error || 'Failed to load Tech Talk');
