@@ -12,12 +12,13 @@ jest.unstable_mockModule('@services/techTalkService.js', () => ({
 const { TechTalkController } = await import('../techTalkController.js');
 
 const makeMockService = (): jest.Mocked<
-  Pick<TechTalkService, 'createTechTalk' | 'publishTechTalk' | 'updateTechTalk' | 'listPublished'>
+  Pick<TechTalkService, 'createTechTalk' | 'publishTechTalk' | 'updateTechTalk' | 'listPublished' | 'getTechTalkById'>
 > => ({
   createTechTalk: jest.fn(),
   publishTechTalk: jest.fn(),
   updateTechTalk: jest.fn(),
   listPublished: jest.fn(),
+  getTechTalkById: jest.fn(),
 });
 
 describe('TechTalkController', () => {
@@ -209,6 +210,36 @@ describe('TechTalkController', () => {
       mockService.updateTechTalk.mockRejectedValue(error);
 
       await controller.update(req as Request, res as Response, next);
+
+      expect(next).toHaveBeenCalledWith(error);
+    });
+  });
+
+  describe('getById', () => {
+    it('should call service.getTechTalkById with id and req.user.role, and return 200', async () => {
+      req.params = { id: 'tt-123' };
+      req.user = { userId: 'u-1', email: 'user@test.com', role: 'User' };
+      const mockTalk = { id: 'tt-123', title: 'Tech Talk Detail', status: 'published' };
+      mockService.getTechTalkById.mockResolvedValue(mockTalk as any);
+
+      await controller.getById(req as Request, res as Response, next);
+
+      expect(mockService.getTechTalkById).toHaveBeenCalledWith('tt-123', 'User');
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockTalk,
+        message: 'Tech Talk retrieved successfully',
+      });
+    });
+
+    it('should forward service errors to next', async () => {
+      req.params = { id: 'tt-999' };
+      req.user = { userId: 'u-1', email: 'user@test.com', role: 'User' };
+      const error = new AppError('Tech Talk not found', 404);
+      mockService.getTechTalkById.mockRejectedValue(error);
+
+      await controller.getById(req as Request, res as Response, next);
 
       expect(next).toHaveBeenCalledWith(error);
     });
