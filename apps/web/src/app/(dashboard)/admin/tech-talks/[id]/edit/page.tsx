@@ -58,20 +58,40 @@ function EditTechTalkContent(): React.JSX.Element {
 
 
     if (loading) {
-        return <div>Loading Tech Talk...</div>;
+        return (
+            <div className="p-8 max-w-5xl mx-auto flex flex-col items-center justify-center py-20 gap-3">
+                <div className="w-6 h-6 border-2 border-brand-border border-t-brand-red rounded-full animate-spin" />
+                <p className="text-sm text-brand-text-secondary">Loading Tech Talk...</p>
+            </div>
+        );
     }
 
     if (error) {
-        return <div>{error}</div>;
+        return (
+            <div className="p-8 max-w-5xl mx-auto">
+                <div className="p-4 bg-brand-red/10 border border-brand-red/20 rounded text-brand-red text-sm">
+                    {error}
+                </div>
+            </div>
+        );
     }
 
     if (!techTalk) {
-        return <div>Tech Talk not found</div>;
+        return (
+            <div className="p-8 max-w-5xl mx-auto">
+                <div className="py-20 text-center text-sm text-brand-text-secondary">
+                    Tech Talk not found
+                </div>
+            </div>
+        );
     }
 
     return (
-        <div>
-            <h1>Edit Tech Talk</h1>
+        <div className="p-8 max-w-5xl mx-auto">
+            <div className="mb-8">
+                <h1 className="text-2xl font-semibold text-brand-text-primary">Edit Tech Talk</h1>
+                <p className="mt-1 text-sm text-brand-text-secondary">Update the details for this Tech Talk.</p>
+            </div>
 
             <TechTalkForm initialData={techTalk} />
         </div>

@@ -227,153 +227,166 @@ export function TechTalkForm({
 
     return (
         <>
-            <form>
-                <div>
-                    <label htmlFor="title">Title</label>
-
-                    <input
-                        id="title"
-                        type="text"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                    />
-                </div>
-
-                <div>
-                    <label htmlFor="description">Description</label>
-
-                    <textarea
-                        id="description"
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                    />
-                </div>
-
-                <div>
-                    <label htmlFor="presenters">Presenters</label>
-
-                    <div>
-                        {presenters.map((presenter) => (
-                            <span key={presenter}>
-                                {presenter}
-
-                                <button
-                                    type="button"
-                                    onClick={() => removePresenter(presenter)}
-                                >
-                                    ×
-                                </button>
-                            </span>
-                        ))}
-                    </div>
-
-                    <input
-                        id="presenters"
-                        type="text"
-                        placeholder="Add presenter..."
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && e.currentTarget.value.trim() !== '') {
-                                e.preventDefault();
-
-                                addPresenter(e.currentTarget.value.trim());
-
-                                e.currentTarget.value = '';
-                            }
-                        }}
-                    />
-                </div>
-
-                <div>
-                    <label htmlFor="tags">Tags</label>
-
-                    <div>
-                        {tags.map((tag) => (
-                            <span key={tag}>
-                                {tag}
-
-                                <button
-                                    type="button"
-                                    onClick={() => removeTag(tag)}
-                                >
-                                    ×
-                                </button>
-                            </span>
-                        ))}
-                    </div>
-
-                    <input
-                        id="tags"
-                        type="text"
-                        placeholder="Add tag..."
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && e.currentTarget.value.trim() !== '') {
-                                e.preventDefault();
-
-                                addTag(e.currentTarget.value.trim());
-
-                                e.currentTarget.value = '';
-                            }
-                        }}
-                    />
-                </div>
-
-                <div>
-                    <label htmlFor="eventDate">Event Date</label>
-
-                    <input
-                        id="eventDate"
-                        type="datetime-local"
-                        value={eventDate}
-                        onChange={(e) => setEventDate(e.target.value)}
-                    />
-                </div>
-
-                <div>
-                    <label htmlFor="youtubeVideoId">YouTube Video ID</label>
-
-                    <input
-                        id="youtubeVideoId"
-                        type="text"
-                        value={youtubeVideoId}
-                        onChange={(e) => setYoutubeVideoId(e.target.value)}
-                        placeholder="Enter YouTube video ID"
-                    />
-                </div>
-
-                <div>
-                    <label htmlFor="slides">Slides</label>
-
-                    <input
-                        id="slides"
-                        type="file"
-                        accept=".pdf,.ppt,.pptx"
-                        onChange={(e) => {
-                            const file = e.target.files?.[0] ?? null;
-                            setSlidesFile(file);
-                        }}
-                    />
-                </div>
-
+            <div className="bg-brand-surface border border-brand-border rounded shadow-sm p-6">
                 {validationError && (
-                    <p>{validationError}</p>
+                    <div className="mb-6 p-4 bg-brand-red/10 border border-brand-red/20 rounded text-brand-red text-sm">
+                        {validationError}
+                    </div>
                 )}
 
-                <button
-                    type="button"
-                    onClick={handleSaveDraft}
-                    disabled={isSaving || isPublishing}
-                >
-                    {isSaving ? 'Saving...' : 'Save Draft'}
-                </button>
+                <form className="space-y-6">
+                    <div>
+                        <label htmlFor="title" className="block text-sm font-medium text-brand-text-primary mb-2">Title</label>
+                        <input
+                            id="title"
+                            type="text"
+                            value={title}
+                            onChange={(e) => setTitle(e.target.value)}
+                            className="w-full px-3 py-2 bg-brand-bg border border-brand-border rounded text-brand-text-primary focus:outline-none focus:border-brand-red transition-colors text-sm"
+                            placeholder="Enter Tech Talk title"
+                        />
+                    </div>
 
-                <button
-                    type="button"
-                    onClick={handleOpenPublishModal}
-                    disabled={isSaving || isPublishing}
-                >
-                    Save & Publish
-                </button>
-            </form>
+                    <div>
+                        <label htmlFor="description" className="block text-sm font-medium text-brand-text-primary mb-2">Description</label>
+                        <textarea
+                            id="description"
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            rows={4}
+                            className="w-full px-3 py-2 bg-brand-bg border border-brand-border rounded text-brand-text-primary focus:outline-none focus:border-brand-red transition-colors text-sm resize-y"
+                            placeholder="Enter description"
+                        />
+                    </div>
+
+                    <div>
+                        <label htmlFor="presenters" className="block text-sm font-medium text-brand-text-primary mb-2">Presenters</label>
+                        {presenters.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mb-2">
+                                {presenters.map((presenter) => (
+                                    <span key={presenter} className="inline-flex items-center px-2.5 py-1 bg-brand-bg border border-brand-border rounded text-sm text-brand-text-secondary">
+                                        {presenter}
+                                        <button
+                                            type="button"
+                                            onClick={() => removePresenter(presenter)}
+                                            className="ml-1.5 text-brand-text-secondary hover:text-brand-red focus:outline-none"
+                                            aria-label={`Remove ${presenter}`}
+                                        >
+                                            ×
+                                        </button>
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                        <input
+                            id="presenters"
+                            type="text"
+                            placeholder="Type and press Enter to add presenter..."
+                            className="w-full px-3 py-2 bg-brand-bg border border-brand-border rounded text-brand-text-primary focus:outline-none focus:border-brand-red transition-colors text-sm"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && e.currentTarget.value.trim() !== '') {
+                                    e.preventDefault();
+                                    addPresenter(e.currentTarget.value.trim());
+                                    e.currentTarget.value = '';
+                                }
+                            }}
+                        />
+                    </div>
+
+                    <div>
+                        <label htmlFor="tags" className="block text-sm font-medium text-brand-text-primary mb-2">Tags</label>
+                        {tags.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mb-2">
+                                {tags.map((tag) => (
+                                    <span key={tag} className="inline-flex items-center px-2.5 py-1 bg-brand-bg border border-brand-border rounded text-sm text-brand-text-secondary">
+                                        {tag}
+                                        <button
+                                            type="button"
+                                            onClick={() => removeTag(tag)}
+                                            className="ml-1.5 text-brand-text-secondary hover:text-brand-red focus:outline-none"
+                                            aria-label={`Remove ${tag}`}
+                                        >
+                                            ×
+                                        </button>
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                        <input
+                            id="tags"
+                            type="text"
+                            placeholder="Type and press Enter to add tag..."
+                            className="w-full px-3 py-2 bg-brand-bg border border-brand-border rounded text-brand-text-primary focus:outline-none focus:border-brand-red transition-colors text-sm"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && e.currentTarget.value.trim() !== '') {
+                                    e.preventDefault();
+                                    addTag(e.currentTarget.value.trim());
+                                    e.currentTarget.value = '';
+                                }
+                            }}
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label htmlFor="eventDate" className="block text-sm font-medium text-brand-text-primary mb-2">Event Date</label>
+                            <input
+                                id="eventDate"
+                                type="datetime-local"
+                                value={eventDate}
+                                onChange={(e) => setEventDate(e.target.value)}
+                                className="w-full px-3 py-2 bg-brand-bg border border-brand-border rounded text-brand-text-primary focus:outline-none focus:border-brand-red transition-colors text-sm"
+                            />
+                        </div>
+
+                        <div>
+                            <label htmlFor="youtubeVideoId" className="block text-sm font-medium text-brand-text-primary mb-2">YouTube Video ID</label>
+                            <input
+                                id="youtubeVideoId"
+                                type="text"
+                                value={youtubeVideoId}
+                                onChange={(e) => setYoutubeVideoId(e.target.value)}
+                                placeholder="Enter 11-character ID"
+                                className="w-full px-3 py-2 bg-brand-bg border border-brand-border rounded text-brand-text-primary focus:outline-none focus:border-brand-red transition-colors text-sm"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label htmlFor="slides" className="block text-sm font-medium text-brand-text-primary mb-2">Slides (PDF, PPT, PPTX)</label>
+                        <input
+                            id="slides"
+                            type="file"
+                            accept=".pdf,.ppt,.pptx"
+                            onChange={(e) => {
+                                const file = e.target.files?.[0] ?? null;
+                                setSlidesFile(file);
+                            }}
+                            className="w-full px-3 py-2 bg-brand-bg border border-brand-border rounded text-brand-text-secondary focus:outline-none focus:border-brand-red transition-colors text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-brand-red/10 file:text-brand-red hover:file:bg-brand-red/20 cursor-pointer"
+                        />
+                    </div>
+
+                    <div className="pt-6 border-t border-brand-border flex flex-col-reverse sm:flex-row items-center justify-end gap-3">
+                        <button
+                            type="button"
+                            onClick={handleSaveDraft}
+                            disabled={isSaving || isPublishing}
+                            className="w-full sm:w-auto px-4 py-2 border border-brand-border text-brand-text-primary bg-brand-surface hover:bg-brand-hover rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                        >
+                            {isSaving ? 'Saving...' : 'Save Draft'}
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={handleOpenPublishModal}
+                            disabled={isSaving || isPublishing}
+                            className="w-full sm:w-auto px-5 py-2 bg-brand-red hover:bg-brand-red-hover text-white rounded text-sm font-bold shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            Save & Publish
+                        </button>
+                    </div>
+                </form>
+            </div>
 
             <ConfirmationModal
                 isOpen={isConfirmModalOpen}
@@ -390,11 +403,6 @@ export function TechTalkForm({
                 message={toast.message}
                 type={toast.type}
             />
-
         </>
-
-
-
-
     );
 }
