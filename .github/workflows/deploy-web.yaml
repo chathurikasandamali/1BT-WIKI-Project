@@ -101,4 +101,3 @@ jobs:
             --timeout 60000
 
           pnpm --filter web cypress:ci
-

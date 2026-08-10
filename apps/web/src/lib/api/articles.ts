@@ -21,8 +21,8 @@ export interface ArticleDetail {
   likedByMe: boolean;
   views?: number;
   authorName?: string;
-  authorEmail?: string | null; 
-  authorImage?: string | null; 
+  authorEmail?: string | null;
+  authorImage?: string | null;
 }
 
 export interface ArticleListItem {
@@ -46,6 +46,7 @@ export interface ListMineResult {
   limit: number;
 }
 
+export type PublishedArticleListResult = ListMineResult;
 /**
  * Statuses accepted by the admin list endpoint's `status` filter.
  * Drafts are private to their authors and never listed; 'Rejected' is a
@@ -96,6 +97,22 @@ export async function fetchAllArticles(
   if (!result.success || !result.data) {
     throw new Error(result.error || 'Failed to load articles');
   }
+  return result.data;
+}
+
+export async function fetchPublishedArticles(
+  page = 1,
+  limit = 20
+): Promise<PublishedArticleListResult> {
+  const result = await apiFetch<PublishedArticleListResult>(
+    `/articles?page=${page}&limit=${limit}`
+  );
+
+  if (!result.success || !result.data) {
+    throw new Error(result.error || 'Failed to load published articles');
+
+  }
+
   return result.data;
 }
 
