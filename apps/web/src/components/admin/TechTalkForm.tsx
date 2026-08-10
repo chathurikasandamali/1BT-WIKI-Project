@@ -122,7 +122,7 @@ export function TechTalkForm({
             if (isEditMode && initialData) {
                 const data: UpdateTechTalkData = {
                     title: title.trim(),
-                    description: description.trim() || undefined,
+                    description: description.trim(),
                     presenters,
                     tags,
                     eventDate: new Date(eventDate).toISOString(),
@@ -180,7 +180,7 @@ export function TechTalkForm({
             if (isEditMode && initialData) {
                 const data: UpdateTechTalkData = {
                     title: title.trim(),
-                    description: description.trim() || undefined,
+                    description: description.trim(),
                     presenters,
                     tags,
                     eventDate: new Date(eventDate).toISOString(),
