@@ -60,3 +60,45 @@ export async function createTechTalk(
 
     return result.data;
 }
+
+export async function updateTechTalk(
+    id: string,
+    data: UpdateTechTalkData,
+    slidesFile?: File
+): Promise<TechTalkDetail> {
+    const formData = new FormData();
+
+    formData.append('data', JSON.stringify(data));
+
+    if (slidesFile) {
+        formData.append('slides', slidesFile);
+    }
+
+    const result = await apiFetch<TechTalkDetail>(`/techTalks/${id}`, {
+        method: 'PATCH',
+        body: formData,
+    });
+
+    if (!result.success || !result.data) {
+        throw new Error(result.error || 'Failed to update Tech Talk');
+    }
+
+    return result.data;
+}
+
+export async function publishTechTalk(
+    id: string
+): Promise<TechTalkDetail> {
+    const result = await apiFetch<TechTalkDetail>(
+        `/techTalks/${id}/publish`,
+        {
+            method: 'POST',
+        }
+    );
+
+    if (!result.success || !result.data) {
+        throw new Error(result.error || 'Failed to publish Tech Talk');
+    }
+
+    return result.data;
+}
