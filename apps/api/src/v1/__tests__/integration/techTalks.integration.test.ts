@@ -170,6 +170,7 @@ describe('POST /api/v1/techTalks/:id/publish - Integration', () => {
   });
 
   const publishPath = (id: string) => `/api/v1/techTalks/${id}/publish`;
+  const techtalkPath = `/api/v1/techTalks`;
 
   it('returns 401 when unauthenticated', async () => {
     const res = await request(app).post(publishPath('tt-1'));
@@ -440,5 +441,114 @@ describe('GET /api/v1/techTalks - Integration', () => {
     expect(mockTechTalkRepository.findPublished).toHaveBeenCalledWith(
       expect.objectContaining({ sort: 'invalidField' })
     );
+  });
+});
+
+describe('GET /api/v1/techTalks/:id - Integration', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  const publishedTalk = {
+    id: 'tt-pub-1',
+    title: 'Published Tech Talk',
+    description: 'Detailed description',
+    presenters: ['Alice', 'Bob'],
+    tags: ['Architecture'],
+    eventDate: '2026-09-01T10:00:00.000Z',
+    slidesUrl: 'https://storage.example.com/slides/tt-pub-1.pdf',
+    youtubeVideoId: 'dQw4w9WgXcQ',
+    status: 'published',
+    createdBy: 'admin-1',
+    createdAt: '2026-08-01T00:00:00.000Z',
+    updatedAt: '2026-08-01T00:00:00.000Z',
+  };
+
+  const draftTalk = {
+    id: 'tt-draft-1',
+    title: 'Draft Tech Talk',
+    description: 'Draft description',
+    presenters: ['Charlie'],
+    tags: ['Testing'],
+    eventDate: '2026-10-01T10:00:00.000Z',
+    slidesUrl: null,
+    youtubeVideoId: null,
+    status: 'draft',
+    createdBy: 'admin-1',
+    createdAt: '2026-08-01T00:00:00.000Z',
+    updatedAt: '2026-08-01T00:00:00.000Z',
+  };
+
+  it('returns 401 when unauthenticated', async () => {
+    const res = await request(app).get('/api/v1/techTalks/tt-pub-1');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 200 for any authenticated user on a Published Tech Talk (including slidesUrl and youtubeVideoId)', async () => {
+    mockTechTalkRepository.findById.mockResolvedValue(publishedTalk);
+
+    const res = await request(app)
+      .get('/api/v1/techTalks/tt-pub-1')
+      .set('x-test-user-id', 'user-1')
+      .set('x-test-user-email', 'user@test.com')
+      .set('x-test-user-role', 'User');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      success: true,
+      data: publishedTalk,
+      message: 'Tech Talk retrieved successfully',
+    });
+    expect(res.body.data.slidesUrl).toBe('https://storage.example.com/slides/tt-pub-1.pdf');
+    expect(res.body.data.youtubeVideoId).toBe('dQw4w9WgXcQ');
+  });
+
+  it('returns 403 for a non-Admin on a Draft Tech Talk', async () => {
+    mockTechTalkRepository.findById.mockResolvedValue(draftTalk);
+
+    const res = await request(app)
+      .get('/api/v1/techTalks/tt-draft-1')
+      .set('x-test-user-id', 'user-1')
+      .set('x-test-user-email', 'user@test.com')
+      .set('x-test-user-role', 'User');
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({
+      success: false,
+      error: 'Tech Talk not available',
+    });
+  });
+
+  it('returns 200 for an Admin on a Draft Tech Talk', async () => {
+    mockTechTalkRepository.findById.mockResolvedValue(draftTalk);
+
+    const res = await request(app)
+      .get('/api/v1/techTalks/tt-draft-1')
+      .set('x-test-user-id', 'admin-1')
+      .set('x-test-user-email', 'admin@test.com')
+      .set('x-test-user-role', 'Admin');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      success: true,
+      data: draftTalk,
+      message: 'Tech Talk retrieved successfully',
+    });
+  });
+
+  it('returns 404 for a missing id', async () => {
+    mockTechTalkRepository.findById.mockResolvedValue(null);
+
+    const res = await request(app)
+      .get('/api/v1/techTalks/missing-id')
+      .set('x-test-user-id', 'admin-1')
+      .set('x-test-user-email', 'admin@test.com')
+      .set('x-test-user-role', 'Admin');
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({
+      success: false,
+      error: 'Tech Talk not found',
+    });
   });
 });

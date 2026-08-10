@@ -36,6 +36,25 @@ export class TechTalkController {
     }
   };
 
+  getById = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const requesterRole = req.user?.role;
+      const techTalk = await this.techTalkService.getTechTalkById(id, requesterRole);
+      res.status(200).json({
+        success: true,
+        data: techTalk,
+        message: 'Tech Talk retrieved successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
   create = async (
     req: Request,
     res: Response,
