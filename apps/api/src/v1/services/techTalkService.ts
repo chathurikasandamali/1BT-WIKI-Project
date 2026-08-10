@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { TechTalkStatus } from '@repo/db';
 import b2Client from '@v1/lib/b2Client.js';
 import { AppError } from '@errors/AppError.js';
+import { isPrismaNotFoundError } from '@errors/PrismaErrors.js';
 import {
   TechTalkRepository,
   techTalkRepository as techTalkRepositoryInstance,
@@ -118,7 +119,18 @@ export class TechTalkService {
     return this.techTalkRepository.updateStatus(id, TechTalkStatus.published);
   }
 
-  async updateTechTalk(
+  async deleteTechTalk(id: string): Promise<void> {
+    try {
+      await this.techTalkRepository.softDelete(id);
+    } catch (error) {
+      if (isPrismaNotFoundError(error)) {
+        throw new AppError('Tech Talk not found', HttpStatusCode.NOT_FOUND);
+      }
+      throw error;
+    }
+  }
+
+    async updateTechTalk(
     id: string,
     input: UpdateTechTalkInput,
     slidesFile?: Express.Multer.File

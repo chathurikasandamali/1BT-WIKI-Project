@@ -1,5 +1,6 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import request from 'supertest';
+import { HttpStatusCode } from '@/v1/utils/httpStatus.js';
 
 await jest.unstable_mockModule('@repo/db', () => ({
   TechTalkStatus: { draft: 'draft', published: 'published', unpublished: 'unpublished' },
@@ -29,7 +30,7 @@ await jest.unstable_mockModule('@middleware/auth.middleware.js', () => ({
       }
 
       res
-        .status(401)
+        .status(HttpStatusCode.UNAUTHORIZED)
         .json({ success: false, error: 'Authentication required' });
     }
   ),
@@ -40,7 +41,7 @@ await jest.unstable_mockModule('@middleware/auth.middleware.js', () => ({
       next: import('express').NextFunction
     ) => {
       if (req.user?.role !== allowedRole) {
-        res.status(403).json({ success: false, error: 'Access denied' });
+        res.status(HttpStatusCode.FORBIDDEN).json({ success: false, error: 'Access denied' });
         return;
       }
       next();
@@ -53,6 +54,7 @@ const mockTechTalkRepository = {
   updateStatus: jest.fn<any>().mockResolvedValue({}),
   update: jest.fn<any>().mockResolvedValue({}),
   findPublished: jest.fn<any>().mockResolvedValue({ techTalks: [], total: 0 }),
+  softDelete: jest.fn<any>().mockResolvedValue({}),
 };
 
 await jest.unstable_mockModule('@repositories/techTalkRepository.js', () => ({
@@ -88,7 +90,7 @@ describe('POST /api/v1/techTalks - Integration', () => {
       .post(techtalkPath)
       .field('data', JSON.stringify(validData));
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(HttpStatusCode.UNAUTHORIZED);
   });
 
   it('returns 403 when authenticated as non-Admin (e.g. Employee)', async () => {
@@ -99,7 +101,7 @@ describe('POST /api/v1/techTalks - Integration', () => {
       .set('x-test-user-role', 'Employee')
       .field('data', JSON.stringify(validData));
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(HttpStatusCode.FORBIDDEN);
   });
 
   it('returns 400 when required fields are missing', async () => {
@@ -112,7 +114,7 @@ describe('POST /api/v1/techTalks - Integration', () => {
       .set('x-test-user-role', 'Admin')
       .field('data', JSON.stringify(invalidData));
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(HttpStatusCode.BAD_REQUEST);
   });
 
   it('returns 400 when a full URL is passed instead of video ID', async () => {
@@ -128,7 +130,7 @@ describe('POST /api/v1/techTalks - Integration', () => {
       .set('x-test-user-role', 'Admin')
       .field('data', JSON.stringify(fullUrlData));
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(HttpStatusCode.BAD_REQUEST);
     expect(res.body.error).toBe('Invalid YouTube video ID');
   });
 
@@ -155,7 +157,7 @@ describe('POST /api/v1/techTalks - Integration', () => {
       .set('x-test-user-role', 'Admin')
       .field('data', JSON.stringify(validData));
 
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(HttpStatusCode.CREATED);
     expect(res.body).toEqual({
       success: true,
       data: expectedResponse,
@@ -174,7 +176,7 @@ describe('POST /api/v1/techTalks/:id/publish - Integration', () => {
 
   it('returns 401 when unauthenticated', async () => {
     const res = await request(app).post(publishPath('tt-1'));
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(HttpStatusCode.UNAUTHORIZED);
   });
 
   it('returns 403 when authenticated as non-Admin (e.g. Employee)', async () => {
@@ -184,7 +186,7 @@ describe('POST /api/v1/techTalks/:id/publish - Integration', () => {
       .set('x-test-user-email', 'employee@test.com')
       .set('x-test-user-role', 'Employee');
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(HttpStatusCode.FORBIDDEN);
   });
 
   it('returns 404 when tech talk is not found', async () => {
@@ -196,7 +198,7 @@ describe('POST /api/v1/techTalks/:id/publish - Integration', () => {
       .set('x-test-user-email', 'admin@test.com')
       .set('x-test-user-role', 'Admin');
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(HttpStatusCode.NOT_FOUND);
     expect(res.body.error).toBe('Tech Talk not found');
   });
 
@@ -212,7 +214,7 @@ describe('POST /api/v1/techTalks/:id/publish - Integration', () => {
       .set('x-test-user-email', 'admin@test.com')
       .set('x-test-user-role', 'Admin');
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(HttpStatusCode.BAD_REQUEST);
     expect(res.body.error).toBe(
       'Cannot publish a Tech Talk with status "published". Only Draft Tech Talks can be published.'
     );
@@ -230,7 +232,7 @@ describe('POST /api/v1/techTalks/:id/publish - Integration', () => {
       .set('x-test-user-email', 'admin@test.com')
       .set('x-test-user-role', 'Admin');
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(HttpStatusCode.BAD_REQUEST);
     expect(res.body.error).toBe(
       'Cannot publish a Tech Talk with status "unpublished". Only Draft Tech Talks can be published.'
     );
@@ -256,7 +258,7 @@ describe('POST /api/v1/techTalks/:id/publish - Integration', () => {
       .set('x-test-user-email', 'admin@test.com')
       .set('x-test-user-role', 'Admin');
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(HttpStatusCode.OK);
     expect(mockTechTalkRepository.findById).toHaveBeenCalledWith('tt-draft-1');
     expect(mockTechTalkRepository.updateStatus).toHaveBeenCalledWith(
       'tt-draft-1',
@@ -298,7 +300,7 @@ describe('PATCH /api/v1/techTalks/:id - Integration', () => {
       .patch(patchPath('tt-pub-1'))
       .field('data', JSON.stringify({ title: 'New' }));
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(HttpStatusCode.UNAUTHORIZED);
   });
 
   it('returns 403 when authenticated as non-Admin', async () => {
@@ -309,7 +311,7 @@ describe('PATCH /api/v1/techTalks/:id - Integration', () => {
       .set('x-test-user-role', 'Employee')
       .field('data', JSON.stringify({ title: 'New' }));
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(HttpStatusCode.FORBIDDEN);
   });
 
   it('returns 404 when tech talk does not exist', async () => {
@@ -322,7 +324,7 @@ describe('PATCH /api/v1/techTalks/:id - Integration', () => {
       .set('x-test-user-role', 'Admin')
       .field('data', JSON.stringify({ title: 'New' }));
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(HttpStatusCode.NOT_FOUND);
     expect(res.body.error).toBe('Tech Talk not found');
   });
 
@@ -336,7 +338,7 @@ describe('PATCH /api/v1/techTalks/:id - Integration', () => {
       .set('x-test-user-role', 'Admin')
       .field('data', JSON.stringify({ title: '' }));
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(HttpStatusCode.BAD_REQUEST);
     expect(res.body.error).toBe('Title is required');
   });
 
@@ -357,7 +359,7 @@ describe('PATCH /api/v1/techTalks/:id - Integration', () => {
       .set('x-test-user-role', 'Admin')
       .field('data', JSON.stringify({ title: 'Updated Title' }));
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(HttpStatusCode.OK);
     expect(res.body.success).toBe(true);
     expect(res.body.data.status).toBe('draft');
     expect(res.body.message).toBe('Tech Talk updated successfully');
@@ -377,7 +379,7 @@ describe('GET /api/v1/techTalks - Integration', () => {
 
   it('returns 401 when unauthenticated', async () => {
     const res = await request(app).get(getPath);
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(HttpStatusCode.UNAUTHORIZED);
   });
 
   it('returns 200 with published tech talks, filtered, sorted, and paginated for authenticated users', async () => {
@@ -406,7 +408,7 @@ describe('GET /api/v1/techTalks - Integration', () => {
       .set('x-test-user-email', 'employee@test.com')
       .set('x-test-user-role', 'Employee');
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(HttpStatusCode.OK);
     expect(mockTechTalkRepository.findPublished).toHaveBeenCalledWith({
       page: 1,
       limit: 10,
@@ -436,7 +438,7 @@ describe('GET /api/v1/techTalks - Integration', () => {
       .set('x-test-user-role', 'Employee');
 
     // Invalid sort is silently ignored — repository falls back to eventDate desc
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(HttpStatusCode.OK);
     expect(res.body.success).toBe(true);
     expect(mockTechTalkRepository.findPublished).toHaveBeenCalledWith(
       expect.objectContaining({ sort: 'invalidField' })
@@ -481,7 +483,7 @@ describe('GET /api/v1/techTalks/:id - Integration', () => {
 
   it('returns 401 when unauthenticated', async () => {
     const res = await request(app).get('/api/v1/techTalks/tt-pub-1');
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(HttpStatusCode.UNAUTHORIZED);
   });
 
   it('returns 200 for any authenticated user on a Published Tech Talk (including slidesUrl and youtubeVideoId)', async () => {
@@ -493,7 +495,7 @@ describe('GET /api/v1/techTalks/:id - Integration', () => {
       .set('x-test-user-email', 'user@test.com')
       .set('x-test-user-role', 'User');
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(HttpStatusCode.OK);
     expect(res.body).toEqual({
       success: true,
       data: publishedTalk,
@@ -512,7 +514,7 @@ describe('GET /api/v1/techTalks/:id - Integration', () => {
       .set('x-test-user-email', 'user@test.com')
       .set('x-test-user-role', 'User');
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(HttpStatusCode.FORBIDDEN);
     expect(res.body).toEqual({
       success: false,
       error: 'Tech Talk not available',
@@ -528,7 +530,7 @@ describe('GET /api/v1/techTalks/:id - Integration', () => {
       .set('x-test-user-email', 'admin@test.com')
       .set('x-test-user-role', 'Admin');
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(HttpStatusCode.OK);
     expect(res.body).toEqual({
       success: true,
       data: draftTalk,
@@ -545,10 +547,77 @@ describe('GET /api/v1/techTalks/:id - Integration', () => {
       .set('x-test-user-email', 'admin@test.com')
       .set('x-test-user-role', 'Admin');
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(HttpStatusCode.NOT_FOUND);
     expect(res.body).toEqual({
       success: false,
       error: 'Tech Talk not found',
     });
+  });
+});
+
+describe('DELETE /api/v1/techTalks/:id - Integration', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  const deletePath = (id: string) => `/api/v1/techTalks/${id}`;
+
+  it('returns 401 when unauthenticated', async () => {
+    const res = await request(app).delete(deletePath('tt-1'));
+    expect(res.status).toBe(HttpStatusCode.UNAUTHORIZED);
+  });
+
+  it('returns 403 when authenticated as non-Admin (e.g. User)', async () => {
+    const res = await request(app)
+      .delete(deletePath('tt-1'))
+      .set('x-test-user-id', 'user-1')
+      .set('x-test-user-email', 'user@test.com')
+      .set('x-test-user-role', 'User');
+
+    expect(res.status).toBe(HttpStatusCode.FORBIDDEN);
+  });
+
+  it('returns 404 when tech talk is not found', async () => {
+    const error = new Error('Record to update not found');
+    (error as any).code = 'P2025';
+    mockTechTalkRepository.softDelete.mockRejectedValue(error);
+
+    const res = await request(app)
+      .delete(deletePath('non-existent-id'))
+      .set('x-test-user-id', 'admin-1')
+      .set('x-test-user-email', 'admin@test.com')
+      .set('x-test-user-role', 'Admin');
+
+    expect(res.status).toBe(HttpStatusCode.NOT_FOUND);
+    expect(res.body.error).toBe('Tech Talk not found');
+    expect(mockTechTalkRepository.softDelete).toHaveBeenCalledWith('non-existent-id');
+  });
+
+  it('returns 200 and soft-deletes the tech talk for Admin (regardless of draft/published status)', async () => {
+    const existingTalk = {
+      id: 'tt-1',
+      title: 'Some Tech Talk',
+      status: 'published',
+    };
+    mockTechTalkRepository.softDelete.mockResolvedValue({
+      ...existingTalk,
+      deletedAt: new Date(),
+    });
+
+    const res = await request(app)
+      .delete(deletePath('tt-1'))
+      .set('x-test-user-id', 'admin-1')
+      .set('x-test-user-email', 'admin@test.com')
+      .set('x-test-user-role', 'Admin');
+
+    expect(res.status).toBe(HttpStatusCode.OK);
+    expect(res.body).toEqual({
+      success: true,
+      data: null,
+      message: 'Tech Talk deleted successfully',
+    });
+
+    expect(mockTechTalkRepository.findById).not.toHaveBeenCalled();
+    expect(mockTechTalkRepository.softDelete).toHaveBeenCalledWith('tt-1');
   });
 });
