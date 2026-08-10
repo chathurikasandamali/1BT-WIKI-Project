@@ -2,6 +2,7 @@ import { jest } from '@jest/globals';
 import { AppError } from '@errors/AppError.js';
 import techTalkRepository from '@repositories/techTalkRepository.js';
 import type { CreateTechTalkInput, UpdateTechTalkInput } from '@models/techTalk.types.js';
+import { HttpStatusCode } from '@v1/utils/httpStatus.js';
 
 jest.unstable_mockModule('@repositories/techTalkRepository.js', () => {
   const mockCreate = jest.fn();
@@ -85,25 +86,25 @@ describe('TechTalkService', () => {
     it('rejects missing or empty title', async () => {
       await expect(
         service.createTechTalk({ ...validPayload, title: '' }, 'admin-123')
-      ).rejects.toThrow(new AppError('Title is required', 400));
+      ).rejects.toThrow(new AppError('Title is required', HttpStatusCode.BAD_REQUEST));
     });
 
     it('rejects missing presenters', async () => {
       await expect(
         service.createTechTalk({ ...validPayload, presenters: [] }, 'admin-123')
-      ).rejects.toThrow(new AppError('At least one presenter is required', 400));
+      ).rejects.toThrow(new AppError('At least one presenter is required', HttpStatusCode.BAD_REQUEST));
     });
 
     it('rejects missing eventDate', async () => {
       await expect(
         service.createTechTalk({ ...validPayload, eventDate: '' }, 'admin-123')
-      ).rejects.toThrow(new AppError('Event date is required', 400));
+      ).rejects.toThrow(new AppError('Event date is required', HttpStatusCode.BAD_REQUEST));
     });
 
     it('rejects invalid eventDate', async () => {
       await expect(
         service.createTechTalk({ ...validPayload, eventDate: 'not-a-date' }, 'admin-123')
-      ).rejects.toThrow(new AppError('Invalid event date', 400));
+      ).rejects.toThrow(new AppError('Invalid event date', HttpStatusCode.BAD_REQUEST));
     });
 
     it('validates youtubeVideoId - accepts valid 11-character ID', async () => {
@@ -127,14 +128,14 @@ describe('TechTalkService', () => {
           { ...validPayload, youtubeVideoId: 'short' },
           'admin-123'
         )
-      ).rejects.toThrow(new AppError('Invalid YouTube video ID', 400));
+      ).rejects.toThrow(new AppError('Invalid YouTube video ID', HttpStatusCode.BAD_REQUEST));
 
       await expect(
         service.createTechTalk(
           { ...validPayload, youtubeVideoId: 'toolongvideoid123' },
           'admin-123'
         )
-      ).rejects.toThrow(new AppError('Invalid YouTube video ID', 400));
+      ).rejects.toThrow(new AppError('Invalid YouTube video ID', HttpStatusCode.BAD_REQUEST));
     });
 
     it('validates youtubeVideoId - rejects ID with invalid characters', async () => {
@@ -143,7 +144,7 @@ describe('TechTalkService', () => {
           { ...validPayload, youtubeVideoId: 'invalid ID!' },
           'admin-123'
         )
-      ).rejects.toThrow(new AppError('Invalid YouTube video ID', 400));
+      ).rejects.toThrow(new AppError('Invalid YouTube video ID', HttpStatusCode.BAD_REQUEST));
     });
 
     it('validates youtubeVideoId - rejects full URL accidentally passed as ID', async () => {
@@ -152,7 +153,7 @@ describe('TechTalkService', () => {
           { ...validPayload, youtubeVideoId: 'https://youtube.com/embed/dQw4w9WgXcQ' },
           'admin-123'
         )
-      ).rejects.toThrow(new AppError('Invalid YouTube video ID', 400));
+      ).rejects.toThrow(new AppError('Invalid YouTube video ID', HttpStatusCode.BAD_REQUEST));
     });
 
     it('allows omitted youtubeVideoId and stores as null', async () => {
@@ -264,7 +265,7 @@ describe('TechTalkService', () => {
       await expect(
         service.createTechTalk(validPayload, 'admin-123', invalidFile)
       ).rejects.toThrow(
-        new AppError('Only PDF, PPT, and PPTX files are allowed for slides', 400)
+        new AppError('Only PDF, PPT, and PPTX files are allowed for slides', HttpStatusCode.BAD_REQUEST)
       );
     });
   });
@@ -288,7 +289,7 @@ describe('TechTalkService', () => {
       mockRepo.findById.mockResolvedValue(null);
 
       await expect(service.publishTechTalk('non-existent')).rejects.toThrow(
-        new AppError('Tech Talk not found', 404)
+        new AppError('Tech Talk not found', HttpStatusCode.NOT_FOUND)
       );
     });
 
@@ -298,7 +299,7 @@ describe('TechTalkService', () => {
       await expect(service.publishTechTalk('tt-1')).rejects.toThrow(
         new AppError(
           'Cannot publish a Tech Talk with status "published". Only Draft Tech Talks can be published.',
-          400
+          HttpStatusCode.BAD_REQUEST
         )
       );
     });
@@ -309,7 +310,7 @@ describe('TechTalkService', () => {
       await expect(service.publishTechTalk('tt-1')).rejects.toThrow(
         new AppError(
           'Cannot publish a Tech Talk with status "unpublished". Only Draft Tech Talks can be published.',
-          400
+          HttpStatusCode.BAD_REQUEST
         )
       );
     });
@@ -337,7 +338,7 @@ describe('TechTalkService', () => {
 
       await expect(
         service.updateTechTalk('non-existent', {})
-      ).rejects.toThrow(new AppError('Tech Talk not found', 404));
+      ).rejects.toThrow(new AppError('Tech Talk not found', HttpStatusCode.NOT_FOUND));
     });
 
     it('always resets status to draft when prior status is draft', async () => {
@@ -396,7 +397,7 @@ describe('TechTalkService', () => {
 
       await expect(
         service.updateTechTalk('tt-1', { title: '   ' })
-      ).rejects.toThrow(new AppError('Title is required', 400));
+      ).rejects.toThrow(new AppError('Title is required', HttpStatusCode.BAD_REQUEST));
     });
 
     it('rejects empty presenters array', async () => {
@@ -404,7 +405,7 @@ describe('TechTalkService', () => {
 
       await expect(
         service.updateTechTalk('tt-1', { presenters: [] })
-      ).rejects.toThrow(new AppError('At least one presenter is required', 400));
+      ).rejects.toThrow(new AppError('At least one presenter is required', HttpStatusCode.BAD_REQUEST));
     });
 
     it('rejects invalid event date', async () => {
@@ -412,7 +413,7 @@ describe('TechTalkService', () => {
 
       await expect(
         service.updateTechTalk('tt-1', { eventDate: 'not-a-date' })
-      ).rejects.toThrow(new AppError('Invalid event date', 400));
+      ).rejects.toThrow(new AppError('Invalid event date', HttpStatusCode.BAD_REQUEST));
     });
 
     it('rejects invalid YouTube video ID', async () => {
@@ -420,7 +421,7 @@ describe('TechTalkService', () => {
 
       await expect(
         service.updateTechTalk('tt-1', { youtubeVideoId: 'short' })
-      ).rejects.toThrow(new AppError('Invalid YouTube video ID', 400));
+      ).rejects.toThrow(new AppError('Invalid YouTube video ID', HttpStatusCode.BAD_REQUEST));
     });
 
     it('handles new slides upload and sets slidesUrl', async () => {
@@ -574,19 +575,19 @@ describe('TechTalkService', () => {
     it('throws 403 for a non-Admin requester on a draft or unpublished Tech Talk', async () => {
       mockRepo.findById.mockResolvedValue(mockDraftTalk);
       await expect(service.getTechTalkById('tt-2', 'User')).rejects.toThrow(
-        new AppError('Tech Talk not available', 403)
+        new AppError('Tech Talk not available', HttpStatusCode.FORBIDDEN)
       );
 
       mockRepo.findById.mockResolvedValue(mockUnpublishedTalk);
       await expect(service.getTechTalkById('tt-3')).rejects.toThrow(
-        new AppError('Tech Talk not available', 403)
+        new AppError('Tech Talk not available', HttpStatusCode.FORBIDDEN)
       );
     });
 
     it('throws 404 for a non-existent id', async () => {
       mockRepo.findById.mockResolvedValue(null);
       await expect(service.getTechTalkById('non-existent', 'Admin')).rejects.toThrow(
-        new AppError('Tech Talk not found', 404)
+        new AppError('Tech Talk not found', HttpStatusCode.NOT_FOUND)
       );
     });
   });
@@ -618,7 +619,7 @@ describe('TechTalkService', () => {
       mockRepo.findById.mockResolvedValue(null);
 
       await expect(service.deleteTechTalk('non-existent')).rejects.toThrow(
-        new AppError('Tech Talk not found', 404)
+        new AppError('Tech Talk not found', HttpStatusCode.NOT_FOUND)
       );
 
       expect(mockRepo.findById).toHaveBeenCalledWith('non-existent');

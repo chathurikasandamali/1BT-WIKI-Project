@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import type { TechTalkService } from '@services/techTalkService.js';
 import { AppError } from '@errors/AppError.js';
 import { makeMockReqResNext } from '@v1/__tests__/helpers/mockExpress.helpers.js';
+import { HttpStatusCode } from '@/v1/utils/httpStatus.js';
 
 jest.unstable_mockModule('@services/techTalkService.js', () => ({
   TechTalkService: jest.fn(),
@@ -62,7 +63,7 @@ describe('TechTalkController', () => {
         sort: 'title',
         order: 'asc',
       });
-      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.status).toHaveBeenCalledWith(HttpStatusCode.OK);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: mockResult,
@@ -88,7 +89,7 @@ describe('TechTalkController', () => {
 
     it('should forward service errors to next', async () => {
       req.query = { sort: 'invalid' };
-      const error = new AppError('Invalid sort field', 400);
+      const error = new AppError('Invalid sort field', HttpStatusCode.BAD_REQUEST);
       mockService.listPublished.mockRejectedValue(error);
 
       await controller.listPublished(req as Request, res as Response, next);
@@ -129,7 +130,7 @@ describe('TechTalkController', () => {
       await controller.create(req as Request, res as Response, next);
 
       expect(mockService.createTechTalk).toHaveBeenCalledWith(input, 'admin-123', slideFile);
-      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.status).toHaveBeenCalledWith(HttpStatusCode.CREATED);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: expectedCreated,
@@ -147,7 +148,7 @@ describe('TechTalkController', () => {
       await controller.publish(req as Request, res as Response, next);
 
       expect(mockService.publishTechTalk).toHaveBeenCalledWith('tt-123');
-      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.status).toHaveBeenCalledWith(HttpStatusCode.OK);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: publishedTalk,
@@ -157,7 +158,7 @@ describe('TechTalkController', () => {
 
     it('should forward errors to next', async () => {
       req.params = { id: 'tt-invalid' };
-      const error = new AppError('Tech Talk not found', 404);
+      const error = new AppError('Tech Talk not found', HttpStatusCode.NOT_FOUND);
       mockService.publishTechTalk.mockRejectedValue(error);
 
       await controller.publish(req as Request, res as Response, next);
@@ -196,7 +197,7 @@ describe('TechTalkController', () => {
       await controller.update(req as Request, res as Response, next);
 
       expect(mockService.updateTechTalk).toHaveBeenCalledWith('tt-42', input, slidesFile);
-      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.status).toHaveBeenCalledWith(HttpStatusCode.OK);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: updatedTalk,
@@ -207,7 +208,7 @@ describe('TechTalkController', () => {
     it('should forward service errors to next', async () => {
       req.params = { id: 'tt-99' };
       req.body = { data: JSON.stringify({ title: 'X' }) };
-      const error = new AppError('Tech Talk not found', 404);
+      const error = new AppError('Tech Talk not found', HttpStatusCode.NOT_FOUND);
       mockService.updateTechTalk.mockRejectedValue(error);
 
       await controller.update(req as Request, res as Response, next);
@@ -226,7 +227,7 @@ describe('TechTalkController', () => {
       await controller.getById(req as Request, res as Response, next);
 
       expect(mockService.getTechTalkById).toHaveBeenCalledWith('tt-123', 'User');
-      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.status).toHaveBeenCalledWith(HttpStatusCode.OK);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: mockTalk,
@@ -237,7 +238,7 @@ describe('TechTalkController', () => {
     it('should forward service errors to next', async () => {
       req.params = { id: 'tt-999' };
       req.user = { userId: 'u-1', email: 'user@test.com', role: 'User' };
-      const error = new AppError('Tech Talk not found', 404);
+      const error = new AppError('Tech Talk not found', HttpStatusCode.NOT_FOUND);
       mockService.getTechTalkById.mockRejectedValue(error);
 
       await controller.getById(req as Request, res as Response, next);
@@ -254,7 +255,7 @@ describe('TechTalkController', () => {
       await controller.deleteTechTalk(req as Request, res as Response, next);
 
       expect(mockService.deleteTechTalk).toHaveBeenCalledWith('tt-123');
-      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.status).toHaveBeenCalledWith(HttpStatusCode.OK);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: null,
@@ -264,7 +265,7 @@ describe('TechTalkController', () => {
 
     it('should forward service errors to next', async () => {
       req.params = { id: 'tt-999' };
-      const error = new AppError('Tech Talk not found', 404);
+      const error = new AppError('Tech Talk not found', HttpStatusCode.NOT_FOUND);
       mockService.deleteTechTalk.mockRejectedValue(error);
 
       await controller.deleteTechTalk(req as Request, res as Response, next);
