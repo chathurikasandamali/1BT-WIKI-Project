@@ -578,7 +578,9 @@ describe('DELETE /api/v1/techTalks/:id - Integration', () => {
   });
 
   it('returns 404 when tech talk is not found', async () => {
-    mockTechTalkRepository.findById.mockResolvedValue(null);
+    const error = new Error('Record to update not found');
+    (error as any).code = 'P2025';
+    mockTechTalkRepository.softDelete.mockRejectedValue(error);
 
     const res = await request(app)
       .delete(deletePath('non-existent-id'))
@@ -588,6 +590,7 @@ describe('DELETE /api/v1/techTalks/:id - Integration', () => {
 
     expect(res.status).toBe(HttpStatusCode.NOT_FOUND);
     expect(res.body.error).toBe('Tech Talk not found');
+    expect(mockTechTalkRepository.softDelete).toHaveBeenCalledWith('non-existent-id');
   });
 
   it('returns 200 and soft-deletes the tech talk for Admin (regardless of draft/published status)', async () => {
@@ -596,7 +599,6 @@ describe('DELETE /api/v1/techTalks/:id - Integration', () => {
       title: 'Some Tech Talk',
       status: 'published',
     };
-    mockTechTalkRepository.findById.mockResolvedValue(existingTalk);
     mockTechTalkRepository.softDelete.mockResolvedValue({
       ...existingTalk,
       deletedAt: new Date(),
@@ -615,7 +617,7 @@ describe('DELETE /api/v1/techTalks/:id - Integration', () => {
       message: 'Tech Talk deleted successfully',
     });
 
-    expect(mockTechTalkRepository.findById).toHaveBeenCalledWith('tt-1');
+    expect(mockTechTalkRepository.findById).not.toHaveBeenCalled();
     expect(mockTechTalkRepository.softDelete).toHaveBeenCalledWith('tt-1');
   });
 });

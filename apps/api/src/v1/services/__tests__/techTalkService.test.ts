@@ -595,35 +595,35 @@ describe('TechTalkService', () => {
   describe('deleteTechTalk', () => {
     it('should soft-delete an existing draft tech talk successfully', async () => {
       const mockTalk = { id: 'tt-123', title: 'Draft Talk', status: 'draft' };
-      mockRepo.findById.mockResolvedValue(mockTalk);
       mockRepo.softDelete.mockResolvedValue({ ...mockTalk, deletedAt: new Date() });
 
       await service.deleteTechTalk('tt-123');
 
-      expect(mockRepo.findById).toHaveBeenCalledWith('tt-123');
+      expect(mockRepo.findById).not.toHaveBeenCalled();
       expect(mockRepo.softDelete).toHaveBeenCalledWith('tt-123');
     });
 
     it('should soft-delete an existing published tech talk successfully (no status restriction)', async () => {
       const mockTalk = { id: 'tt-123', title: 'Published Talk', status: 'published' };
-      mockRepo.findById.mockResolvedValue(mockTalk);
       mockRepo.softDelete.mockResolvedValue({ ...mockTalk, deletedAt: new Date() });
 
       await service.deleteTechTalk('tt-123');
 
-      expect(mockRepo.findById).toHaveBeenCalledWith('tt-123');
+      expect(mockRepo.findById).not.toHaveBeenCalled();
       expect(mockRepo.softDelete).toHaveBeenCalledWith('tt-123');
     });
 
-    it('should throw 404 error if tech talk does not exist, and not call softDelete', async () => {
-      mockRepo.findById.mockResolvedValue(null);
+    it('should throw 404 error if tech talk does not exist, throwing Prisma P2025', async () => {
+      const error = new Error('Record to update not found');
+      (error as any).code = 'P2025';
+      mockRepo.softDelete.mockRejectedValue(error);
 
       await expect(service.deleteTechTalk('non-existent')).rejects.toThrow(
         new AppError('Tech Talk not found', HttpStatusCode.NOT_FOUND)
       );
 
-      expect(mockRepo.findById).toHaveBeenCalledWith('non-existent');
-      expect(mockRepo.softDelete).not.toHaveBeenCalled();
+      expect(mockRepo.findById).not.toHaveBeenCalled();
+      expect(mockRepo.softDelete).toHaveBeenCalledWith('non-existent');
     });
   });
 });
