@@ -2,6 +2,7 @@ import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import request from 'supertest';
 
 await jest.unstable_mockModule('@repo/db', () => ({
+  TechTalkStatus: { draft: 'draft', published: 'published', unpublished: 'unpublished' },
   prisma: {
     techTalk: {
       create: jest.fn(),
@@ -51,10 +52,12 @@ const mockTechTalkRepository = {
   findById: jest.fn<any>().mockResolvedValue(null),
   updateStatus: jest.fn<any>().mockResolvedValue({}),
   update: jest.fn<any>().mockResolvedValue({}),
+  findPublished: jest.fn<any>().mockResolvedValue({ techTalks: [], total: 0 }),
 };
 
 await jest.unstable_mockModule('@repositories/techTalkRepository.js', () => ({
   default: mockTechTalkRepository,
+  techTalkRepository: mockTechTalkRepository,
   TechTalkRepository: jest.fn().mockImplementation(() => mockTechTalkRepository),
 }));
 
@@ -364,3 +367,78 @@ describe('PATCH /api/v1/techTalks/:id - Integration', () => {
   });
 });
 
+describe('GET /api/v1/techTalks - Integration', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  const getPath = `/api/v1/techTalks`;
+
+  it('returns 401 when unauthenticated', async () => {
+    const res = await request(app).get(getPath);
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 200 with published tech talks, filtered, sorted, and paginated for authenticated users', async () => {
+    const publishedTalk = {
+      id: 'tt-pub-1',
+      title: 'Advanced React Patterns',
+      description: 'Deep dive into React patterns',
+      presenters: ['Alice'],
+      tags: ['React'],
+      eventDate: '2026-09-01T10:00:00.000Z',
+      slidesUrl: 'https://example.com/slides.pdf',
+      youtubeVideoId: 'dQw4w9WgXcQ',
+      status: 'published',
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    };
+
+    mockTechTalkRepository.findPublished.mockResolvedValue({
+      techTalks: [publishedTalk],
+      total: 1,
+    });
+
+    const res = await request(app)
+      .get(`${getPath}?search=React&sort=title&order=asc&page=1&limit=10`)
+      .set('x-test-user-id', 'emp-1')
+      .set('x-test-user-email', 'employee@test.com')
+      .set('x-test-user-role', 'Employee');
+
+    expect(res.status).toBe(200);
+    expect(mockTechTalkRepository.findPublished).toHaveBeenCalledWith({
+      page: 1,
+      limit: 10,
+      search: 'React',
+      sort: 'title',
+      order: 'asc',
+    });
+    expect(res.body).toEqual({
+      success: true,
+      data: {
+        techTalks: [publishedTalk],
+        total: 1,
+        page: 1,
+        limit: 10,
+      },
+      message: 'Tech Talks retrieved successfully',
+    });
+  });
+
+  it('returns 200 with default sort when an invalid sort field is passed (permissive fallback)', async () => {
+    mockTechTalkRepository.findPublished.mockResolvedValue({ techTalks: [], total: 0 });
+
+    const res = await request(app)
+      .get(`${getPath}?sort=invalidField`)
+      .set('x-test-user-id', 'emp-1')
+      .set('x-test-user-email', 'employee@test.com')
+      .set('x-test-user-role', 'Employee');
+
+    // Invalid sort is silently ignored — repository falls back to eventDate desc
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(mockTechTalkRepository.findPublished).toHaveBeenCalledWith(
+      expect.objectContaining({ sort: 'invalidField' })
+    );
+  });
+});

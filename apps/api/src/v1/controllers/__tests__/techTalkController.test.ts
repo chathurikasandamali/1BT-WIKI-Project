@@ -6,14 +6,18 @@ import { makeMockReqResNext } from '@v1/__tests__/helpers/mockExpress.helpers.js
 
 jest.unstable_mockModule('@services/techTalkService.js', () => ({
   TechTalkService: jest.fn(),
+  techTalkService: {},
 }));
 
 const { TechTalkController } = await import('../techTalkController.js');
 
-const makeMockService = (): jest.Mocked<Pick<TechTalkService, 'createTechTalk' | 'publishTechTalk' | 'updateTechTalk'>> => ({
+const makeMockService = (): jest.Mocked<
+  Pick<TechTalkService, 'createTechTalk' | 'publishTechTalk' | 'updateTechTalk' | 'listPublished'>
+> => ({
   createTechTalk: jest.fn(),
   publishTechTalk: jest.fn(),
   updateTechTalk: jest.fn(),
+  listPublished: jest.fn(),
 });
 
 describe('TechTalkController', () => {
@@ -28,6 +32,67 @@ describe('TechTalkController', () => {
     mockService = makeMockService();
     controller = new TechTalkController(mockService as unknown as TechTalkService);
     jest.clearAllMocks();
+  });
+
+  describe('listPublished', () => {
+    it('should parse query parameters and call service.listPublished', async () => {
+      req.query = {
+        page: '2',
+        limit: '10',
+        search: 'Architecture',
+        sort: 'title',
+        order: 'asc',
+      };
+      const mockResult = {
+        techTalks: [],
+        total: 0,
+        page: 2,
+        limit: 10,
+      };
+      mockService.listPublished.mockResolvedValue(mockResult as any);
+
+      await controller.listPublished(req as Request, res as Response, next);
+
+      expect(mockService.listPublished).toHaveBeenCalledWith({
+        page: 2,
+        limit: 10,
+        search: 'Architecture',
+        sort: 'title',
+        order: 'asc',
+      });
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockResult,
+        message: 'Tech Talks retrieved successfully',
+      });
+    });
+
+    it('should fallback to default page 1 and limit 20 when non-numeric query params provided', async () => {
+      req.query = {};
+      const mockResult = { techTalks: [], total: 0, page: 1, limit: 20 };
+      mockService.listPublished.mockResolvedValue(mockResult as any);
+
+      await controller.listPublished(req as Request, res as Response, next);
+
+      expect(mockService.listPublished).toHaveBeenCalledWith({
+        page: 1,
+        limit: 20,
+        search: undefined,
+        sort: undefined,
+        order: undefined,
+      });
+    });
+
+    it('should forward service errors to next', async () => {
+      req.query = { sort: 'invalid' };
+      const error = new AppError('Invalid sort field', 400);
+      mockService.listPublished.mockRejectedValue(error);
+
+      await controller.listPublished(req as Request, res as Response, next);
+
+      expect(next).toHaveBeenCalledWith(error);
+    });
   });
 
   describe('create', () => {

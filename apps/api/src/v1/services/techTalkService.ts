@@ -1,18 +1,46 @@
 import crypto from 'node:crypto';
+import { TechTalkStatus } from '@repo/db';
 import b2Client from '@v1/lib/b2Client.js';
 import { AppError } from '@errors/AppError.js';
-import techTalkRepository from '@repositories/techTalkRepository.js';
+import {
+  TechTalkRepository,
+  techTalkRepository as techTalkRepositoryInstance,
+} from '@repositories/techTalkRepository.js';
 import type {
   TechTalk,
+  TechTalkListItem,
   CreateTechTalkInput,
   UpdateTechTalkInput,
+  TechTalkListQuery,
+  PaginationMeta
 } from '@models/techTalk.types.js';
-import { TechTalkStatusValue } from '@models/techTalk.types.js';
 
 export class TechTalkService {
   constructor(
-    private repository: typeof techTalkRepository = techTalkRepository
+    private readonly techTalkRepository: TechTalkRepository = techTalkRepositoryInstance
   ) {}
+
+  /**
+   * Lists published Tech Talks with optional search, sort, and pagination.
+   *
+   * Invalid `sort` or `order` values are silently ignored — `buildSortOrder`
+   * in the repository falls back to the default (`eventDate desc`) rather than
+   * throwing, intentionally keeping this public-facing endpoint permissive.
+   */
+  async listPublished(
+    query: TechTalkListQuery
+  ): Promise<{ techTalks: TechTalkListItem[] } & PaginationMeta> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+
+    const { techTalks, total } = await this.techTalkRepository.findPublished({
+      ...query,
+      page,
+      limit,
+    });
+
+    return { techTalks, total, page, limit };
+  }
 
   async createTechTalk(
     input: CreateTechTalkInput,
@@ -44,11 +72,11 @@ export class TechTalkService {
       slidesUrl = await this.uploadSlides(crypto.randomUUID(), slidesFile);
     }
 
-    const status = input.publishImmediately
-      ? TechTalkStatusValue.Published
-      : TechTalkStatusValue.Draft;
+    const status: TechTalkStatus = input.publishImmediately
+      ? TechTalkStatus.published
+      : TechTalkStatus.draft;
 
-    return this.repository.create({
+    return this.techTalkRepository.create({
       title: input.title.trim(),
       description: input.description ?? null,
       presenters: input.presenters,
@@ -62,17 +90,17 @@ export class TechTalkService {
   }
 
   async publishTechTalk(id: string): Promise<TechTalk> {
-    const techTalk = await this.repository.findById(id);
+    const techTalk = await this.techTalkRepository.findById(id);
     if (!techTalk) {
       throw new AppError('Tech Talk not found', 404);
     }
-    if (techTalk.status !== TechTalkStatusValue.Draft) {
+    if (techTalk.status !== TechTalkStatus.draft) {
       throw new AppError(
         `Cannot publish a Tech Talk with status "${techTalk.status}". Only Draft Tech Talks can be published.`,
         400
       );
     }
-    return this.repository.updateStatus(id, TechTalkStatusValue.Published);
+    return this.techTalkRepository.updateStatus(id, TechTalkStatus.published);
   }
 
   async updateTechTalk(
@@ -80,7 +108,7 @@ export class TechTalkService {
     input: UpdateTechTalkInput,
     slidesFile?: Express.Multer.File
   ): Promise<TechTalk> {
-    const existing = await this.repository.findById(id);
+    const existing = await this.techTalkRepository.findById(id);
     if (!existing) {
       throw new AppError('Tech Talk not found', 404);
     }
@@ -93,7 +121,7 @@ export class TechTalkService {
       eventDate: Date;
       slidesUrl: string | null;
       youtubeVideoId: string | null;
-      status: (typeof TechTalkStatusValue)[keyof typeof TechTalkStatusValue];
+      status: TechTalkStatus;
     }> = {};
 
     if (input.title !== undefined) {
@@ -129,9 +157,9 @@ export class TechTalkService {
 
     // Per SRS 3.5.2: editing always resets status to Draft, regardless of
     // the Tech Talk's current status (Draft, Published, or Unpublished).
-    updateFields.status = TechTalkStatusValue.Draft;
+    updateFields.status = TechTalkStatus.draft;
 
-    return this.repository.update(id, updateFields);
+    return this.techTalkRepository.update(id, updateFields);
   }
 
   private async uploadSlides(
@@ -180,3 +208,5 @@ export class TechTalkService {
     return /^[a-zA-Z0-9_-]{11}$/.test(id);
   }
 }
+
+export const techTalkService = new TechTalkService();
