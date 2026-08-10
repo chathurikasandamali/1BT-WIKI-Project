@@ -3,25 +3,66 @@
 import { useState } from 'react';
 import {
     createTechTalk,
+    updateTechTalk,
+    publishTechTalk,
     type CreateTechTalkData,
+    type UpdateTechTalkData,
+    type TechTalkDetail,
 } from '@/lib/api/techTalks';
 import { Toast } from '@/components/shared/Toast';
 import { useToast } from '@/lib/hooks/useToast';
 import { ConfirmationModal } from '@/components/shared/ConfirmationModal';
 
-export function TechTalkForm(): React.JSX.Element {
-    const [title, setTitle] = useState('');
-    const [description, setDescription] = useState('');
-    const [presenters, setPresenters] = useState<string[]>([]);
-    const [tags, setTags] = useState<string[]>([]);
-    const [eventDate, setEventDate] = useState('');
-    const [youtubeVideoId, setYoutubeVideoId] = useState('');
+interface TechTalkFormProps {
+    initialData?: TechTalkDetail;
+}
+
+function toDateTimeLocalValue(isoDate?: string): string {
+    if (!isoDate) {
+        return '';
+    }
+
+    const date = new Date(isoDate);
+    const timezoneOffset = date.getTimezoneOffset() * 60 * 1000;
+
+    return new Date(date.getTime() - timezoneOffset)
+        .toISOString()
+        .slice(0, 16);
+}
+
+export function TechTalkForm({
+    initialData,
+}: TechTalkFormProps): React.JSX.Element {
+    const [title, setTitle] = useState(initialData?.title ?? '');
+
+    const [description, setDescription] = useState(
+        initialData?.description ?? ''
+    );
+
+    const [presenters, setPresenters] = useState<string[]>(
+        initialData?.presenters ?? []
+    );
+
+    const [tags, setTags] = useState<string[]>(
+        initialData?.tags ?? []
+    );
+
+    const [eventDate, setEventDate] = useState(
+        toDateTimeLocalValue(initialData?.eventDate)
+    );
+
+    const [youtubeVideoId, setYoutubeVideoId] = useState(
+        initialData?.youtubeVideoId ?? ''
+    );
+
     const [slidesFile, setSlidesFile] = useState<File | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [validationError, setValidationError] = useState<string | null>(null);
     const { toast, showToast } = useToast();
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
     const [isPublishing, setIsPublishing] = useState(false);
+
+    const isEditMode = Boolean(initialData);
 
     //add presenters for this tech talk ( one tech talk have multiple presenters )
     const addPresenter = (presenter: string) => {
@@ -78,19 +119,38 @@ export function TechTalkForm(): React.JSX.Element {
         setIsSaving(true);
 
         try {
-            const data: CreateTechTalkData = {
-                title: title.trim(),
-                description: description.trim() || undefined,
-                presenters,
-                tags,
-                eventDate: new Date(eventDate).toISOString(),
-                youtubeVideoId: youtubeVideoId.trim() || undefined,
-                publishImmediately: false,
-            };
+            if (isEditMode && initialData) {
+                const data: UpdateTechTalkData = {
+                    title: title.trim(),
+                    description: description.trim() || undefined,
+                    presenters,
+                    tags,
+                    eventDate: new Date(eventDate).toISOString(),
+                    youtubeVideoId: youtubeVideoId.trim() || undefined,
+                };
 
-            await createTechTalk(data, slidesFile ?? undefined);
+                await updateTechTalk(
+                    initialData.id,
+                    data,
+                    slidesFile ?? undefined
+                );
 
-            showToast('Tech Talk saved as draft successfully', 'success');
+                showToast('Tech Talk updated as draft successfully', 'success');
+            } else {
+                const data: CreateTechTalkData = {
+                    title: title.trim(),
+                    description: description.trim() || undefined,
+                    presenters,
+                    tags,
+                    eventDate: new Date(eventDate).toISOString(),
+                    youtubeVideoId: youtubeVideoId.trim() || undefined,
+                    publishImmediately: false,
+                };
+
+                await createTechTalk(data, slidesFile ?? undefined);
+
+                showToast('Tech Talk saved as draft successfully', 'success');
+            }
         } catch (error) {
             showToast(
                 error instanceof Error ? error.message : 'Failed to save Tech Talk',
@@ -117,21 +177,42 @@ export function TechTalkForm(): React.JSX.Element {
         setIsPublishing(true);
 
         try {
-            const data: CreateTechTalkData = {
-                title: title.trim(),
-                description: description.trim() || undefined,
-                presenters,
-                tags,
-                eventDate: new Date(eventDate).toISOString(),
-                youtubeVideoId: youtubeVideoId.trim() || undefined,
-                publishImmediately: true,
-            };
+            if (isEditMode && initialData) {
+                const data: UpdateTechTalkData = {
+                    title: title.trim(),
+                    description: description.trim() || undefined,
+                    presenters,
+                    tags,
+                    eventDate: new Date(eventDate).toISOString(),
+                    youtubeVideoId: youtubeVideoId.trim() || undefined,
+                };
 
-            await createTechTalk(data, slidesFile ?? undefined);
+                await updateTechTalk(
+                    initialData.id,
+                    data,
+                    slidesFile ?? undefined
+                );
+
+                await publishTechTalk(initialData.id);
+
+                showToast('Tech Talk updated and published successfully', 'success');
+            } else {
+                const data: CreateTechTalkData = {
+                    title: title.trim(),
+                    description: description.trim() || undefined,
+                    presenters,
+                    tags,
+                    eventDate: new Date(eventDate).toISOString(),
+                    youtubeVideoId: youtubeVideoId.trim() || undefined,
+                    publishImmediately: true,
+                };
+
+                await createTechTalk(data, slidesFile ?? undefined);
+
+                showToast('Tech Talk published successfully', 'success');
+            }
 
             setIsConfirmModalOpen(false);
-
-            showToast('Tech Talk published successfully', 'success');
         } catch (error) {
             setIsConfirmModalOpen(false);
 
