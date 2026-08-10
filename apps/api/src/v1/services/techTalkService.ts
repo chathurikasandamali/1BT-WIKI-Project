@@ -27,8 +27,7 @@ export class TechTalkService {
       throw new AppError('Tech Talk not found', 404);
     }
 
-    const isAdmin = requesterRole === UserRoleValue.Admin;
-    if (isAdmin || techTalk.status === TechTalkStatus.published) {
+    if (requesterRole === UserRoleValue.Admin || techTalk.status === TechTalkStatus.published) {
       return techTalk;
     }
 
