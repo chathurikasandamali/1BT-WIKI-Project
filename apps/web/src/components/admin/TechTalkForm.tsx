@@ -12,23 +12,13 @@ import {
 import { Toast } from '@/components/shared/Toast';
 import { useToast } from '@/lib/hooks/useToast';
 import { ConfirmationModal } from '@/components/shared/ConfirmationModal';
+import { toDateTimeLocalValue } from '@/lib/utils/date';
 
 interface TechTalkFormProps {
     initialData?: TechTalkDetail;
 }
 
-function toDateTimeLocalValue(isoDate?: string): string {
-    if (!isoDate) {
-        return '';
-    }
 
-    const date = new Date(isoDate);
-    const timezoneOffset = date.getTimezoneOffset() * 60 * 1000;
-
-    return new Date(date.getTime() - timezoneOffset)
-        .toISOString()
-        .slice(0, 16);
-}
 
 export function TechTalkForm({
     initialData,
