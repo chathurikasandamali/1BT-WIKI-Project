@@ -4,7 +4,8 @@ import React, { useRef } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save } from 'lucide-react';
+import Link from 'next/link';
 import { useEditorDraft } from '@/components/editor/EditorDraftContext';
 import { getStatusDotColor, getStatusText } from '@/lib/utils/saveStatus';
 import { BRAND_NAME, BRAND_SUB_NAME } from '@/lib/constants/brand';
@@ -103,6 +104,14 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
     }
   };
 
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/my-articles');
+    }
+  };
+
   const isSaving = saveStatus === 'saving';
   const isPublished =
     articleStatus !== null &&
@@ -116,7 +125,11 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
       <header className="flex h-16 w-full items-center justify-between border-b border-brand-border bg-white px-6 shrink-0 relative z-20 shadow-sm">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-4 border-r border-brand-border pr-6">
-            <div className="flex items-center gap-1.5 flex-shrink-0">
+            <Link 
+              href="/"
+              className="flex items-center gap-1.5 flex-shrink-0 hover:opacity-80 transition-opacity"
+              aria-label="1BT Wiki home"
+            >
               <div className="h-10 w-10 bg-brand-red rounded flex items-center justify-center flex-shrink-0 shadow-sm">
                 <span className="text-white text-xs font-black leading-none">
                   {BRAND_NAME}
@@ -125,7 +138,7 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
               <span className="text-brand-text-secondary font-semibold text-base leading-none tracking-tight">
                 {BRAND_SUB_NAME}
               </span>
-            </div>
+            </Link>
             <div className="flex flex-col">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
                 Editor Workspace
@@ -133,8 +146,14 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
             </div>
           </div>
 
-          <button className="flex h-8 w-8 items-center justify-center rounded text-brand-text-secondary hover:bg-brand-hover hover:text-brand-text-primary transition-colors">
-            <ChevronLeft className="h-5 w-5" />
+          <button 
+            type="button"
+            onClick={handleBack}
+            aria-label="Go back"
+            className="flex h-8 items-center justify-center gap-1.5 rounded px-2 text-brand-text-secondary hover:bg-brand-hover hover:text-brand-text-primary transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            <span className="text-sm font-medium hidden sm:inline">Back</span>
           </button>
 
           <div className="flex items-center gap-2 rounded-full border border-brand-border bg-brand-bg px-3 py-1">
@@ -146,6 +165,7 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
               )}
             />
             <span
+              data-cy="save-status-indicator"
               className="text-xs font-medium text-brand-text-secondary max-w-[200px] truncate"
               title={
                 saveStatus === 'error' && lastError ? lastError : undefined
@@ -196,6 +216,7 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
           </button>
 
           <button
+            data-cy="submit-for-review-button"
             onClick={() => setIsConfirmModalOpen(true)}
             disabled={isSaving || isPublished}
             className="rounded-lg bg-brand-red px-5 py-2 text-sm font-bold text-white shadow-md hover:bg-brand-red-hover disabled:bg-brand-red-disabled transition-colors"

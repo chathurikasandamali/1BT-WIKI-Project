@@ -9,6 +9,7 @@ const mockCount = jest.fn<any>();
 const mockFindFirst = jest.fn<any>();
 
 await jest.unstable_mockModule('@repo/db', () => ({
+  TechTalkStatus: { draft: 'draft', published: 'published', unpublished: 'unpublished' },
   prisma: {
     article: {
       findMany: mockFindMany,
@@ -179,6 +180,53 @@ describe('ArticleRepository.findByStatus', () => {
     expect(mockFindMany).toHaveBeenCalledTimes(1);
     const [findManyArgs] = mockFindMany.mock.calls[0] as [any];
     expect(findManyArgs.orderBy).toEqual({ createdAt: 'asc' });
+  });
+
+  it('should omit the status key from the where clause entirely when status is undefined (returns all statuses)', async () => {
+    mockFindMany.mockResolvedValue([]);
+    mockCount.mockResolvedValue(0);
+
+    await ArticleRepository.findByStatus(undefined, 1, 20);
+
+    expect(mockFindMany).toHaveBeenCalledTimes(1);
+    const [findManyArgs] = mockFindMany.mock.calls[0] as [any];
+
+    // The status key must be absent — not present as undefined — so Prisma returns all statuses.
+    expect(findManyArgs.where).not.toHaveProperty('status');
+    expect(findManyArgs.where).toEqual({ deletedAt: null });
+
+    const [countArgs] = mockCount.mock.calls[0] as [any];
+    expect(countArgs.where).not.toHaveProperty('status');
+    expect(countArgs.where).toEqual({ deletedAt: null });
+  });
+
+  it('should apply a status "not" filter when status is undefined and excludeStatus is given', async () => {
+    mockFindMany.mockResolvedValue([]);
+    mockCount.mockResolvedValue(0);
+
+    await ArticleRepository.findByStatus(undefined, 1, 20, { excludeStatus: 'Draft' });
+
+    const [findManyArgs] = mockFindMany.mock.calls[0] as [any];
+    expect(findManyArgs.where).toEqual({
+      status: { not: 'Draft' },
+      deletedAt: null,
+    });
+
+    const [countArgs] = mockCount.mock.calls[0] as [any];
+    expect(countArgs.where).toEqual({
+      status: { not: 'Draft' },
+      deletedAt: null,
+    });
+  });
+
+  it('should ignore excludeStatus when an explicit status is provided', async () => {
+    mockFindMany.mockResolvedValue([]);
+    mockCount.mockResolvedValue(0);
+
+    await ArticleRepository.findByStatus('Published', 1, 20, { excludeStatus: 'Draft' });
+
+    const [findManyArgs] = mockFindMany.mock.calls[0] as [any];
+    expect(findManyArgs.where.status).toBe('Published');
   });
 });
 

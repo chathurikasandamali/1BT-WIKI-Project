@@ -10,6 +10,7 @@ import {
 } from '@jest/globals';
 
 await jest.unstable_mockModule('@repo/db', () => ({
+  TechTalkStatus: { draft: 'draft', published: 'published', unpublished: 'unpublished' },
   prisma: {
     user: {
       findFirst: jest.fn(),
@@ -116,6 +117,12 @@ const reviewerHeaders = {
   'x-test-user-id': 'reviewer-1',
   'x-test-user-email': 'reviewer@example.com',
   'x-test-user-role': 'Reviewer',
+};
+
+const adminHeaders = {
+  'x-test-user-id': 'admin-1',
+  'x-test-user-email': 'admin@example.com',
+  'x-test-user-role': 'Admin',
 };
 
 const userHeaders = {

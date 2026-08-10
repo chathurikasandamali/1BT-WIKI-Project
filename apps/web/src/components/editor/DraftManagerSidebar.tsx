@@ -1,43 +1,76 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { ChevronLeft, ChevronRight, Search, Plus, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search, PenSquare, FileText } from 'lucide-react';
+import Link from 'next/link';
+import { fetchMyArticles, type ArticleListItem } from '@/lib/api/articles';
+import { formatDate } from '@/lib/utils/date';
 import { cn } from '@/lib/utils';
-import { UserIcon } from '@/components/shared/icons/UserIcon';
-
+import { StatusBadge } from '@/components/shared/StatusBadge';
+import { useLenisScroll } from '@/lib/hooks/useLenisScroll';
 interface DraftManagerSidebarProps {
   isOpen: boolean;
   toggleSidebar: () => void;
+  currentArticleId?: string;
 }
-
-const mockDrafts = [
-  {
-    id: 1,
-    title: 'Crafting Interfaces with Purpose and...',
-    snippet:
-      'Designing with intent. True craftsmanship in user interface desi...',
-    status: 'LIVE',
-    date: 'Jul 15',
-    tag: '#Design',
-  },
-  {
-    id: 2,
-    title: 'State Management in 2026',
-    snippet: 'Exploring the new primitives in React 19 and how they change...',
-    status: 'DRAFT',
-    date: 'Jul 14',
-    tag: '#Technology',
-  },
-];
 
 export function DraftManagerSidebar({
   isOpen,
   toggleSidebar,
+  currentArticleId,
 }: DraftManagerSidebarProps) {
   const sidebarRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  useLenisScroll('drafts-sidebar-scroll-container');
+
+  const [drafts, setDrafts] = useState<ArticleListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+
+  // Fetch drafts safely
+  useEffect(() => {
+    let active = true;
+
+    const loadDrafts = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const result = await fetchMyArticles(1, 50);
+
+        if (!active) return;
+
+        const editable = result.articles.filter(
+          (article) =>
+            article.status === 'Draft' || article.status === 'Unpublished'
+        );
+
+        setDrafts(editable);
+      } catch {
+        if (active) {
+          setError('Could not load your drafts.');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadDrafts();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleDrafts = drafts.filter((article) =>
+    article.title.toLowerCase().includes(search.trim().toLowerCase())
+  );
 
   useGSAP(() => {
     if (!sidebarRef.current) return;
@@ -76,99 +109,106 @@ export function DraftManagerSidebar({
     >
       {/* Content Wrapper that clips when collapsed */}
       <div className="overflow-hidden w-full h-full">
-        <div ref={contentRef} className="flex h-full w-[320px] flex-col p-5">
-          <button className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-red px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-brand-red-hover transition-colors">
-            <Plus className="h-4 w-4" /> Start New Draft
-          </button>
-
-          <div className="relative mt-4">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search articles & stories..."
-              className="w-full rounded-lg border border-brand-border bg-brand-bg py-2 pl-9 pr-3 text-sm text-brand-text-primary placeholder-gray-400 focus:border-brand-red focus:outline-none focus:ring-1 focus:ring-brand-red transition-all"
-            />
-          </div>
-
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-            {['All Tags', '#Design', '#Craftsmanship', '#Writing'].map(
-              (tag, i) => (
-                <button
-                  key={tag}
-                  className={cn(
-                    'shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-colors',
-                    i === 0
-                      ? 'bg-brand-red text-white'
-                      : 'border border-brand-border bg-white text-brand-text-secondary hover:bg-brand-hover'
-                  )}
-                >
-                  {tag}
-                </button>
-              )
-            )}
-          </div>
-
-          <div className="mt-6 flex-1 overflow-y-auto">
-            <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-brand-text-secondary">
-              My Stories (2)
-            </h3>
-            <div className="flex flex-col gap-3">
-              {mockDrafts.map((draft, i) => (
-                <div
-                  key={draft.id}
-                  className={cn(
-                    'group relative cursor-pointer rounded-xl border p-4 transition-all hover:shadow-md',
-                    i === 0
-                      ? 'border-brand-red bg-white shadow-sm'
-                      : 'border-brand-border bg-white hover:border-brand-red/50'
-                  )}
-                >
-                  <div className="absolute right-3 top-3 opacity-0 transition-opacity group-hover:opacity-100">
-                    <button className="rounded p-1 text-brand-text-secondary hover:bg-brand-bg hover:text-brand-red">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <h4 className="font-bold text-brand-text-primary line-clamp-1 pr-6">
-                    {draft.title}
-                  </h4>
-                  <p className="mt-1 text-xs text-brand-text-secondary line-clamp-2 leading-relaxed">
-                    {draft.snippet}
-                  </p>
-                  <div className="mt-4 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={cn(
-                          'rounded px-1.5 py-0.5 text-[10px] font-bold',
-                          draft.status === 'LIVE'
-                            ? 'bg-green-500/10 text-green-500'
-                            : 'bg-brand-bg text-brand-text-secondary'
-                        )}
-                      >
-                        {draft.status}
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        {draft.date}
-                      </span>
-                    </div>
-                    <span className="text-xs font-bold text-brand-red">
-                      {draft.tag}
-                    </span>
-                  </div>
-                </div>
-              ))}
+        <div
+          ref={contentRef}
+          className="flex h-full w-[320px] flex-col p-4 flex-shrink-0"
+        >
+          {/* Header & Search */}
+          <div className="flex flex-col gap-4 mb-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-brand-text-primary uppercase tracking-wider">
+                My Drafts
+              </h2>
+              <Link
+                href="/editor"
+                className="p-1.5 text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-hover rounded transition-colors"
+                title="Start New Draft"
+              >
+                <PenSquare className="w-4 h-4" />
+              </Link>
+            </div>
+            
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-text-secondary" />
+              <input
+                type="text"
+                placeholder="Search drafts..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-brand-surface border border-brand-border rounded-md text-sm text-brand-text-primary placeholder:text-brand-text-secondary focus:outline-none focus:ring-1 focus:ring-brand-text-primary transition-all"
+              />
             </div>
           </div>
 
-          <div className="mt-4 flex items-center justify-between border-t border-brand-border pt-4">
-            <div className="flex items-center gap-2">
-              <div className="flex h-6 w-6 items-center justify-center rounded-full border border-brand-red text-xs font-bold text-brand-red">
-                <UserIcon className="h-3 w-3" />
+          {/* Drafts List */}
+          <div id="drafts-sidebar-scroll-container" className="flex-1 overflow-y-auto pr-2 -mr-2">
+            <div className="flex flex-col space-y-2">
+            {loading ? (
+              <div data-testid="sidebar-loading" className="flex flex-col items-center justify-center h-32 text-brand-text-secondary">
+                <div className="w-6 h-6 border-2 border-brand-border border-t-brand-text-secondary rounded-full animate-spin mb-2" />
+                <p className="text-xs">Loading drafts...</p>
               </div>
-              <span className="text-xs font-medium text-brand-text-secondary">
-                malinduyasanjith2001
-              </span>
+            ) : error ? (
+              <div className="flex items-center justify-center h-32 text-xs text-brand-red text-center px-4 bg-brand-red/5 rounded-md border border-brand-red/10">
+                {error}
+              </div>
+            ) : visibleDrafts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-32 text-brand-text-secondary">
+                <FileText className="w-8 h-8 mb-2 opacity-20" />
+                <p className="text-sm text-center px-4">
+                  {search.trim() !== '' ? 'No matching drafts found.' : 'No editable drafts found.'}
+                </p>
+              </div>
+            ) : (
+              visibleDrafts.map((article) => {
+                const isActive = article.id === currentArticleId;
+                const isRejected = article.status === 'Unpublished';
+                const displayStatus = isRejected ? 'Rejected' : article.status;
+                const dateLabel = 'Updated';
+
+                return (
+                  <Link
+                    key={article.id}
+                    href={`/editor/${article.id}`}
+                    className={cn(
+                      "block p-3 rounded-lg border transition-all duration-200",
+                      isActive
+                        ? "bg-brand-hover border-brand-text-primary shadow-sm"
+                        : "bg-white border-brand-border hover:border-brand-text-primary/30 hover:shadow-sm"
+                    )}
+                  >
+                    <div className="flex flex-col gap-1.5">
+                      <h3 className={cn(
+                        "font-medium text-sm line-clamp-2",
+                        isActive ? "text-brand-text-primary" : "text-brand-text-primary/90"
+                      )}>
+                        {article.title || 'Untitled Draft'}
+                      </h3>
+                      
+                      <div className="flex items-center justify-between text-[11px] text-brand-text-secondary">
+                        <div className="flex items-center gap-1.5">
+                          <StatusBadge status={displayStatus as import('@/lib/api/articles').ArticleStatus} />
+                          <span>
+                            {dateLabel} {article.updatedAt ? formatDate(article.updatedAt) : ''}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {article.tags && article.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {article.tags.slice(0, 1).map(tag => (
+                            <span key={tag} className="text-[10px] bg-brand-surface px-1.5 py-0.5 rounded text-brand-text-secondary">
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })
+            )}
             </div>
-            <span className="text-[10px] text-gray-400">v1.2</span>
           </div>
         </div>
       </div>

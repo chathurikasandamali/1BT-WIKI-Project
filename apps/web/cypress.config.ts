@@ -23,6 +23,14 @@ function readCookieSecret(): string {
     return process.env.VERCEL_NEON_AUTH_COOKIE_SECRET;
   }
   try {
+    const envLocal = readFileSync(path.resolve(process.cwd(), '.env.local'), 'utf8');
+    const match = envLocal.match(/^VERCEL_NEON_AUTH_COOKIE_SECRET=(.*)$/m);
+    const value = match?.[1]?.trim().replace(/^["']|["']$/g, '');
+    if (value) return value;
+  } catch {
+    // ignore missing .env.local
+  }
+  try {
     const env = readFileSync(path.resolve(process.cwd(), '.env'), 'utf8');
     const match = env.match(/^VERCEL_NEON_AUTH_COOKIE_SECRET=(.*)$/m);
     const value = match?.[1]?.trim().replace(/^["']|["']$/g, '');
@@ -36,6 +44,11 @@ function readCookieSecret(): string {
 const base64url = (input: string): string =>
   Buffer.from(input).toString('base64url');
 
+// Single source of truth for the API base URL used by both env.apiUrl (legacy
+// Cypress.env accessor) and expose.apiUrl (Cypress-15 Cypress.expose accessor).
+// Override locally with: CYPRESS_API_URL=http://localhost:5001/api/v1
+const apiUrl = process.env.CYPRESS_API_URL ?? 'http://localhost:5000/api/v1';
+
 export default defineConfig({
   e2e: {
     baseUrl: 'http://localhost:3000',
@@ -43,7 +56,14 @@ export default defineConfig({
     supportFile: 'cypress/support/e2e.ts',
     video: false,
     env: {
-      apiUrl: 'http://localhost:5000/api/v1',
+      // Legacy key retained for specs that have not yet migrated to Cypress.expose().
+      // New code should read Cypress.expose('apiUrl') instead.
+      apiUrl,
+    },
+    // expose() is the Cypress 15 non-deprecated public config API.
+    // Tests read this via Cypress.expose('apiUrl').
+    expose: {
+      apiUrl,
     },
     setupNodeEvents(on) {
       on('task', {
