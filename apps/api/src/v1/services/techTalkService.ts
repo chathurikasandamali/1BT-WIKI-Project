@@ -14,11 +14,26 @@ import type {
   TechTalkListQuery,
   PaginationMeta
 } from '@models/techTalk.types.js';
+import { UserRoleValue } from '@/types/userTypes.js';
 
 export class TechTalkService {
   constructor(
     private readonly techTalkRepository: TechTalkRepository = techTalkRepositoryInstance
   ) {}
+
+  async getTechTalkById(id: string, requesterRole?: string): Promise<TechTalk> {
+    const techTalk = await this.techTalkRepository.findById(id);
+    if (!techTalk) {
+      throw new AppError('Tech Talk not found', 404);
+    }
+
+    const isAdmin = requesterRole === UserRoleValue.Admin;
+    if (isAdmin || techTalk.status === TechTalkStatus.published) {
+      return techTalk;
+    }
+
+    throw new AppError('Tech Talk not available', 403);
+  }
 
   /**
    * Lists published Tech Talks with optional search, sort, and pagination.

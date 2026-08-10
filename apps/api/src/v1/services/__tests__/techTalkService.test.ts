@@ -526,4 +526,64 @@ describe('TechTalkService', () => {
       expect(mockRepo.findPublished).toHaveBeenCalledWith(query);
     });
   });
+
+  describe('getTechTalkById', () => {
+    const mockPublishedTalk = {
+      id: 'tt-1',
+      title: 'Published Talk',
+      status: 'published',
+    };
+    const mockDraftTalk = {
+      id: 'tt-2',
+      title: 'Draft Talk',
+      status: 'draft',
+    };
+    const mockUnpublishedTalk = {
+      id: 'tt-3',
+      title: 'Unpublished Talk',
+      status: 'unpublished',
+    };
+
+    it('returns the Tech Talk when published, regardless of requester role', async () => {
+      mockRepo.findById.mockResolvedValue(mockPublishedTalk);
+
+      const resultAsUser = await service.getTechTalkById('tt-1', 'User');
+      expect(resultAsUser).toEqual(mockPublishedTalk);
+
+      const resultAnon = await service.getTechTalkById('tt-1');
+      expect(resultAnon).toEqual(mockPublishedTalk);
+
+      const resultAdmin = await service.getTechTalkById('tt-1', 'Admin');
+      expect(resultAdmin).toEqual(mockPublishedTalk);
+    });
+
+    it('returns draft or unpublished Tech Talk for an Admin requester', async () => {
+      mockRepo.findById.mockResolvedValue(mockDraftTalk);
+      const draftResult = await service.getTechTalkById('tt-2', 'Admin');
+      expect(draftResult).toEqual(mockDraftTalk);
+
+      mockRepo.findById.mockResolvedValue(mockUnpublishedTalk);
+      const unpubResult = await service.getTechTalkById('tt-3', 'Admin');
+      expect(unpubResult).toEqual(mockUnpublishedTalk);
+    });
+
+    it('throws 403 for a non-Admin requester on a draft or unpublished Tech Talk', async () => {
+      mockRepo.findById.mockResolvedValue(mockDraftTalk);
+      await expect(service.getTechTalkById('tt-2', 'User')).rejects.toThrow(
+        new AppError('Tech Talk not available', 403)
+      );
+
+      mockRepo.findById.mockResolvedValue(mockUnpublishedTalk);
+      await expect(service.getTechTalkById('tt-3')).rejects.toThrow(
+        new AppError('Tech Talk not available', 403)
+      );
+    });
+
+    it('throws 404 for a non-existent id', async () => {
+      mockRepo.findById.mockResolvedValue(null);
+      await expect(service.getTechTalkById('non-existent', 'Admin')).rejects.toThrow(
+        new AppError('Tech Talk not found', 404)
+      );
+    });
+  });
 });
