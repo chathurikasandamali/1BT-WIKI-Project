@@ -9,6 +9,7 @@ jest.unstable_mockModule('@repositories/techTalkRepository.js', () => {
   const mockUpdateStatus = jest.fn();
   const mockUpdate = jest.fn();
   const mockFindPublished = jest.fn();
+  const mockSoftDelete = jest.fn();
 
   const mockInstance = {
     create: mockCreate,
@@ -16,6 +17,7 @@ jest.unstable_mockModule('@repositories/techTalkRepository.js', () => {
     updateStatus: mockUpdateStatus,
     update: mockUpdate,
     findPublished: mockFindPublished,
+    softDelete: mockSoftDelete,
   };
 
   return {
@@ -53,6 +55,7 @@ describe('TechTalkService', () => {
     updateStatus: jest.MockedFunction<any>;
     update: jest.MockedFunction<any>;
     findPublished: jest.MockedFunction<any>;
+    softDelete: jest.MockedFunction<any>;
   };
 
   beforeEach(() => {
@@ -63,6 +66,7 @@ describe('TechTalkService', () => {
       updateStatus: jest.fn<any>(),
       update: jest.fn<any>(),
       findPublished: jest.fn<any>(),
+      softDelete: jest.fn<any>(),
     };
     service = new TechTalkService(
       mockRepo as unknown as typeof techTalkRepository
@@ -584,6 +588,41 @@ describe('TechTalkService', () => {
       await expect(service.getTechTalkById('non-existent', 'Admin')).rejects.toThrow(
         new AppError('Tech Talk not found', 404)
       );
+    });
+  });
+
+  describe('deleteTechTalk', () => {
+    it('should soft-delete an existing draft tech talk successfully', async () => {
+      const mockTalk = { id: 'tt-123', title: 'Draft Talk', status: 'draft' };
+      mockRepo.findById.mockResolvedValue(mockTalk);
+      mockRepo.softDelete.mockResolvedValue({ ...mockTalk, deletedAt: new Date() });
+
+      await service.deleteTechTalk('tt-123');
+
+      expect(mockRepo.findById).toHaveBeenCalledWith('tt-123');
+      expect(mockRepo.softDelete).toHaveBeenCalledWith('tt-123');
+    });
+
+    it('should soft-delete an existing published tech talk successfully (no status restriction)', async () => {
+      const mockTalk = { id: 'tt-123', title: 'Published Talk', status: 'published' };
+      mockRepo.findById.mockResolvedValue(mockTalk);
+      mockRepo.softDelete.mockResolvedValue({ ...mockTalk, deletedAt: new Date() });
+
+      await service.deleteTechTalk('tt-123');
+
+      expect(mockRepo.findById).toHaveBeenCalledWith('tt-123');
+      expect(mockRepo.softDelete).toHaveBeenCalledWith('tt-123');
+    });
+
+    it('should throw 404 error if tech talk does not exist, and not call softDelete', async () => {
+      mockRepo.findById.mockResolvedValue(null);
+
+      await expect(service.deleteTechTalk('non-existent')).rejects.toThrow(
+        new AppError('Tech Talk not found', 404)
+      );
+
+      expect(mockRepo.findById).toHaveBeenCalledWith('non-existent');
+      expect(mockRepo.softDelete).not.toHaveBeenCalled();
     });
   });
 });

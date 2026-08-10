@@ -53,6 +53,7 @@ const mockTechTalkRepository = {
   updateStatus: jest.fn<any>().mockResolvedValue({}),
   update: jest.fn<any>().mockResolvedValue({}),
   findPublished: jest.fn<any>().mockResolvedValue({ techTalks: [], total: 0 }),
+  softDelete: jest.fn<any>().mockResolvedValue({}),
 };
 
 await jest.unstable_mockModule('@repositories/techTalkRepository.js', () => ({
@@ -550,5 +551,70 @@ describe('GET /api/v1/techTalks/:id - Integration', () => {
       success: false,
       error: 'Tech Talk not found',
     });
+  });
+});
+
+describe('DELETE /api/v1/techTalks/:id - Integration', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  const deletePath = (id: string) => `/api/v1/techTalks/${id}`;
+
+  it('returns 401 when unauthenticated', async () => {
+    const res = await request(app).delete(deletePath('tt-1'));
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 403 when authenticated as non-Admin (e.g. User)', async () => {
+    const res = await request(app)
+      .delete(deletePath('tt-1'))
+      .set('x-test-user-id', 'user-1')
+      .set('x-test-user-email', 'user@test.com')
+      .set('x-test-user-role', 'User');
+
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 404 when tech talk is not found', async () => {
+    mockTechTalkRepository.findById.mockResolvedValue(null);
+
+    const res = await request(app)
+      .delete(deletePath('non-existent-id'))
+      .set('x-test-user-id', 'admin-1')
+      .set('x-test-user-email', 'admin@test.com')
+      .set('x-test-user-role', 'Admin');
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Tech Talk not found');
+  });
+
+  it('returns 200 and soft-deletes the tech talk for Admin (regardless of draft/published status)', async () => {
+    const existingTalk = {
+      id: 'tt-1',
+      title: 'Some Tech Talk',
+      status: 'published',
+    };
+    mockTechTalkRepository.findById.mockResolvedValue(existingTalk);
+    mockTechTalkRepository.softDelete.mockResolvedValue({
+      ...existingTalk,
+      deletedAt: new Date(),
+    });
+
+    const res = await request(app)
+      .delete(deletePath('tt-1'))
+      .set('x-test-user-id', 'admin-1')
+      .set('x-test-user-email', 'admin@test.com')
+      .set('x-test-user-role', 'Admin');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      success: true,
+      data: null,
+      message: 'Tech Talk deleted successfully',
+    });
+
+    expect(mockTechTalkRepository.findById).toHaveBeenCalledWith('tt-1');
+    expect(mockTechTalkRepository.softDelete).toHaveBeenCalledWith('tt-1');
   });
 });

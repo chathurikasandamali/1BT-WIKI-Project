@@ -127,4 +127,22 @@ export class TechTalkController {
       next(error);
     }
   };
+
+  deleteTechTalk = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const { id } = req.params;
+      await this.techTalkService.deleteTechTalk(id);
+      res.status(HttpStatusCode.OK).json({
+        success: true,
+        data: null,
+        message: 'Tech Talk deleted successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 }

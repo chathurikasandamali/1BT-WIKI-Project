@@ -118,6 +118,14 @@ export class TechTalkService {
     return this.techTalkRepository.updateStatus(id, TechTalkStatus.published);
   }
 
+  async deleteTechTalk(id: string): Promise<void> {
+    const techTalk = await this.techTalkRepository.findById(id);
+    if (!techTalk) {
+      throw new AppError('Tech Talk not found', HttpStatusCode.NOT_FOUND);
+    }
+    await this.techTalkRepository.softDelete(id);
+  }
+
   async updateTechTalk(
     id: string,
     input: UpdateTechTalkInput,

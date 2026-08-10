@@ -12,13 +12,14 @@ jest.unstable_mockModule('@services/techTalkService.js', () => ({
 const { TechTalkController } = await import('../techTalkController.js');
 
 const makeMockService = (): jest.Mocked<
-  Pick<TechTalkService, 'createTechTalk' | 'publishTechTalk' | 'updateTechTalk' | 'listPublished' | 'getTechTalkById'>
+  Pick<TechTalkService, 'createTechTalk' | 'publishTechTalk' | 'updateTechTalk' | 'listPublished' | 'getTechTalkById' | 'deleteTechTalk'>
 > => ({
   createTechTalk: jest.fn(),
   publishTechTalk: jest.fn(),
   updateTechTalk: jest.fn(),
   listPublished: jest.fn(),
   getTechTalkById: jest.fn(),
+  deleteTechTalk: jest.fn(),
 });
 
 describe('TechTalkController', () => {
@@ -240,6 +241,33 @@ describe('TechTalkController', () => {
       mockService.getTechTalkById.mockRejectedValue(error);
 
       await controller.getById(req as Request, res as Response, next);
+
+      expect(next).toHaveBeenCalledWith(error);
+    });
+  });
+
+  describe('deleteTechTalk', () => {
+    it('should call service.deleteTechTalk with id and return 200 with data null', async () => {
+      req.params = { id: 'tt-123' };
+      mockService.deleteTechTalk.mockResolvedValue(undefined);
+
+      await controller.deleteTechTalk(req as Request, res as Response, next);
+
+      expect(mockService.deleteTechTalk).toHaveBeenCalledWith('tt-123');
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: null,
+        message: 'Tech Talk deleted successfully',
+      });
+    });
+
+    it('should forward service errors to next', async () => {
+      req.params = { id: 'tt-999' };
+      const error = new AppError('Tech Talk not found', 404);
+      mockService.deleteTechTalk.mockRejectedValue(error);
+
+      await controller.deleteTechTalk(req as Request, res as Response, next);
 
       expect(next).toHaveBeenCalledWith(error);
     });
