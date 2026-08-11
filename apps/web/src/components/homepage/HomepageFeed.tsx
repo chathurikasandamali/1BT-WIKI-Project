@@ -86,54 +86,28 @@ export function HomepageFeed(): React.JSX.Element {
             new Date(a.createdAt).getTime()
     );
 
+    let content: React.ReactNode;
+
     if (loading) {
-        return (
-            <section>
-                <h2 className="text-2xl font-semibold text-brand-text-primary">
-                    Latest Updates
-                </h2>
-
-                <p className="mt-4 text-brand-text-secondary">
-                    Loading latest updates...
-                </p>
-            </section>
+        content = (
+            <p className="mt-4 text-brand-text-secondary">
+                Loading latest updates...
+            </p>
         );
-    }
-
-    if (error) {
-        return (
-            <section>
-                <h2 className="text-2xl font-semibold text-brand-text-primary">
-                    Latest Updates
-                </h2>
-
-                <p className="mt-4 text-brand-red">
-                    {error}
-                </p>
-            </section>
+    } else if (error) {
+        content = (
+            <p className="mt-4 text-brand-red">
+                {error}
+            </p>
         );
-    }
-
-    if (feedItems.length === 0) {
-        return (
-            <section>
-                <h2 className="text-2xl font-semibold text-brand-text-primary">
-                    Latest Updates
-                </h2>
-
-                <p className="mt-4 text-brand-text-secondary">
-                    No published content yet.
-                </p>
-            </section>
+    } else if (feedItems.length === 0) {
+        content = (
+            <p className="mt-4 text-brand-text-secondary">
+                No published content yet.
+            </p>
         );
-    }
-
-    return (
-        <section>
-            <h2 className="text-2xl font-semibold text-brand-text-primary">
-                Latest Updates
-            </h2>
-
+    } else {
+        content = (
             <div className="mt-6 flex flex-col gap-4">
                 {feedItems.map((item) => {
                     if (item.contentType === HomepageFeedItemType.Article) {
@@ -163,6 +137,15 @@ export function HomepageFeed(): React.JSX.Element {
                     );
                 })}
             </div>
+        );
+    }
+
+    return (
+        <section>
+            <h2 className="text-2xl font-semibold text-brand-text-primary">
+                Latest Updates
+            </h2>
+            {content}
         </section>
     );
 }
