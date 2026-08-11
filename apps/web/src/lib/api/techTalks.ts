@@ -18,6 +18,20 @@ export interface TechTalkDetail {
     updatedAt: string;
 }
 
+export interface TechTalkListItem {
+    id: string;
+    title: string;
+    description: string | null;
+    presenters: string[];
+    tags: string[];
+    eventDate: string;
+    slidesUrl: string | null;
+    youtubeVideoId: string | null;
+    status: TechTalkStatus;
+    createdAt: string;
+    updatedAt: string;
+}
+
 export interface CreateTechTalkData {
     title: string;
     description?: string;
@@ -114,6 +128,37 @@ export async function getTechTalkById(
 
     if (!result.success || !result.data) {
         throw new Error(result.error || 'Failed to load Tech Talk');
+    }
+
+    return result.data;
+}
+
+export async function listPublished(
+    page = 1,
+    limit = 20,
+    search?: string,
+    sort?: string,
+    order?: string
+): Promise<{ techTalks: TechTalkListItem[]; total: number; page: number; limit: number }> {
+    const params = new URLSearchParams();
+    params.append('page', String(page));
+    params.append('limit', String(limit));
+    if (search) {
+        params.append('search', search);
+    }
+    if (sort) {
+        params.append('sort', sort);
+    }
+    if (order) {
+        params.append('order', order);
+    }
+
+    const result = await apiFetch<{ techTalks: TechTalkListItem[]; total: number; page: number; limit: number }>(
+        `/techTalks?${params.toString()}`
+    );
+
+    if (!result.success || !result.data) {
+        throw new Error(result.error || 'Failed to load Tech Talks');
     }
 
     return result.data;
