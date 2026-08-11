@@ -1,36 +1,45 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import {
-    fetchPublishedArticles,
-    type ArticleListItem,
-} from '@/lib/api/articles';
+import { fetchPublishedArticles } from '@/lib/api/articles';
+import { type ArticleListItem } from '@/lib/api/articles';
 import { ArticleCard } from '@/components/article-listing/ArticleCard';
+import { fetchPublishedTechTalks } from '@/lib/api/techTalks';
+import { type TechTalkListItem } from '@/lib/api/techTalks';
+
+type HomepageFeedItem =
+    | (ArticleListItem & { contentType: 'article' })
+    | (TechTalkListItem & { contentType: 'techTalk' });
 
 export function HomepageArticleThread(): React.JSX.Element {
     const [articles, setArticles] = useState<ArticleListItem[]>([]);
+    const [techTalks, setTechTalks] = useState<TechTalkListItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         let isMounted = true;
 
-        async function loadArticles() {
+        async function loadHomepageContent() {
             try {
                 setLoading(true);
                 setError(null);
 
-                const result = await fetchPublishedArticles();
+                const [articleResult, techTalkResult] = await Promise.all([
+                    fetchPublishedArticles(),
+                    fetchPublishedTechTalks(),
+                ]);
 
                 if (isMounted) {
-                    setArticles(result.articles);
+                    setArticles(articleResult.articles);
+                    setTechTalks(techTalkResult.techTalks);
                 }
             } catch (err: unknown) {
                 if (isMounted) {
                     setError(
                         err instanceof Error
                             ? err.message
-                            : 'Failed to load published articles'
+                            : 'Failed to load homepage content'
                     );
                 }
             } finally {
@@ -40,7 +49,7 @@ export function HomepageArticleThread(): React.JSX.Element {
             }
         }
 
-        loadArticles();
+        loadHomepageContent();
 
         return () => {
             isMounted = false;
