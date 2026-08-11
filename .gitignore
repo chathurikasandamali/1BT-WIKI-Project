@@ -49,3 +49,4 @@ CLAUDE.local.md
 
 # Cypress Cache
 .cypress-cache
+.vscode/launch.json
