@@ -1,6 +1,6 @@
 import ArticleRepository from '@repositories/articleRepository.js';
 import QuizRepository from '@repositories/quizRepository.js';
-import FoundryClient from '@v1/lib/foundryClient.js';
+import geminiClient from '@/v1/lib/geminiClient.js';
 import { extractTextFromTipTap } from '@utils/tiptapText.js';
 import { PROMPT_VERSION } from '@v1/lib/prompts/quizPrompts.js';
 import { AppError } from '@errors/AppError.js';
@@ -12,6 +12,7 @@ import {
   type GenerateQuizResponse,
   type QuizRecord,
 } from '@models/quiz.types.js';
+import { TechTalk } from '../types/techTalk.types.js';
 
 const toResponse = (quiz: QuizRecord): GenerateQuizResponse => ({
   quizId: quiz.id,
@@ -45,8 +46,8 @@ const generateAndStore = async (
   if (articleText.length === 0) {
     throw new AppError('Article has no content to generate a quiz from', 422);
   }
-
-  const rawOutput = await FoundryClient.generateQuestions({
+  console.log("Calling geminiClient.generateQuestions with article title:", article.title);
+  const rawOutput = await geminiClient.generateQuestions({
     articleTitle: article.title,
     articleText,
     questionCount: DEFAULT_QUESTION_COUNT,
@@ -66,9 +67,9 @@ const generateAndStore = async (
 };
 
 /**
- * Generates a quiz for a Published article via the Foundry agent workflow,
+ * Generates a quiz for a Published article via the gemini API,
  * persists it, and returns the questions with correct answers stripped.
- * Falls back to the article's pre-generated quiz when the workflow fails.
+ * Falls back to the article's pre-generated quiz when the Gemini API fails.
  */
 const generateQuiz = async (
   articleId: string
@@ -103,7 +104,7 @@ const generateQuiz = async (
 
 /**
  * Pre-generates a fallback quiz right after an article is Published so
- * `generateQuiz` has something to serve when the live workflow is down.
+ * `generateQuiz` has something to serve when the live Gemini API is down.
  * Never throws — callers invoke it fire-and-forget from the publish path.
  */
 const pregenerateFallbackQuiz = async (articleId: string): Promise<void> => {

@@ -25,7 +25,7 @@ export const DEFAULT_QUESTION_COUNT = 10;
 /** Options rendered per question. */
 export const OPTIONS_PER_QUESTION = 4;
 
-/** A question as produced by the LLM workflow — includes the answers. Never send to clients. */
+/** A question as produced by the LLM — includes the answers. Never send to clients. */
 export interface GeneratedQuizQuestion {
   question: string;
   type: QuestionType;
@@ -124,7 +124,7 @@ const parseQuestion = (raw: unknown, index: number): GeneratedQuizQuestion => {
 };
 
 /**
- * Validates and normalizes the raw LLM workflow output into typed questions.
+ * Validates and normalizes the raw LLM output into typed questions.
  * Accepts a JSON array, an object with a `questions` array, or a JSON string
  * (optionally wrapped in markdown code fences).
  *

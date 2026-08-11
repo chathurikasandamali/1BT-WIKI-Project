@@ -54,6 +54,7 @@
   },
   "keywords": [],
   "dependencies": {
+    "@google/genai": "^2.16.0",
     "@neondatabase/auth": "0.4.2-beta",
     "@repo/db": "workspace:*",
     "backblaze-b2": "^1.7.1",
@@ -63,7 +64,8 @@
     "jose": "^6.2.3",
     "multer": "^2.2.0",
     "pg": "^8.22.0",
-    "pusher": "^5.3.4"
+    "pusher": "^5.3.4",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@jest/globals": "^30.4.1",

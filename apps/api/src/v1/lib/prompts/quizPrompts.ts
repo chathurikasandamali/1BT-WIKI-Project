@@ -1,8 +1,6 @@
 /**
- * Versioned prompts for the quiz generation agent workflow (generator + validator).
- * The MS Foundry workflow receives these alongside the article text so the
- * prompt contract lives in source control rather than only in the Foundry UI.
- * Bump PROMPT_VERSION whenever either prompt changes so stored quizzes
+ * Versioned prompts for the quiz generation via Gemini.
+ * Bump PROMPT_VERSION whenever the prompt changes so stored quizzes
  * (config_snapshot) record which prompt produced them.
  */
 

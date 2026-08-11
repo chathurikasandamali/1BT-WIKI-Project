@@ -1,28 +1,21 @@
+import { randomUUID } from 'node:crypto';
 import { prisma } from '@repo/db';
 import type {
   GeneratedQuizQuestion,
   QuizRecord,
   QuizQuestionRecord,
+  QuestionType,
 } from '@models/quiz.types.js';
-import type { QuestionType } from '@models/quiz.types.js';
-import type { Prisma } from '@repo/db';
 
-interface PrismaQuizQuestion {
-  id: string;
-  quizId: string;
-  question: string;
-  type: string;
-  options: unknown;
-  correctAnswer: unknown;
-  explanation: string | null;
-}
+import type { Prisma } from '@repo/db';
 
 interface PrismaQuiz {
   id: string;
   articleId: string;
   isFallback: boolean;
+  configSnapshot: unknown;
+  questions: unknown;
   generatedAt: Date;
-  questions: PrismaQuizQuestion[];
 }
 
 export interface CreateQuizInput {
@@ -32,42 +25,41 @@ export interface CreateQuizInput {
   configSnapshot: Record<string, unknown>;
 }
 
-const toQuestionRecord = (row: PrismaQuizQuestion): QuizQuestionRecord => ({
-  id: row.id,
-  quizId: row.quizId,
-  question: row.question,
-  type: row.type as QuestionType,
-  options: row.options as string[],
-  correctIndexes: row.correctAnswer as number[],
-  explanation: row.explanation ?? '',
+const toQuestionRecord = (
+  question: GeneratedQuizQuestion,
+  quizId: string,
+  index: number
+): QuizQuestionRecord => ({
+  id: randomUUID(),
+  quizId,
+  question: question.question,
+  type: question.type,
+  options: question.options,
+  correctIndexes: question.correctIndexes,
+  explanation: question.explanation,
 });
 
-const toQuizRecord = (row: PrismaQuiz): QuizRecord => ({
-  id: row.id,
-  articleId: row.articleId,
-  isFallback: row.isFallback,
-  generatedAt: row.generatedAt,
-  questions: row.questions.map(toQuestionRecord),
-});
+const toQuizRecord = (row: PrismaQuiz): QuizRecord => {
+  const questions = (row.questions as GeneratedQuizQuestion[]) ?? [];
 
-/** Persists a quiz and its questions atomically via a nested create. */
+  return {
+    id: row.id,
+    articleId: row.articleId,
+    isFallback: row.isFallback,
+    generatedAt: row.generatedAt,
+    questions: questions.map((q, i) => toQuestionRecord(q, row.id, i)),
+  };
+};
+
+/** Persists a quiz with questions as a single JSONB column. */
 const create = async (input: CreateQuizInput): Promise<QuizRecord> => {
   const result = await prisma.quiz.create({
     data: {
       articleId: input.articleId,
       isFallback: input.isFallback,
       configSnapshot: input.configSnapshot as Prisma.InputJsonValue,
-      questions: {
-        create: input.questions.map((question) => ({
-          question: question.question,
-          type: question.type,
-          options: question.options as Prisma.InputJsonValue,
-          correctAnswer: question.correctIndexes as Prisma.InputJsonValue,
-          explanation: question.explanation || null,
-        })),
-      },
+      questions: input.questions as unknown as Prisma.InputJsonValue,
     },
-    include: { questions: true },
   });
 
   return toQuizRecord(result as unknown as PrismaQuiz);
@@ -80,7 +72,6 @@ const findLatestFallbackByArticleId = async (
   const result = await prisma.quiz.findFirst({
     where: { articleId, isFallback: true },
     orderBy: { generatedAt: 'desc' },
-    include: { questions: true },
   });
 
   return result ? toQuizRecord(result as unknown as PrismaQuiz) : null;

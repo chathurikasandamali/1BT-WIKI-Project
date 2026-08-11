@@ -55,7 +55,7 @@ describe('quizController.generate', () => {
   });
 
   it('should forward service errors to next', async () => {
-    const error = new AppError('Quiz workflow request timed out', 504);
+    const error = new AppError('Gemini request timed out', 504);
     (QuizService.generateQuiz as jest.Mock<any>).mockRejectedValue(error);
 
     const { req, res, next } = makeMockReqResNext({

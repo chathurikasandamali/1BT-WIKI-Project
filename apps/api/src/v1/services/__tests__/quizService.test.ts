@@ -18,7 +18,7 @@ jest.unstable_mockModule('@repositories/quizRepository.js', () => ({
   },
 }));
 
-jest.unstable_mockModule('@v1/lib/foundryClient.js', () => ({
+jest.unstable_mockModule('@/v1/lib/geminiClient.js', () => ({
   default: {
     generateQuestions: jest.fn(),
   },
@@ -29,7 +29,7 @@ const { default: ArticleRepository } =
   await import('@repositories/articleRepository.js');
 const { default: QuizRepository } =
   await import('@repositories/quizRepository.js');
-const { default: FoundryClient } = await import('@v1/lib/foundryClient.js');
+const { default: GeminiClient } = await import('@/v1/lib/geminiClient.js');
 
 const articleId = 'article-123';
 
@@ -107,7 +107,7 @@ describe('QuizService.generateQuiz', () => {
     await expect(QuizService.generateQuiz(articleId)).rejects.toThrow(
       new AppError('Article has no content to generate a quiz from', 422)
     );
-    expect(FoundryClient.generateQuestions).not.toHaveBeenCalled();
+    expect(GeminiClient.generateQuestions).not.toHaveBeenCalled();
     expect(QuizRepository.findLatestFallbackByArticleId).not.toHaveBeenCalled();
   });
 
@@ -115,7 +115,7 @@ describe('QuizService.generateQuiz', () => {
     (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(
       publishedArticle
     );
-    (FoundryClient.generateQuestions as jest.Mock<any>).mockResolvedValue(
+    (GeminiClient.generateQuestions as jest.Mock<any>).mockResolvedValue(
       makeGeneratedQuestions()
     );
     (QuizRepository.create as jest.Mock<any>).mockResolvedValue(
@@ -124,7 +124,7 @@ describe('QuizService.generateQuiz', () => {
 
     const result = await QuizService.generateQuiz(articleId);
 
-    expect(FoundryClient.generateQuestions).toHaveBeenCalledWith(
+    expect(GeminiClient.generateQuestions).toHaveBeenCalledWith(
       expect.objectContaining({
         articleTitle: 'Test Article',
         questionCount: DEFAULT_QUESTION_COUNT,
@@ -143,11 +143,11 @@ describe('QuizService.generateQuiz', () => {
     }
   });
 
-  it('should serve the stored fallback quiz when the workflow output is invalid', async () => {
+  it('should serve the stored fallback quiz when the Gemini output is invalid', async () => {
     (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(
       publishedArticle
     );
-    (FoundryClient.generateQuestions as jest.Mock<any>).mockResolvedValue(
+    (GeminiClient.generateQuestions as jest.Mock<any>).mockResolvedValue(
       'this is not json {'
     );
     (
@@ -161,12 +161,12 @@ describe('QuizService.generateQuiz', () => {
     expect(QuizRepository.create).not.toHaveBeenCalled();
   });
 
-  it('should serve the stored fallback quiz when the workflow call fails', async () => {
+  it('should serve the stored fallback quiz when the Gemini call fails', async () => {
     (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(
       publishedArticle
     );
-    (FoundryClient.generateQuestions as jest.Mock<any>).mockRejectedValue(
-      new AppError('Failed to reach the quiz workflow', 502)
+    (GeminiClient.generateQuestions as jest.Mock<any>).mockRejectedValue(
+      new AppError('Failed to reach Gemini', 502)
     );
     (
       QuizRepository.findLatestFallbackByArticleId as jest.Mock<any>
@@ -177,19 +177,19 @@ describe('QuizService.generateQuiz', () => {
     expect(result.isFallback).toBe(true);
   });
 
-  it('should rethrow the workflow error when no fallback quiz exists', async () => {
+  it('should rethrow the Gemini error when no fallback quiz exists', async () => {
     (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(
       publishedArticle
     );
-    (FoundryClient.generateQuestions as jest.Mock<any>).mockRejectedValue(
-      new AppError('Quiz workflow request timed out', 504)
+    (GeminiClient.generateQuestions as jest.Mock<any>).mockRejectedValue(
+      new AppError('Gemini request timed out', 504)
     );
     (
       QuizRepository.findLatestFallbackByArticleId as jest.Mock<any>
     ).mockResolvedValue(null);
 
     await expect(QuizService.generateQuiz(articleId)).rejects.toThrow(
-      new AppError('Quiz workflow request timed out', 504)
+      new AppError('Gemini request timed out', 504)
     );
   });
 });
@@ -199,7 +199,7 @@ describe('QuizService.pregenerateFallbackQuiz', () => {
     (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(
       publishedArticle
     );
-    (FoundryClient.generateQuestions as jest.Mock<any>).mockResolvedValue(
+    (GeminiClient.generateQuestions as jest.Mock<any>).mockResolvedValue(
       makeGeneratedQuestions()
     );
     (QuizRepository.create as jest.Mock<any>).mockResolvedValue(
@@ -217,8 +217,8 @@ describe('QuizService.pregenerateFallbackQuiz', () => {
     (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(
       publishedArticle
     );
-    (FoundryClient.generateQuestions as jest.Mock<any>).mockRejectedValue(
-      new AppError('Failed to reach the quiz workflow', 502)
+    (GeminiClient.generateQuestions as jest.Mock<any>).mockRejectedValue(
+      new AppError('Failed to reach Gemini', 502)
     );
 
     await expect(
