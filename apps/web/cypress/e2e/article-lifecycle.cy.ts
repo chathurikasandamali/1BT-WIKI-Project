@@ -201,8 +201,8 @@ describe('Article lifecycle', () => {
       });
 
       // 20. Success UI and Redirect
-      cy.get('[data-testid="success-toast"]').should('be.visible');
       cy.url().should('include', '/my-articles');
+      cy.get('[data-testid="success-toast"]').should('be.visible');
 
       // 21. Verify duplicate submission proof
       cy.get('@submitArticle.all').should('have.length', 1);
