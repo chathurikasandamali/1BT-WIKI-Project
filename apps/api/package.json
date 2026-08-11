@@ -32,6 +32,7 @@
       "^@middleware/(.*)\\.js$": "<rootDir>/src/middleware/$1",
       "^@utils/(.*)\\.js$": "<rootDir>/src/v1/utils/$1",
       "^@/(.*)\\.js$": "<rootDir>/src/$1",
+      "^@repo/shared$": "<rootDir>/../../packages/shared/dist/index.js",
       "^(\\.{1,2}/.*)\\.js$": "$1"
     },
     "transform": {
