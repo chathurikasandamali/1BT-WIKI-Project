@@ -141,22 +141,40 @@ export async function getTechTalkById(
     return result.data;
 }
 
-export type FetchPublishedTechTalksOptions = PaginationParams & RequestInit;
+export type FetchPublishedTechTalksOptions = PaginationParams & RequestInit & {
+    search?: string;
+    sort?: string;
+    order?: string;
+};
 
 export async function fetchPublishedTechTalks({
     page = DEFAULT_PAGE,
     limit = DEFAULT_PAGE_LIMIT,
+    search,
+    sort,
+    order,
     ...init
 }: FetchPublishedTechTalksOptions = {}): Promise<PublishedTechTalkListResult> {
+    const params = new URLSearchParams();
+    params.append('page', String(page));
+    params.append('limit', String(limit));
+    if (search) {
+        params.append('search', search);
+    }
+    if (sort) {
+        params.append('sort', sort);
+    }
+    if (order) {
+        params.append('order', order);
+    }
+
     const result = await apiFetch<PublishedTechTalkListResult>(
-        `/techTalks?page=${page}&limit=${limit}`,
+        `/techTalks?${params.toString()}`,
         init
     );
 
     if (!result.success || !result.data) {
-        throw new Error(
-            result.error || 'Failed to load published Tech Talks'
-        );
+        throw new Error(result.error || 'Failed to load published Tech Talks');
     }
 
     return result.data;
