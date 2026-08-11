@@ -32,6 +32,9 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Build DB Package
+        env:
+          DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+          
         run: pnpm --filter db build
 
       - name: Lint API
