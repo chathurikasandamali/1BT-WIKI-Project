@@ -158,14 +158,14 @@ describe('usePublishedTechTalks', () => {
     mockListPublished.mockResolvedValue({ techTalks: [], total: 0, page: 1, limit: 20 });
 
     const { rerender, result } = renderHook(
-      ({ search }: { search: string | undefined }) => usePublishedTechTalks(1, 20, search as any),
-      { initialProps: { search: undefined } }
+      ({ search }: { search?: string }) => usePublishedTechTalks(1, 20, search),
+        { initialProps: { search: undefined } }
     );
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     mockListPublished.mockClear();
 
-    rerender({ search: 'React' as any });
+    rerender({ search: 'React' });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(mockListPublished).toHaveBeenCalledWith(1, 20, 'React', undefined, undefined);
