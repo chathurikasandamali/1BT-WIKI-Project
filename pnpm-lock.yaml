@@ -29,6 +29,9 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@repo/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       backblaze-b2:
         specifier: ^1.7.1
         version: 1.7.1
@@ -111,6 +114,9 @@ importers:
       '@neondatabase/auth':
         specifier: 0.4.2-beta
         version: 0.4.2-beta(f33431123f8e9d8d81aac24555569350)
+      '@repo/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@repo/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -290,6 +296,15 @@ importers:
       typescript-eslint:
         specifier: ^8.50.0
         version: 8.50.0(eslint@9.39.1(jiti@2.7.0))(typescript@5.9.2)
+
+  packages/shared:
+    devDependencies:
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
 
   packages/typescript-config: {}
 

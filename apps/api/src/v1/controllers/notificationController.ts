@@ -3,6 +3,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import notificationService from '@services/notificationService.js';
 import { NotificationBuilder } from '@v1/lib/NotificationBuilder.js';
+import { DEFAULT_PAGE_LIMIT } from '@repo/shared';
 
 // ---------------------------------------------------------------------------
 // GET /api/v1/notifications
@@ -36,7 +37,7 @@ const getNotifications = async (
     let limit =
       Number.isFinite(parsedLimit) && parsedLimit > 0
         ? Math.floor(parsedLimit)
-        : 20;
+        : DEFAULT_PAGE_LIMIT;
     const offset =
       Number.isFinite(parsedOffset) && parsedOffset >= 0
         ? Math.floor(parsedOffset)

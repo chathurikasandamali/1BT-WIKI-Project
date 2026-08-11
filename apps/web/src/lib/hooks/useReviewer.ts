@@ -9,8 +9,9 @@ import {
   type PendingArticleListItem,
   type ArticleDetail,
 } from '@/lib/api/reviewer.api';
+import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT } from '@repo/shared';
 
-export function usePendingArticles(page = 1, limit = 20) {
+export function usePendingArticles(page = DEFAULT_PAGE, limit = DEFAULT_PAGE_LIMIT) {
   const [articles, setArticles] = useState<PendingArticleListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

@@ -7,6 +7,7 @@ import {
 import type { CreateTechTalkInput, UpdateTechTalkInput } from '@models/techTalk.types.js';
 import { TechTalkListQuery } from '@models/techTalk.types.js';
 import { HttpStatusCode } from '@utils/httpStatus.js';
+import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT } from '@repo/shared';
 
 export class TechTalkController {
   constructor(
@@ -20,8 +21,8 @@ export class TechTalkController {
   ): Promise<void> => {
     try {
       const query: TechTalkListQuery = {
-        page: Number(req.query.page) || 1,
-        limit: Number(req.query.limit) || 20,
+        page: Number(req.query.page) || DEFAULT_PAGE,
+        limit: Number(req.query.limit) || DEFAULT_PAGE_LIMIT,
         search: req.query.search as string | undefined,
         sort: req.query.sort as string | undefined,
         order: req.query.order as string | undefined,

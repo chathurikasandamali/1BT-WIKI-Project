@@ -1,4 +1,5 @@
 import { apiFetch } from '@/lib/api/client';
+import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT } from '@repo/shared';
 
 export type TechTalkStatus = 'draft' | 'published' | 'unpublished';
 
@@ -141,8 +142,8 @@ export async function getTechTalkById(
 }
 
 export async function fetchPublishedTechTalks(
-    page = 1,
-    limit = 20
+    page = DEFAULT_PAGE,
+    limit = DEFAULT_PAGE_LIMIT
 ): Promise<PublishedTechTalkListResult> {
     const result = await apiFetch<PublishedTechTalkListResult>(
         `/techTalks?page=${page}&limit=${limit}`

@@ -1,4 +1,5 @@
 import { apiFetch } from '@/lib/api/client';
+import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT } from '@repo/shared';
 import { type ArticleStatus } from '@/lib/api/articles';
 
 import type { JSONContent } from '@tiptap/react';
@@ -39,7 +40,7 @@ export interface ListPendingResult {
   limit: number;
 }
 
-export async function listPending(page = 1, limit = 20): Promise<ListPendingResult> {
+export async function listPending(page = DEFAULT_PAGE, limit = DEFAULT_PAGE_LIMIT): Promise<ListPendingResult> {
   const result = await apiFetch<ListPendingResult>(`/reviewer/articles/pending?page=${page}&limit=${limit}`);
   if (!result.success || !result.data) {
     throw new Error(result.error || 'Failed to load pending articles');
