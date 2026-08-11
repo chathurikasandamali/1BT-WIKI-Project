@@ -1,5 +1,5 @@
 import { apiFetch } from '@/lib/api/client';
-import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT } from '@repo/shared';
+import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT, type PaginationParams } from '@repo/shared';
 
 export type ArticleStatus =
   | 'Draft'
@@ -101,11 +101,13 @@ export async function fetchAllArticles(
   return result.data;
 }
 
-export async function fetchPublishedArticles(
+export type FetchPublishedArticlesOptions = PaginationParams & RequestInit;
+
+export async function fetchPublishedArticles({
   page = DEFAULT_PAGE,
   limit = DEFAULT_PAGE_LIMIT,
-  init?: RequestInit
-): Promise<PublishedArticleListResult> {
+  ...init
+}: FetchPublishedArticlesOptions = {}): Promise<PublishedArticleListResult> {
   const result = await apiFetch<PublishedArticleListResult>(
     `/articles?page=${page}&limit=${limit}`,
     init

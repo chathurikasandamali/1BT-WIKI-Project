@@ -29,8 +29,8 @@ type HomepageFeedItem =
 export function HomepageFeed(): React.JSX.Element {
     const fetchFeedData = async (signal?: AbortSignal) => {
         const [articleResult, techTalkResult] = await Promise.all([
-            fetchPublishedArticles(undefined, undefined, { signal }),
-            fetchPublishedTechTalks(undefined, undefined, { signal }),
+            fetchPublishedArticles({ signal }),
+            fetchPublishedTechTalks({ signal }),
         ]);
 
         return {
