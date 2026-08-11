@@ -14,6 +14,8 @@ import {
 describe('Article lifecycle', () => {
   let createdArticleId: string | null = null;
 
+  const DEFAULT_TIMEOUT = 10000; // 10 seconds
+
   beforeEach(() => {
     // 1. Select E2E Author identity
     cy.then(() => setE2EIdentity(E2E_AUTHOR));
@@ -127,7 +129,7 @@ describe('Article lifecycle', () => {
 
     // 14. Wait for the real PATCH autosave request
     // The application has a 3000ms debounce, so we must allow a slightly longer timeout
-    cy.wait('@finalArticleAutosave', { timeout: 10000 }).then((interception) => {
+    cy.wait('@finalArticleAutosave', { timeout: DEFAULT_TIMEOUT }).then((interception) => {
       // Assert PATCH URL contains createdArticleId
       expect(interception.request.url).to.include(createdArticleId);
       // Assert successful response and persistence
@@ -173,7 +175,7 @@ describe('Article lifecycle', () => {
         });
 
       // 19. Wait for the real submit request
-      cy.wait('@submitArticle', { timeout: 10000 }).then((interception) => {
+      cy.wait('@submitArticle', { timeout: DEFAULT_TIMEOUT }).then((interception) => {
         // Assert Request
         expect(interception.request.method).to.eq('POST');
         let pathname = '';
@@ -233,7 +235,7 @@ describe('Article lifecycle', () => {
       cy.visit('/reviewer/approvals');
 
       // 25. Verify real backend recognises E2E_REVIEWER
-      cy.wait('@getReviewerUser',{ timeout: 10000 }).then((interception) => {
+      cy.wait('@getReviewerUser',{ timeout: DEFAULT_TIMEOUT }).then((interception) => {
         const configuredApiUrl = Cypress.expose('apiUrl');
         expect(configuredApiUrl).to.be.a('string');
         const expectedApiUrl = new URL(configuredApiUrl as string);
@@ -253,7 +255,7 @@ describe('Article lifecycle', () => {
       });
 
       // 26. Wait for Pending list request
-      cy.wait('@getPendingArticles',{ timeout: 10000 }).then((interception) => {
+      cy.wait('@getPendingArticles',{ timeout: DEFAULT_TIMEOUT }).then((interception) => {
         expect(interception.request.method).to.eq('GET');
 
         const reqUrl = new URL(interception.request.url);
@@ -303,7 +305,7 @@ describe('Article lifecycle', () => {
         });
 
       // 29. Wait for Reviewer Detail Request
-      cy.wait('@getReviewerArticle',{ timeout: 10000 }).then((interception) => {
+      cy.wait('@getReviewerArticle',{ timeout: DEFAULT_TIMEOUT }).then((interception) => {
         expect(interception.request.method).to.eq('GET');
 
         let pathname = '';
@@ -353,7 +355,7 @@ describe('Article lifecycle', () => {
         });
 
       // 32. Approval request assertions
-      cy.wait('@approveArticle',{ timeout: 10000 }).then((interception) => {
+      cy.wait('@approveArticle',{ timeout: DEFAULT_TIMEOUT }).then((interception) => {
         expect(interception.request.method).to.eq('PATCH');
 
         let pathname = '';
