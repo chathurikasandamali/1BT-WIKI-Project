@@ -7,11 +7,11 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "dev:nodemon": "nodemon --watch src --ext ts,js,json --exec \"tsx src/index.ts\"",
-    "build": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
+    "build": "pnpm --filter @repo/shared build && tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
     "start": "node dist/index.js",
-    "lint": "tsc -p tsconfig.lint.json --noEmit",
-    "test": "cross-env NODE_ENV=test node --experimental-vm-modules node_modules/jest/bin/jest.js --forceExit",
-    "test:watch": "cross-env NODE_ENV=test node --experimental-vm-modules node_modules/jest/bin/jest.js --watch --forceExit",
+    "lint": "pnpm --filter @repo/shared build && tsc -p tsconfig.json --noEmit",
+    "test": "pnpm --filter @repo/shared build && cross-env NODE_ENV=test node --experimental-vm-modules node_modules/jest/bin/jest.js --forceExit",
+    "test:watch": "pnpm --filter @repo/shared build && cross-env NODE_ENV=test node --experimental-vm-modules node_modules/jest/bin/jest.js --watch --forceExit",
     "dev:e2e": "cross-env NODE_ENV=test E2E_TEST_MODE=true PORT=5001 tsx --env-file=.env.e2e src/index.ts",
     "db:seed:e2e": "cross-env NODE_ENV=test E2E_TEST_MODE=true E2E_DATABASE_CONFIRMED=true tsx --env-file=.env.e2e scripts/seed-e2e.ts"
   },

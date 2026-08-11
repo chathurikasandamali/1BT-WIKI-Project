@@ -23,9 +23,8 @@
       "@services/*": ["src/v1/services/*"],
       "@models/*": ["src/v1/types/*"],
       "@middleware/*": ["src/middleware/*"],
-      "@utils/*": ["src/v1/utils/*"],
-      "@repo/shared": ["../../packages/shared/src/index.ts"]
-    },
+      "@utils/*": ["src/v1/utils/*"]
+    }
   },
   "include": ["src/**/*"]
 }
