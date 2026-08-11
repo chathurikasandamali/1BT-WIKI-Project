@@ -6,6 +6,7 @@ import {
 } from '@services/techTalkService.js';
 import type { CreateTechTalkInput, UpdateTechTalkInput } from '@models/techTalk.types.js';
 import { TechTalkListQuery } from '@models/techTalk.types.js';
+import { HttpStatusCode } from '@utils/httpStatus.js';
 
 export class TechTalkController {
   constructor(
@@ -26,10 +27,29 @@ export class TechTalkController {
         order: req.query.order as string | undefined,
       };
       const result = await this.techTalkService.listPublished(query);
-      res.status(200).json({
+      res.status(HttpStatusCode.OK).json({
         success: true,
         data: result,
         message: 'Tech Talks retrieved successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getById = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const requesterRole = req.user?.role;
+      const techTalk = await this.techTalkService.getTechTalkById(id, requesterRole);
+      res.status(HttpStatusCode.OK).json({
+        success: true,
+        data: techTalk,
+        message: 'Tech Talk retrieved successfully',
       });
     } catch (error) {
       next(error);
@@ -58,7 +78,7 @@ export class TechTalkController {
         adminId,
         slidesFile
       );
-      res.status(201).json({
+      res.status(HttpStatusCode.CREATED).json({
         success: true,
         data: techTalk,
         message: 'Tech Talk created successfully',
@@ -76,7 +96,7 @@ export class TechTalkController {
     try {
       const { id } = req.params;
       const techTalk = await this.techTalkService.publishTechTalk(id);
-      res.status(200).json({
+      res.status(HttpStatusCode.OK).json({
         success: true,
         data: techTalk,
         message: 'Tech Talk published successfully',
@@ -93,16 +113,34 @@ export class TechTalkController {
   ): Promise<void> => {
     try {
       const { id } = req.params;
-      if (!req.body.data) throw new AppError('The "data" field is required', 400);
+      if (!req.body.data) throw new AppError('The "data" field is required', HttpStatusCode.BAD_REQUEST);
       let input: UpdateTechTalkInput;
       try {
         input = JSON.parse(req.body.data);
       } catch {
-        throw new AppError('Invalid JSON in "data" field', 400);
+        throw new AppError('Invalid JSON in "data" field', HttpStatusCode.BAD_REQUEST);
       }
       const slidesFile = (req.files as Express.Multer.File[])?.[0];
       const techTalk = await this.techTalkService.updateTechTalk(id, input, slidesFile);
-      res.status(200).json({ success: true, data: techTalk, message: 'Tech Talk updated successfully' });
+      res.status(HttpStatusCode.OK).json({ success: true, data: techTalk, message: 'Tech Talk updated successfully' });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  deleteTechTalk = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const { id } = req.params;
+      await this.techTalkService.deleteTechTalk(id);
+      res.status(HttpStatusCode.OK).json({
+        success: true,
+        data: null,
+        message: 'Tech Talk deleted successfully',
+      });
     } catch (error) {
       next(error);
     }

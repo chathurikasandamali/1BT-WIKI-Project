@@ -70,6 +70,13 @@ export class TechTalkRepository {
   ): Promise<TechTalk> {
     return prisma.techTalk.update({ where: { id }, data });
   }
+
+  async softDelete(id: string): Promise<TechTalk> {
+    return prisma.techTalk.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+  }
 }
 
 export const techTalkRepository = new TechTalkRepository();

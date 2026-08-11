@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { TechTalkStatus } from '@repo/db';
 import b2Client from '@v1/lib/b2Client.js';
 import { AppError } from '@errors/AppError.js';
+import { isPrismaNotFoundError } from '@errors/PrismaErrors.js';
 import {
   TechTalkRepository,
   techTalkRepository as techTalkRepositoryInstance,
@@ -14,11 +15,26 @@ import type {
   TechTalkListQuery,
   PaginationMeta
 } from '@models/techTalk.types.js';
+import { UserRoleValue } from '@/types/userTypes.js';
+import { HttpStatusCode } from '@utils/httpStatus.js';
 
 export class TechTalkService {
   constructor(
     private readonly techTalkRepository: TechTalkRepository = techTalkRepositoryInstance
   ) {}
+
+  async getTechTalkById(id: string, requesterRole?: string): Promise<TechTalk> {
+    const techTalk = await this.techTalkRepository.findById(id);
+    if (!techTalk) {
+      throw new AppError('Tech Talk not found', HttpStatusCode.NOT_FOUND);
+    }
+
+    if (requesterRole === UserRoleValue.Admin || techTalk.status === TechTalkStatus.published) {
+      return techTalk;
+    }
+
+    throw new AppError('Tech Talk not available', HttpStatusCode.FORBIDDEN);
+  }
 
   /**
    * Lists published Tech Talks with optional search, sort, and pagination.
@@ -48,23 +64,23 @@ export class TechTalkService {
     slidesFile?: Express.Multer.File
   ): Promise<TechTalk> {
     if (!input.title || input.title.trim() === '') {
-      throw new AppError('Title is required', 400);
+      throw new AppError('Title is required', HttpStatusCode.BAD_REQUEST);
     }
     if (!input.presenters || input.presenters.length === 0) {
-      throw new AppError('At least one presenter is required', 400);
+      throw new AppError('At least one presenter is required', HttpStatusCode.BAD_REQUEST);
     }
     if (!input.eventDate) {
-      throw new AppError('Event date is required', 400);
+      throw new AppError('Event date is required', HttpStatusCode.BAD_REQUEST);
     }
     const eventDate = new Date(input.eventDate);
     if (isNaN(eventDate.getTime())) {
-      throw new AppError('Invalid event date', 400);
+      throw new AppError('Invalid event date', HttpStatusCode.BAD_REQUEST);
     }
     if (
       input.youtubeVideoId &&
       !this.isValidYoutubeVideoId(input.youtubeVideoId)
     ) {
-      throw new AppError('Invalid YouTube video ID', 400);
+      throw new AppError('Invalid YouTube video ID', HttpStatusCode.BAD_REQUEST);
     }
 
     let slidesUrl: string | null = null;
@@ -92,25 +108,36 @@ export class TechTalkService {
   async publishTechTalk(id: string): Promise<TechTalk> {
     const techTalk = await this.techTalkRepository.findById(id);
     if (!techTalk) {
-      throw new AppError('Tech Talk not found', 404);
+      throw new AppError('Tech Talk not found', HttpStatusCode.NOT_FOUND);
     }
     if (techTalk.status !== TechTalkStatus.draft) {
       throw new AppError(
         `Cannot publish a Tech Talk with status "${techTalk.status}". Only Draft Tech Talks can be published.`,
-        400
+        HttpStatusCode.BAD_REQUEST
       );
     }
     return this.techTalkRepository.updateStatus(id, TechTalkStatus.published);
   }
 
-  async updateTechTalk(
+  async deleteTechTalk(id: string): Promise<void> {
+    try {
+      await this.techTalkRepository.softDelete(id);
+    } catch (error) {
+      if (isPrismaNotFoundError(error)) {
+        throw new AppError('Tech Talk not found', HttpStatusCode.NOT_FOUND);
+      }
+      throw error;
+    }
+  }
+
+    async updateTechTalk(
     id: string,
     input: UpdateTechTalkInput,
     slidesFile?: Express.Multer.File
   ): Promise<TechTalk> {
     const existing = await this.techTalkRepository.findById(id);
     if (!existing) {
-      throw new AppError('Tech Talk not found', 404);
+      throw new AppError('Tech Talk not found', HttpStatusCode.NOT_FOUND);
     }
 
     const updateFields: Partial<{
@@ -125,7 +152,7 @@ export class TechTalkService {
     }> = {};
 
     if (input.title !== undefined) {
-      if (input.title.trim() === '') throw new AppError('Title is required', 400);
+      if (input.title.trim() === '') throw new AppError('Title is required', HttpStatusCode.BAD_REQUEST);
       updateFields.title = input.title.trim();
     }
     if (input.description !== undefined) {
@@ -133,7 +160,7 @@ export class TechTalkService {
     }
     if (input.presenters !== undefined) {
       if (input.presenters.length === 0) {
-        throw new AppError('At least one presenter is required', 400);
+        throw new AppError('At least one presenter is required', HttpStatusCode.BAD_REQUEST);
       }
       updateFields.presenters = input.presenters;
     }
@@ -142,12 +169,12 @@ export class TechTalkService {
     }
     if (input.eventDate !== undefined) {
       const eventDate = new Date(input.eventDate);
-      if (isNaN(eventDate.getTime())) throw new AppError('Invalid event date', 400);
+      if (isNaN(eventDate.getTime())) throw new AppError('Invalid event date', HttpStatusCode.BAD_REQUEST);
       updateFields.eventDate = eventDate;
     }
     if (input.youtubeVideoId !== undefined) {
       if (!this.isValidYoutubeVideoId(input.youtubeVideoId)) {
-        throw new AppError('Invalid YouTube video ID', 400);
+        throw new AppError('Invalid YouTube video ID', HttpStatusCode.BAD_REQUEST);
       }
       updateFields.youtubeVideoId = input.youtubeVideoId;
     }
@@ -180,14 +207,14 @@ export class TechTalkService {
       if (error instanceof AppError) {
         throw error;
       }
-      throw new AppError('Failed to upload slides file', 500);
+      throw new AppError('Failed to upload slides file', HttpStatusCode.INTERNAL_SERVER_ERROR);
     }
   }
 
   private validateSlidesFile(file: Express.Multer.File): void {
     const maxSizeBytes = 20 * 1024 * 1024; // 20MB
     if (file.size > maxSizeBytes) {
-      throw new AppError('Slides file size cannot exceed 20MB', 400);
+      throw new AppError('Slides file size cannot exceed 20MB', HttpStatusCode.BAD_REQUEST);
     }
 
     const allowedMimeTypes = [
