@@ -8,9 +8,22 @@ import { TechTalkCard } from '@/components/tech-talk-listing/TechTalkCard';
 import { fetchPublishedTechTalks } from '@/lib/api/techTalks';
 import { type TechTalkListItem } from '@/lib/api/techTalks';
 
+enum HomepageFeedItemType {
+    Article = 'article',
+    TechTalk = 'techTalk',
+}
+
 type HomepageFeedItem =
-    | (ArticleListItem & { contentType: 'article' })
-    | (TechTalkListItem & { contentType: 'techTalk' });
+    | (
+        ArticleListItem & {
+            contentType: HomepageFeedItemType.Article;
+        }
+    )
+    | (
+        TechTalkListItem & {
+            contentType: HomepageFeedItemType.TechTalk;
+        }
+    );
 
 export function HomepageFeed(): React.JSX.Element {
     const [articles, setArticles] = useState<ArticleListItem[]>([]);
@@ -60,12 +73,12 @@ export function HomepageFeed(): React.JSX.Element {
     const feedItems: HomepageFeedItem[] = [
         ...articles.map((article): HomepageFeedItem => ({
             ...article,
-            contentType: 'article',
+            contentType: HomepageFeedItemType.Article,
         })),
 
         ...techTalks.map((techTalk): HomepageFeedItem => ({
             ...techTalk,
-            contentType: 'techTalk',
+            contentType: HomepageFeedItemType.TechTalk,
         })),
     ].sort(
         (a, b) =>
@@ -116,7 +129,6 @@ export function HomepageFeed(): React.JSX.Element {
     }
 
     return (
-
         <section>
             <h2 className="text-2xl font-semibold text-brand-text-primary">
                 Latest Updates
@@ -124,10 +136,10 @@ export function HomepageFeed(): React.JSX.Element {
 
             <div className="mt-6 flex flex-col gap-4">
                 {feedItems.map((item) => {
-                    if (item.contentType === 'article') {
+                    if (item.contentType === HomepageFeedItemType.Article) {
                         return (
                             <ArticleCard
-                                key={`article-${item.id}`}
+                                key={`${HomepageFeedItemType.Article}-${item.id}`}
                                 id={item.id}
                                 title={item.title}
                                 tags={item.tags}
@@ -141,7 +153,7 @@ export function HomepageFeed(): React.JSX.Element {
 
                     return (
                         <TechTalkCard
-                            key={`techTalk-${item.id}`}
+                            key={`${HomepageFeedItemType.TechTalk}-${item.id}`}
                             id={item.id}
                             title={item.title}
                             tags={item.tags}
@@ -152,6 +164,5 @@ export function HomepageFeed(): React.JSX.Element {
                 })}
             </div>
         </section>
-
     );
 }
