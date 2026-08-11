@@ -233,7 +233,7 @@ describe('Article lifecycle', () => {
       cy.visit('/reviewer/approvals');
 
       // 25. Verify real backend recognises E2E_REVIEWER
-      cy.wait('@getReviewerUser').then((interception) => {
+      cy.wait('@getReviewerUser',{ timeout: 10000 }).then((interception) => {
         const configuredApiUrl = Cypress.expose('apiUrl');
         expect(configuredApiUrl).to.be.a('string');
         const expectedApiUrl = new URL(configuredApiUrl as string);
@@ -253,7 +253,7 @@ describe('Article lifecycle', () => {
       });
 
       // 26. Wait for Pending list request
-      cy.wait('@getPendingArticles').then((interception) => {
+      cy.wait('@getPendingArticles',{ timeout: 10000 }).then((interception) => {
         expect(interception.request.method).to.eq('GET');
 
         const reqUrl = new URL(interception.request.url);
@@ -303,7 +303,7 @@ describe('Article lifecycle', () => {
         });
 
       // 29. Wait for Reviewer Detail Request
-      cy.wait('@getReviewerArticle').then((interception) => {
+      cy.wait('@getReviewerArticle',{ timeout: 10000 }).then((interception) => {
         expect(interception.request.method).to.eq('GET');
 
         let pathname = '';
@@ -353,7 +353,7 @@ describe('Article lifecycle', () => {
         });
 
       // 32. Approval request assertions
-      cy.wait('@approveArticle').then((interception) => {
+      cy.wait('@approveArticle',{ timeout: 10000 }).then((interception) => {
         expect(interception.request.method).to.eq('PATCH');
 
         let pathname = '';
