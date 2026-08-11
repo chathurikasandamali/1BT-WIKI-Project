@@ -14,6 +14,8 @@ import {
 describe('Article lifecycle', () => {
   let createdArticleId: string | null = null;
 
+  const DEFAULT_TIMEOUT = 10000; // 10 seconds
+
   beforeEach(() => {
     // 1. Select E2E Author identity
     cy.then(() => setE2EIdentity(E2E_AUTHOR));
@@ -44,7 +46,7 @@ describe('Article lifecycle', () => {
     cy.visit('/');
 
     // 6 & 7. Wait for the real request and assert the backend response + outgoing headers
-    cy.wait('@getCurrentUser').then((interception) => {
+    cy.wait('@getCurrentUser', { timeout: DEFAULT_TIMEOUT }).then((interception) => {
       // 8. Assert that the request URL reached the configured E2E API origin.
       // Cypress.expose('apiUrl') is the Cypress-15 non-deprecated public config
       // API (replaces Cypress.env). In CI it resolves to http://localhost:5000/api/v1;
@@ -92,7 +94,7 @@ describe('Article lifecycle', () => {
     cy.get('[data-cy="article-title-input"]').type(articleTitle, { delay: 0 }).blur();
 
     // Wait for the real POST request
-    cy.wait('@createArticle').then((interception) => {
+    cy.wait('@createArticle', { timeout: DEFAULT_TIMEOUT }).then((interception) => {
       // Assert the real response based on the controller returning successResponse(article) with status 201
       expect(interception.response?.statusCode).to.eq(201);
       const responseData = interception.response?.body.data;
@@ -127,7 +129,7 @@ describe('Article lifecycle', () => {
 
     // 14. Wait for the real PATCH autosave request
     // The application has a 3000ms debounce, so we must allow a slightly longer timeout
-    cy.wait('@finalArticleAutosave', { timeout: 10000 }).then((interception) => {
+    cy.wait('@finalArticleAutosave', { timeout: DEFAULT_TIMEOUT }).then((interception) => {
       // Assert PATCH URL contains createdArticleId
       expect(interception.request.url).to.include(createdArticleId);
       // Assert successful response and persistence
@@ -173,7 +175,7 @@ describe('Article lifecycle', () => {
         });
 
       // 19. Wait for the real submit request
-      cy.wait('@submitArticle', { timeout: 10000 }).then((interception) => {
+      cy.wait('@submitArticle', { timeout: DEFAULT_TIMEOUT }).then((interception) => {
         // Assert Request
         expect(interception.request.method).to.eq('POST');
         let pathname = '';
@@ -233,7 +235,7 @@ describe('Article lifecycle', () => {
       cy.visit('/reviewer/approvals');
 
       // 25. Verify real backend recognises E2E_REVIEWER
-      cy.wait('@getReviewerUser').then((interception) => {
+      cy.wait('@getReviewerUser',{ timeout: DEFAULT_TIMEOUT }).then((interception) => {
         const configuredApiUrl = Cypress.expose('apiUrl');
         expect(configuredApiUrl).to.be.a('string');
         const expectedApiUrl = new URL(configuredApiUrl as string);
@@ -253,7 +255,7 @@ describe('Article lifecycle', () => {
       });
 
       // 26. Wait for Pending list request
-      cy.wait('@getPendingArticles').then((interception) => {
+      cy.wait('@getPendingArticles',{ timeout: DEFAULT_TIMEOUT }).then((interception) => {
         expect(interception.request.method).to.eq('GET');
 
         const reqUrl = new URL(interception.request.url);
@@ -303,7 +305,7 @@ describe('Article lifecycle', () => {
         });
 
       // 29. Wait for Reviewer Detail Request
-      cy.wait('@getReviewerArticle').then((interception) => {
+      cy.wait('@getReviewerArticle',{ timeout: DEFAULT_TIMEOUT }).then((interception) => {
         expect(interception.request.method).to.eq('GET');
 
         let pathname = '';
@@ -353,7 +355,7 @@ describe('Article lifecycle', () => {
         });
 
       // 32. Approval request assertions
-      cy.wait('@approveArticle').then((interception) => {
+      cy.wait('@approveArticle',{ timeout: DEFAULT_TIMEOUT }).then((interception) => {
         expect(interception.request.method).to.eq('PATCH');
 
         let pathname = '';
@@ -429,7 +431,7 @@ describe('Article lifecycle', () => {
       // Hard Navigation to reset React state
       cy.visit('/articles');
 
-      cy.wait('@getCurrentUser').then((interception) => {
+      cy.wait('@getCurrentUser',{ timeout: DEFAULT_TIMEOUT }).then((interception) => {
         const configuredApiUrl = Cypress.expose('apiUrl');
         expect(configuredApiUrl).to.be.a('string');
         const expectedApiUrl = new URL(configuredApiUrl as string);
@@ -450,7 +452,7 @@ describe('Article lifecycle', () => {
 
       cy.get('[data-testid="search-input"][placeholder="Search by title..."]').type(articleTitle, { delay: 0 });
 
-      cy.wait('@searchPublishedArticles').then((interception) => {
+      cy.wait('@searchPublishedArticles', { timeout: DEFAULT_TIMEOUT }).then((interception) => {
         expect(interception.request.method).to.eq('GET');
         const reqUrl = new URL(interception.request.url);
         expect(reqUrl.pathname).to.eq('/api/v1/articles');
@@ -495,7 +497,7 @@ describe('Article lifecycle', () => {
           cy.root().should('have.attr', 'href', `/articles/${articleId}`).click();
         });
 
-      cy.wait('@getPublishedArticleDetail').then((interception) => {
+      cy.wait('@getPublishedArticleDetail', { timeout: DEFAULT_TIMEOUT }).then((interception) => {
         expect(interception.request.method).to.eq('GET');
         const reqUrl = new URL(interception.request.url);
         expect(reqUrl.pathname).to.eq(`/api/v1/articles/${articleId}`);
