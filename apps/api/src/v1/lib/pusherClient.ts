@@ -50,7 +50,6 @@ const pusherClient: unknown = rawClient;
 
 try {
   // If the real SDK is present, alias authenticate -> authorizeChannel
-  // @ts-expect-error dynamic augmentation
   if ((rawClient as any).authenticate && !(rawClient as any).authorizeChannel) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (rawClient as any).authorizeChannel = (rawClient as any).authenticate.bind(rawClient as any);
