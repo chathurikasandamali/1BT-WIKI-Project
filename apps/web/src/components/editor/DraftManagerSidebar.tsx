@@ -165,6 +165,7 @@ export function DraftManagerSidebar({
                 const isRejected = article.status === 'Unpublished';
                 const displayStatus = isRejected ? 'Rejected' : article.status;
                 const dateLabel = 'Updated';
+                const hasTags = article.tags && article.tags.length > 0;
 
                 return (
                   <Link
@@ -194,7 +195,7 @@ export function DraftManagerSidebar({
                         </div>
                       </div>
                       
-                      {article.tags && article.tags.length > 0 && (
+                      {hasTags && (
                         <div className="flex flex-wrap gap-1 mt-1">
                           {article.tags.slice(0, 1).map(tag => (
                             <span key={tag} className="text-[10px] bg-brand-surface px-1.5 py-0.5 rounded text-brand-text-secondary">

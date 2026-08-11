@@ -18,6 +18,8 @@ export function NotificationDropdown({ id, onClose }: NotificationDropdownProps)
     onClose();
   };
 
+  const isInitialLoading = loading && notifications.length === 0;
+
   return (
     <div
       id={id}
@@ -29,7 +31,7 @@ export function NotificationDropdown({ id, onClose }: NotificationDropdownProps)
         <span>Notifications</span>
       </div>
 
-      {loading && notifications.length === 0 ? (
+      {isInitialLoading ? (
         <div className="p-4 text-sm text-brand-text-secondary text-center">Loading...</div>
       ) : notifications.length === 0 ? (
         <div className="p-4 text-sm text-brand-text-secondary text-center">No notifications</div>

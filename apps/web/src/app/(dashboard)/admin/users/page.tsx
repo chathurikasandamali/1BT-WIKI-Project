@@ -218,6 +218,8 @@ function UserManagementContent(): React.JSX.Element {
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
+  const isLoadedAndReady = !loading && !error;
+
   return (
     <div className="p-8 max-w-6xl mx-auto" ref={containerRef}>
       {/* Page Header */}
@@ -243,7 +245,7 @@ function UserManagementContent(): React.JSX.Element {
       </div>
 
       {/* Summary Stats */}
-      {!loading && !error && (
+      {isLoadedAndReady && (
         <div className="page-header grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
           {[
             {
