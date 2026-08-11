@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { fetchPublishedArticles } from '@/lib/api/articles';
 import { type ArticleListItem } from '@/lib/api/articles';
 import { ArticleCard } from '@/components/article-listing/ArticleCard';
+import { TechTalkCard } from '@/components/tech-talk-listing/TechTalkCard';
 import { fetchPublishedTechTalks } from '@/lib/api/techTalks';
 import { type TechTalkListItem } from '@/lib/api/techTalks';
 
@@ -56,15 +57,31 @@ export function HomepageArticleThread(): React.JSX.Element {
         };
     }, []);
 
+    const feedItems: HomepageFeedItem[] = [
+        ...articles.map((article): HomepageFeedItem => ({
+            ...article,
+            contentType: 'article',
+        })),
+
+        ...techTalks.map((techTalk): HomepageFeedItem => ({
+            ...techTalk,
+            contentType: 'techTalk',
+        })),
+    ].sort(
+        (a, b) =>
+            new Date(b.createdAt).getTime() -
+            new Date(a.createdAt).getTime()
+    );
+
     if (loading) {
         return (
             <section>
                 <h2 className="text-2xl font-semibold text-brand-text-primary">
-                    Latest Articles
+                    Latest Updates
                 </h2>
 
                 <p className="mt-4 text-brand-text-secondary">
-                    Loading articles...
+                    Loading latest updates...
                 </p>
             </section>
         );
@@ -74,7 +91,7 @@ export function HomepageArticleThread(): React.JSX.Element {
         return (
             <section>
                 <h2 className="text-2xl font-semibold text-brand-text-primary">
-                    Latest Articles
+                    Latest Updates
                 </h2>
 
                 <p className="mt-4 text-brand-red">
@@ -84,15 +101,15 @@ export function HomepageArticleThread(): React.JSX.Element {
         );
     }
 
-    if (articles.length === 0) {
+    if (feedItems.length === 0) {
         return (
             <section>
                 <h2 className="text-2xl font-semibold text-brand-text-primary">
-                    Latest Articles
+                    Latest Updates
                 </h2>
 
                 <p className="mt-4 text-brand-text-secondary">
-                    No published articles yet.
+                    No published content yet.
                 </p>
             </section>
         );
@@ -102,22 +119,37 @@ export function HomepageArticleThread(): React.JSX.Element {
 
         <section>
             <h2 className="text-2xl font-semibold text-brand-text-primary">
-                Latest Articles
+                Latest Updates
             </h2>
 
             <div className="mt-6 flex flex-col gap-4">
-                {articles.map((article) => (
-                    <ArticleCard
-                        key={article.id}
-                        id={article.id}
-                        title={article.title}
-                        tags={article.tags}
-                        likeCount={article.likeCount}
-                        commentCount={article.commentCount}
-                        views={article.views}
-                        createdAt={article.createdAt}
-                    />
-                ))}
+                {feedItems.map((item) => {
+                    if (item.contentType === 'article') {
+                        return (
+                            <ArticleCard
+                                key={`article-${item.id}`}
+                                id={item.id}
+                                title={item.title}
+                                tags={item.tags}
+                                likeCount={item.likeCount}
+                                commentCount={item.commentCount}
+                                views={item.views}
+                                createdAt={item.createdAt}
+                            />
+                        );
+                    }
+
+                    return (
+                        <TechTalkCard
+                            key={`techTalk-${item.id}`}
+                            id={item.id}
+                            title={item.title}
+                            tags={item.tags}
+                            presenters={item.presenters}
+                            eventDate={item.eventDate}
+                        />
+                    );
+                })}
             </div>
         </section>
 
