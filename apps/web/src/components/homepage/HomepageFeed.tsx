@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { fetchPublishedArticles } from '@/lib/api/articles';
 import { type ArticleListItem } from '@/lib/api/articles';
 import { ArticleCard } from '@/components/article-listing/ArticleCard';
 import { TechTalkCard } from '@/components/tech-talk-listing/TechTalkCard';
 import { fetchPublishedTechTalks } from '@/lib/api/techTalks';
 import { type TechTalkListItem } from '@/lib/api/techTalks';
+import { useAsync } from '@/lib/hooks/useAsync';
 
 enum HomepageFeedItemType {
     Article = 'article',
@@ -26,49 +27,24 @@ type HomepageFeedItem =
     );
 
 export function HomepageFeed(): React.JSX.Element {
-    const [articles, setArticles] = useState<ArticleListItem[]>([]);
-    const [techTalks, setTechTalks] = useState<TechTalkListItem[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const fetchFeedData = async (signal?: AbortSignal) => {
+        const [articleResult, techTalkResult] = await Promise.all([
+            fetchPublishedArticles(undefined, undefined, { signal }),
+            fetchPublishedTechTalks(undefined, undefined, { signal }),
+        ]);
 
-    useEffect(() => {
-        let isMounted = true;
-
-        async function loadHomepageContent() {
-            try {
-                setLoading(true);
-                setError(null);
-
-                const [articleResult, techTalkResult] = await Promise.all([
-                    fetchPublishedArticles(),
-                    fetchPublishedTechTalks(),
-                ]);
-
-                if (isMounted) {
-                    setArticles(articleResult.articles);
-                    setTechTalks(techTalkResult.techTalks);
-                }
-            } catch (err: unknown) {
-                if (isMounted) {
-                    setError(
-                        err instanceof Error
-                            ? err.message
-                            : 'Failed to load homepage content'
-                    );
-                }
-            } finally {
-                if (isMounted) {
-                    setLoading(false);
-                }
-            }
-        }
-
-        loadHomepageContent();
-
-        return () => {
-            isMounted = false;
+        return {
+            articles: articleResult.articles,
+            techTalks: techTalkResult.techTalks,
         };
-    }, []);
+    };
+
+    const { data, loading, error } = useAsync(fetchFeedData, [], {
+        useAbortSignal: true,
+    });
+
+    const articles = data?.articles ?? [];
+    const techTalks = data?.techTalks ?? [];
 
     const feedItems: HomepageFeedItem[] = [
         ...articles.map((article): HomepageFeedItem => ({

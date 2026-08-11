@@ -103,10 +103,12 @@ export async function fetchAllArticles(
 
 export async function fetchPublishedArticles(
   page = DEFAULT_PAGE,
-  limit = DEFAULT_PAGE_LIMIT
+  limit = DEFAULT_PAGE_LIMIT,
+  init?: RequestInit
 ): Promise<PublishedArticleListResult> {
   const result = await apiFetch<PublishedArticleListResult>(
-    `/articles?page=${page}&limit=${limit}`
+    `/articles?page=${page}&limit=${limit}`,
+    init
   );
 
   if (!result.success || !result.data) {

@@ -143,10 +143,12 @@ export async function getTechTalkById(
 
 export async function fetchPublishedTechTalks(
     page = DEFAULT_PAGE,
-    limit = DEFAULT_PAGE_LIMIT
+    limit = DEFAULT_PAGE_LIMIT,
+    init?: RequestInit
 ): Promise<PublishedTechTalkListResult> {
     const result = await apiFetch<PublishedTechTalkListResult>(
-        `/techTalks?page=${page}&limit=${limit}`
+        `/techTalks?page=${page}&limit=${limit}`,
+        init
     );
 
     if (!result.success || !result.data) {
