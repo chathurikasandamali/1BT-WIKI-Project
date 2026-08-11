@@ -6,7 +6,7 @@
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/lib/hooks/useUser';
-import { HomepageArticleThread } from '@/components/article-listing/HomepageArticleThread';
+import { HomepageFeed } from '@/components/homepage/HomepageFeed';
 
 export default function HomePage(): React.JSX.Element {
   const { user, loading } = useUser();
@@ -30,6 +30,6 @@ export default function HomePage(): React.JSX.Element {
   }
 
   return (
-    <HomepageArticleThread />
+    <HomepageFeed />
   );
 }

@@ -12,7 +12,7 @@ type HomepageFeedItem =
     | (ArticleListItem & { contentType: 'article' })
     | (TechTalkListItem & { contentType: 'techTalk' });
 
-export function HomepageArticleThread(): React.JSX.Element {
+export function HomepageFeed(): React.JSX.Element {
     const [articles, setArticles] = useState<ArticleListItem[]>([]);
     const [techTalks, setTechTalks] = useState<TechTalkListItem[]>([]);
     const [loading, setLoading] = useState(true);
