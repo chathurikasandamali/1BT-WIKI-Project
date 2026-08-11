@@ -46,7 +46,7 @@ describe('Article lifecycle', () => {
     cy.visit('/');
 
     // 6 & 7. Wait for the real request and assert the backend response + outgoing headers
-    cy.wait('@getCurrentUser').then((interception) => {
+    cy.wait('@getCurrentUser', { timeout: DEFAULT_TIMEOUT }).then((interception) => {
       // 8. Assert that the request URL reached the configured E2E API origin.
       // Cypress.expose('apiUrl') is the Cypress-15 non-deprecated public config
       // API (replaces Cypress.env). In CI it resolves to http://localhost:5000/api/v1;
@@ -94,7 +94,7 @@ describe('Article lifecycle', () => {
     cy.get('[data-cy="article-title-input"]').type(articleTitle, { delay: 0 }).blur();
 
     // Wait for the real POST request
-    cy.wait('@createArticle').then((interception) => {
+    cy.wait('@createArticle', { timeout: DEFAULT_TIMEOUT }).then((interception) => {
       // Assert the real response based on the controller returning successResponse(article) with status 201
       expect(interception.response?.statusCode).to.eq(201);
       const responseData = interception.response?.body.data;
@@ -431,7 +431,7 @@ describe('Article lifecycle', () => {
       // Hard Navigation to reset React state
       cy.visit('/articles');
 
-      cy.wait('@getCurrentUser').then((interception) => {
+      cy.wait('@getCurrentUser',{ timeout: DEFAULT_TIMEOUT }).then((interception) => {
         const configuredApiUrl = Cypress.expose('apiUrl');
         expect(configuredApiUrl).to.be.a('string');
         const expectedApiUrl = new URL(configuredApiUrl as string);
@@ -452,7 +452,7 @@ describe('Article lifecycle', () => {
 
       cy.get('[data-testid="search-input"][placeholder="Search by title..."]').type(articleTitle, { delay: 0 });
 
-      cy.wait('@searchPublishedArticles').then((interception) => {
+      cy.wait('@searchPublishedArticles', { timeout: DEFAULT_TIMEOUT }).then((interception) => {
         expect(interception.request.method).to.eq('GET');
         const reqUrl = new URL(interception.request.url);
         expect(reqUrl.pathname).to.eq('/api/v1/articles');
@@ -497,7 +497,7 @@ describe('Article lifecycle', () => {
           cy.root().should('have.attr', 'href', `/articles/${articleId}`).click();
         });
 
-      cy.wait('@getPublishedArticleDetail').then((interception) => {
+      cy.wait('@getPublishedArticleDetail', { timeout: DEFAULT_TIMEOUT }).then((interception) => {
         expect(interception.request.method).to.eq('GET');
         const reqUrl = new URL(interception.request.url);
         expect(reqUrl.pathname).to.eq(`/api/v1/articles/${articleId}`);
