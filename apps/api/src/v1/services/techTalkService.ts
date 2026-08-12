@@ -18,11 +18,12 @@ import type {
 import { UserRoleValue } from '@/types/userTypes.js';
 import { HttpStatusCode } from '@utils/httpStatus.js';
 import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT } from '@repo/shared';
+import { MAX_TECH_TALK_SLIDES_SIZE_BYTES } from '@/constants/upload.constants.js';
 
 export class TechTalkService {
   constructor(
     private readonly techTalkRepository: TechTalkRepository = techTalkRepositoryInstance
-  ) {}
+  ) { }
 
   async getTechTalkById(id: string, requesterRole?: string): Promise<TechTalk> {
     const techTalk = await this.techTalkRepository.findById(id);
@@ -131,7 +132,7 @@ export class TechTalkService {
     }
   }
 
-    async updateTechTalk(
+  async updateTechTalk(
     id: string,
     input: UpdateTechTalkInput,
     slidesFile?: Express.Multer.File
@@ -213,9 +214,8 @@ export class TechTalkService {
   }
 
   private validateSlidesFile(file: Express.Multer.File): void {
-    const maxSizeBytes = 20 * 1024 * 1024; // 20MB
-    if (file.size > maxSizeBytes) {
-      throw new AppError('Slides file size cannot exceed 20MB', HttpStatusCode.BAD_REQUEST);
+    if (file.size > MAX_TECH_TALK_SLIDES_SIZE_BYTES) {
+      throw new AppError('Slides file size cannot exceed 8MB', HttpStatusCode.BAD_REQUEST);
     }
 
     const allowedMimeTypes = [

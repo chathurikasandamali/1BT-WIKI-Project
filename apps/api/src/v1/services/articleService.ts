@@ -20,6 +20,7 @@ import type {
 } from '@models/article.types.js';
 import { ArticleStatusValue, ARTICLE_SORT_FIELDS } from '@models/article.types.js';
 import { assertValidSort } from '../utils/queryHelpers.js';
+import { MAX_ARTICLE_IMAGE_SIZE_BYTES, MAX_ARTICLE_IMAGES } from '@/constants/upload.constants.js';
 
 // Derives update-field shapes from the app-level Article interface — no Prisma types cross into the service layer.
 type ArticleUpdateFields = Partial<
@@ -32,12 +33,12 @@ type PublishedArticleRow = Article & {
 };
 
 const validateImages = (images: Express.Multer.File[]) => {
-  if (images.length > 10) {
+  if (images.length > MAX_ARTICLE_IMAGES) {
     throw new AppError('Maximum 10 images per article', 400);
   }
 
   for (const img of images) {
-    if (img.size > 5 * 1024 * 1024) {
+    if (img.size > MAX_ARTICLE_IMAGE_SIZE_BYTES) {
       throw new AppError('Image size cannot exceed 5MB', 400);
     }
     const allowedMimeTypes = [
@@ -118,7 +119,7 @@ export class ArticleService {
     private reviewRepository: ArticleReviewRepository = new ArticleReviewRepository(),
     private attachmentRepository: ArticleAttachmentRepository = new ArticleAttachmentRepository(),
     private userRepository: typeof UserRepository = UserRepository
-  ) {}
+  ) { }
 
   private async uploadArticleImages(
     articleId: string,
