@@ -4,6 +4,7 @@ import { successResponse } from '@models/article.types.js';
 import type { CreateArticleInput } from '@models/article.types.js';
 import type { UserRole } from '@/types/userTypes.js';
 import { AppError } from '@errors/AppError.js';
+import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT } from '@repo/shared';
 
 export class ArticleController {
   constructor(private service: ArticleService = new ArticleService()) {}
@@ -100,8 +101,8 @@ export class ArticleController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const page = parseInt(req.query.page as string, 10) || 1;
-      const limit = parseInt(req.query.limit as string, 10) || 20;
+      const page = parseInt(req.query.page as string, 10) || DEFAULT_PAGE;
+      const limit = parseInt(req.query.limit as string, 10) || DEFAULT_PAGE_LIMIT;
       const search = req.query.search as string | undefined;
       const sort = req.query.sort as string | undefined;
       const order = req.query.order as string | undefined;
@@ -122,8 +123,8 @@ export class ArticleController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const page = Number(req.query.page) || 1;
-      const limit = Number(req.query.limit) || 20;
+      const page = Number(req.query.page) || DEFAULT_PAGE;
+      const limit = Number(req.query.limit) || DEFAULT_PAGE_LIMIT;
       const status = req.query.status as string | undefined;
       const search = req.query.search as string | undefined;
       const sort = req.query.sort as string | undefined;
@@ -194,8 +195,8 @@ export class ArticleController {
   ): Promise<void> => {
     try {
       const authorId = req.user!.userId;
-      const page = parseInt(req.query.page as string, 10) || 1;
-      const limit = parseInt(req.query.limit as string, 10) || 20;
+      const page = parseInt(req.query.page as string, 10) || DEFAULT_PAGE;
+      const limit = parseInt(req.query.limit as string, 10) || DEFAULT_PAGE_LIMIT;
 
       const result = await this.service.listMine(authorId, page, limit);
 

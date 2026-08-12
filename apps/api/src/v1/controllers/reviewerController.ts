@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { ReviewerService } from '@services/reviewerService.js';
+import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT } from '@repo/shared';
 
 export class ReviewerController {
   constructor(private service: ReviewerService = new ReviewerService()) {}
@@ -10,8 +11,8 @@ export class ReviewerController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const page = Number(req.query.page) || 1;
-      const limit = Number(req.query.limit) || 20;
+      const page = Number(req.query.page) || DEFAULT_PAGE;
+      const limit = Number(req.query.limit) || DEFAULT_PAGE_LIMIT;
       const result = await this.service.listPending(page, limit);
       res.status(200).json({
         success: true,

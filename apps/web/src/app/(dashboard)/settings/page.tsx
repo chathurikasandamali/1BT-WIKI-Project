@@ -195,6 +195,7 @@ export default function ProfileSettingsPage() {
       setIsSaving(false);
     }
   };
+  const hasAvatar = avatarUrl || user.avatarUrl;
 
   return (
     <div className="p-8 max-w-5xl mx-auto" ref={containerRef}>
@@ -280,7 +281,7 @@ export default function ProfileSettingsPage() {
                 <div className="mb-8">
                   <div className="flex items-center gap-6">
                     <div className="relative">
-                      {avatarUrl || user.avatarUrl ? (
+                      {hasAvatar ? (
                         /* eslint-disable-next-line @next/next/no-img-element */
                         <img
                           src={isEditing ? avatarUrl : user.avatarUrl || ''}

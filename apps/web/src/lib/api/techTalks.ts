@@ -1,4 +1,5 @@
 import { apiFetch } from '@/lib/api/client';
+import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT, type PaginationParams } from '@repo/shared';
 
 export type TechTalkStatus = 'draft' | 'published' | 'unpublished';
 
@@ -16,6 +17,27 @@ export interface TechTalkDetail {
     deletedAt: string | null;
     createdAt: string;
     updatedAt: string;
+}
+
+export interface TechTalkListItem {
+    id: string;
+    title: string;
+    description: string | null;
+    presenters: string[];
+    tags: string[];
+    eventDate: string;
+    slidesUrl: string | null;
+    youtubeVideoId: string | null;
+    status: TechTalkStatus;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface PublishedTechTalkListResult {
+    techTalks: TechTalkListItem[];
+    total: number;
+    page: number;
+    limit: number;
 }
 
 export interface CreateTechTalkData {
@@ -114,6 +136,45 @@ export async function getTechTalkById(
 
     if (!result.success || !result.data) {
         throw new Error(result.error || 'Failed to load Tech Talk');
+    }
+
+    return result.data;
+}
+
+export type FetchPublishedTechTalksOptions = PaginationParams & RequestInit & {
+    search?: string;
+    sort?: string;
+    order?: string;
+};
+
+export async function fetchPublishedTechTalks({
+    page = DEFAULT_PAGE,
+    limit = DEFAULT_PAGE_LIMIT,
+    search,
+    sort,
+    order,
+    ...init
+}: FetchPublishedTechTalksOptions = {}): Promise<PublishedTechTalkListResult> {
+    const params = new URLSearchParams();
+    params.append('page', String(page));
+    params.append('limit', String(limit));
+    if (search) {
+        params.append('search', search);
+    }
+    if (sort) {
+        params.append('sort', sort);
+    }
+    if (order) {
+        params.append('order', order);
+    }
+
+    const result = await apiFetch<PublishedTechTalkListResult>(
+        `/techTalks?${params.toString()}`,
+        init
+    );
+
+    if (!result.success || !result.data) {
+        throw new Error(result.error || 'Failed to load published Tech Talks');
     }
 
     return result.data;

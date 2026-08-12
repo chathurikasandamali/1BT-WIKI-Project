@@ -25,7 +25,7 @@
       "@models/*": ["src/v1/types/*"],
       "@middleware/*": ["src/middleware/*"],
       "@utils/*": ["src/v1/utils/*"]
-    },
+    }
   },
   "include": ["src/**/*"]
 }
