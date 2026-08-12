@@ -1,5 +1,7 @@
 'use client';
 
+//useState is used to store the Tech Talk data, loading state, and error state.
+//useEffect is used to fetch the Tech Talk details when the page loads or when the Tech Talk ID changes.
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
