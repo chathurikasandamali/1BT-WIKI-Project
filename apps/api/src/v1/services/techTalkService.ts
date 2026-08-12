@@ -17,6 +17,7 @@ import type {
 } from '@models/techTalk.types.js';
 import { UserRoleValue } from '@/types/userTypes.js';
 import { HttpStatusCode } from '@utils/httpStatus.js';
+import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT } from '@repo/shared';
 
 export class TechTalkService {
   constructor(
@@ -46,8 +47,8 @@ export class TechTalkService {
   async listPublished(
     query: TechTalkListQuery
   ): Promise<{ techTalks: TechTalkListItem[] } & PaginationMeta> {
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
+    const page = query.page ?? DEFAULT_PAGE;
+    const limit = query.limit ?? DEFAULT_PAGE_LIMIT;
 
     const { techTalks, total } = await this.techTalkRepository.findPublished({
       ...query,

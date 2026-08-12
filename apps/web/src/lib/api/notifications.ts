@@ -5,6 +5,7 @@
 // each function calls apiFetch and throws on failure, returning typed data.
 
 import { apiFetch } from '@/lib/api/client';
+import { DEFAULT_PAGE_LIMIT } from '@repo/shared';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -53,7 +54,7 @@ export interface PusherNotificationPayload {
  * GET /api/v1/notifications
  */
 export async function getNotifications(
-  limit = 20,
+  limit = DEFAULT_PAGE_LIMIT,
   offset = 0
 ): Promise<Notification[]> {
   const result = await apiFetch<Notification[]>(

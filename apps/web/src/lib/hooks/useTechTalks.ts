@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { listPublished, type TechTalkListItem } from '@/lib/api/techTalks';
+import { fetchPublishedTechTalks, type TechTalkListItem } from '@/lib/api/techTalks';
 
 export function usePublishedTechTalks(
     page = 1,
@@ -25,13 +25,13 @@ export function usePublishedTechTalks(
         setError(null);
 
         try {
-            const result = await listPublished(
+            const result = await fetchPublishedTechTalks({
                 page,
                 limit,
                 search,
                 sort,
                 order
-            );
+            });
 
             setTechTalks(result.techTalks);
             setTotal(result.total);

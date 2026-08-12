@@ -3,6 +3,7 @@ import type { TechTalk } from '@models/techTalk.types.js';
 import { TECH_TALK_SORT_FIELDS } from '@models/techTalk.types.js';
 import { buildSearchFilter, buildSortOrder } from '@utils/queryHelpers.js';
 import type { TechTalkListQuery } from '@models/techTalk.types.js';
+import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT } from '@repo/shared';
 
 export class TechTalkRepository {
   async findPublished(
@@ -25,8 +26,8 @@ export class TechTalkRepository {
       prisma.techTalk.findMany({
         where,
         orderBy,
-        skip: ((page ?? 1) - 1) * (limit ?? 20),
-        take: limit ?? 20,
+        skip: ((page ?? DEFAULT_PAGE) - 1) * (limit ?? DEFAULT_PAGE_LIMIT),
+        take: limit ?? DEFAULT_PAGE_LIMIT,
       }),
       prisma.techTalk.count({ where }),
     ]);

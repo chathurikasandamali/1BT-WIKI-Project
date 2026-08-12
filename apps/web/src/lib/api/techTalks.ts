@@ -1,4 +1,5 @@
 import { apiFetch } from '@/lib/api/client';
+import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT, type PaginationParams } from '@repo/shared';
 
 export type TechTalkStatus = 'draft' | 'published' | 'unpublished';
 
@@ -30,6 +31,13 @@ export interface TechTalkListItem {
     status: TechTalkStatus;
     createdAt: string;
     updatedAt: string;
+}
+
+export interface PublishedTechTalkListResult {
+    techTalks: TechTalkListItem[];
+    total: number;
+    page: number;
+    limit: number;
 }
 
 export interface CreateTechTalkData {
@@ -133,13 +141,20 @@ export async function getTechTalkById(
     return result.data;
 }
 
-export async function listPublished(
-    page = 1,
-    limit = 20,
-    search?: string,
-    sort?: string,
-    order?: string
-): Promise<{ techTalks: TechTalkListItem[]; total: number; page: number; limit: number }> {
+export type FetchPublishedTechTalksOptions = PaginationParams & RequestInit & {
+    search?: string;
+    sort?: string;
+    order?: string;
+};
+
+export async function fetchPublishedTechTalks({
+    page = DEFAULT_PAGE,
+    limit = DEFAULT_PAGE_LIMIT,
+    search,
+    sort,
+    order,
+    ...init
+}: FetchPublishedTechTalksOptions = {}): Promise<PublishedTechTalkListResult> {
     const params = new URLSearchParams();
     params.append('page', String(page));
     params.append('limit', String(limit));
@@ -153,12 +168,13 @@ export async function listPublished(
         params.append('order', order);
     }
 
-    const result = await apiFetch<{ techTalks: TechTalkListItem[]; total: number; page: number; limit: number }>(
-        `/techTalks?${params.toString()}`
+    const result = await apiFetch<PublishedTechTalkListResult>(
+        `/techTalks?${params.toString()}`,
+        init
     );
 
     if (!result.success || !result.data) {
-        throw new Error(result.error || 'Failed to load Tech Talks');
+        throw new Error(result.error || 'Failed to load published Tech Talks');
     }
 
     return result.data;

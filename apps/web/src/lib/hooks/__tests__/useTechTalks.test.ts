@@ -1,12 +1,12 @@
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { usePublishedTechTalks } from '../useTechTalks';
-import { listPublished } from '@/lib/api/techTalks';
+import { fetchPublishedTechTalks } from '@/lib/api/techTalks';
 
 jest.mock('@/lib/api/techTalks', () => ({
-  listPublished: jest.fn(),
+  fetchPublishedTechTalks: jest.fn(),
 }));
 
-const mockListPublished = listPublished as jest.Mock;
+const mockFetchPublishedTechTalks = fetchPublishedTechTalks as jest.Mock;
 
 const MOCK_TALK = {
   id: 'talk-1',
@@ -36,7 +36,7 @@ describe('usePublishedTechTalks', () => {
 
   // ─── 1 & 4 & 5 ────────────────────────────────────────────────────────────
   it('fetches published tech talks on initial render and populates techTalks + total', async () => {
-    mockListPublished.mockResolvedValue(MOCK_PAGE);
+    mockFetchPublishedTechTalks.mockResolvedValue(MOCK_PAGE);
 
     const { result } = renderHook(() => usePublishedTechTalks(1, 20));
 
@@ -48,8 +48,8 @@ describe('usePublishedTechTalks', () => {
   });
 
   // ─── 2 & 3 ────────────────────────────────────────────────────────────────
-  it('passes page, limit, search, sort and order to listPublished', async () => {
-    mockListPublished.mockResolvedValue({
+  it('passes page, limit, search, sort and order to fetchPublishedTechTalks', async () => {
+    mockFetchPublishedTechTalks.mockResolvedValue({
       techTalks: [],
       total: 0,
       page: 2,
@@ -63,18 +63,18 @@ describe('usePublishedTechTalks', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     // At least one call must match the exact signature
-    expect(mockListPublished).toHaveBeenCalledWith(
-      2,
-      10,
-      'react',
-      'eventDate',
-      'desc'
-    );
+    expect(mockFetchPublishedTechTalks).toHaveBeenCalledWith({
+      page: 2,
+      limit: 10,
+      search: 'react',
+      sort: 'eventDate',
+      order: 'desc'
+    });
   });
 
   // ─── 6 ────────────────────────────────────────────────────────────────────
   it('starts in loading state and clears it after the fetch resolves', async () => {
-    mockListPublished.mockResolvedValue(MOCK_PAGE);
+    mockFetchPublishedTechTalks.mockResolvedValue(MOCK_PAGE);
 
     const { result } = renderHook(() => usePublishedTechTalks(1, 20));
 
@@ -85,7 +85,7 @@ describe('usePublishedTechTalks', () => {
 
   // ─── 7 ────────────────────────────────────────────────────────────────────
   it('stores API errors in the error field', async () => {
-    mockListPublished.mockRejectedValue(new Error('Network error'));
+    mockFetchPublishedTechTalks.mockRejectedValue(new Error('Network error'));
 
     const { result } = renderHook(() => usePublishedTechTalks(1, 20));
 
@@ -98,14 +98,14 @@ describe('usePublishedTechTalks', () => {
 
   // ─── 8 ────────────────────────────────────────────────────────────────────
   it('refetch() calls the same fetch implementation and refreshes data', async () => {
-    mockListPublished.mockResolvedValue({ techTalks: [], total: 0, page: 1, limit: 20 });
+    mockFetchPublishedTechTalks.mockResolvedValue({ techTalks: [], total: 0, page: 1, limit: 20 });
 
     const { result } = renderHook(() => usePublishedTechTalks(1, 20));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     // New data available on the next call
-    mockListPublished.mockResolvedValue(MOCK_PAGE);
+    mockFetchPublishedTechTalks.mockResolvedValue(MOCK_PAGE);
 
     await act(async () => {
       await result.current.refetch();
@@ -114,12 +114,12 @@ describe('usePublishedTechTalks', () => {
     expect(result.current.techTalks).toEqual([MOCK_TALK]);
     expect(result.current.total).toBe(1);
     // At least two calls: initial + refetch
-    expect(mockListPublished.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(mockFetchPublishedTechTalks.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 
   // ─── 9 ────────────────────────────────────────────────────────────────────
   it('re-fetches when page changes', async () => {
-    mockListPublished.mockResolvedValue({ techTalks: [], total: 0, page: 1, limit: 20 });
+    mockFetchPublishedTechTalks.mockResolvedValue({ techTalks: [], total: 0, page: 1, limit: 20 });
 
     const { rerender, result } = renderHook(
       ({ page }: { page: number }) => usePublishedTechTalks(page, 20),
@@ -127,18 +127,18 @@ describe('usePublishedTechTalks', () => {
     );
 
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(mockListPublished).toHaveBeenCalledWith(1, 20, undefined, undefined, undefined);
+    expect(mockFetchPublishedTechTalks).toHaveBeenCalledWith({ page: 1, limit: 20, search: undefined, sort: undefined, order: undefined });
 
-    mockListPublished.mockClear();
+    mockFetchPublishedTechTalks.mockClear();
 
     rerender({ page: 2 });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(mockListPublished).toHaveBeenCalledWith(2, 20, undefined, undefined, undefined);
+    expect(mockFetchPublishedTechTalks).toHaveBeenCalledWith({ page: 2, limit: 20, search: undefined, sort: undefined, order: undefined });
   });
 
   it('re-fetches when limit changes', async () => {
-    mockListPublished.mockResolvedValue({ techTalks: [], total: 0, page: 1, limit: 20 });
+    mockFetchPublishedTechTalks.mockResolvedValue({ techTalks: [], total: 0, page: 1, limit: 20 });
 
     const { rerender, result } = renderHook(
       ({ limit }: { limit: number }) => usePublishedTechTalks(1, limit),
@@ -146,16 +146,16 @@ describe('usePublishedTechTalks', () => {
     );
 
     await waitFor(() => expect(result.current.loading).toBe(false));
-    mockListPublished.mockClear();
+    mockFetchPublishedTechTalks.mockClear();
 
     rerender({ limit: 10 });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(mockListPublished).toHaveBeenCalledWith(1, 10, undefined, undefined, undefined);
+    expect(mockFetchPublishedTechTalks).toHaveBeenCalledWith({ page: 1, limit: 10, search: undefined, sort: undefined, order: undefined });
   });
 
   it('re-fetches when search changes', async () => {
-    mockListPublished.mockResolvedValue({ techTalks: [], total: 0, page: 1, limit: 20 });
+    mockFetchPublishedTechTalks.mockResolvedValue({ techTalks: [], total: 0, page: 1, limit: 20 });
 
     const { rerender, result } = renderHook(
       ({ search }: { search?: string }) => usePublishedTechTalks(1, 20, search),
@@ -163,16 +163,16 @@ describe('usePublishedTechTalks', () => {
     );
 
     await waitFor(() => expect(result.current.loading).toBe(false));
-    mockListPublished.mockClear();
+    mockFetchPublishedTechTalks.mockClear();
 
     rerender({ search: 'React' });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(mockListPublished).toHaveBeenCalledWith(1, 20, 'React', undefined, undefined);
+    expect(mockFetchPublishedTechTalks).toHaveBeenCalledWith({ page: 1, limit: 20, search: 'React', sort: undefined, order: undefined });
   });
 
   it('re-fetches when sort changes', async () => {
-    mockListPublished.mockResolvedValue({ techTalks: [], total: 0, page: 1, limit: 20 });
+    mockFetchPublishedTechTalks.mockResolvedValue({ techTalks: [], total: 0, page: 1, limit: 20 });
 
     const { rerender, result } = renderHook(
       ({ sort }: { sort?: string }) => usePublishedTechTalks(1, 20, undefined, sort),
@@ -180,16 +180,16 @@ describe('usePublishedTechTalks', () => {
     );
 
     await waitFor(() => expect(result.current.loading).toBe(false));
-    mockListPublished.mockClear();
+    mockFetchPublishedTechTalks.mockClear();
 
     rerender({ sort: 'title' });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(mockListPublished).toHaveBeenCalledWith(1, 20, undefined, 'title', undefined);
+    expect(mockFetchPublishedTechTalks).toHaveBeenCalledWith({ page: 1, limit: 20, search: undefined, sort: 'title', order: undefined });
   });
 
   it('re-fetches when order changes', async () => {
-    mockListPublished.mockResolvedValue({ techTalks: [], total: 0, page: 1, limit: 20 });
+    mockFetchPublishedTechTalks.mockResolvedValue({ techTalks: [], total: 0, page: 1, limit: 20 });
 
     const { rerender, result } = renderHook(
       ({ order }: { order?: string }) =>
@@ -198,11 +198,11 @@ describe('usePublishedTechTalks', () => {
     );
 
     await waitFor(() => expect(result.current.loading).toBe(false));
-    mockListPublished.mockClear();
+    mockFetchPublishedTechTalks.mockClear();
 
     rerender({ order: 'asc' });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(mockListPublished).toHaveBeenCalledWith(1, 20, undefined, 'eventDate', 'asc');
+    expect(mockFetchPublishedTechTalks).toHaveBeenCalledWith({ page: 1, limit: 20, search: undefined, sort: 'eventDate', order: 'asc' });
   });
 });
