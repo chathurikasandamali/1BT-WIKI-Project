@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import type { Editor } from '@tiptap/react';
 
 const mockApiFetch = jest.fn();
@@ -11,6 +11,7 @@ jest.mock('@/lib/api/client', () => ({
 import {
     EditorDraftProvider,
     useEditorDraft,
+    type ArticleAttachment,
 } from '../EditorDraftContext';
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -302,7 +303,7 @@ describe('EditorDraftContext', () => {
         it('correctly merges returned attachments without duplicates', async () => {
             const initialArticleWithAttachment = {
                 ...defaultInitialArticle,
-                attachments: [{ id: 'att-1' } as any]
+                attachments: [{ id: 'att-1' } as unknown as ArticleAttachment]
             };
             mockApiFetch.mockResolvedValueOnce({
                 success: true,
@@ -680,7 +681,7 @@ describe('EditorDraftContext', () => {
     describe('Request locking / concurrency', () => {
         it('serializes overlapping requests', async () => {
             // Delay responses to force overlap
-            let resolveFirst: (v: any) => void;
+            let resolveFirst: (v: unknown) => void;
             const promiseFirst = new Promise(r => { resolveFirst = r; });
             
             mockApiFetch

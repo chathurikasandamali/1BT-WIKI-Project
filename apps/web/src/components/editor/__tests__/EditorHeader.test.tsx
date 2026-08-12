@@ -16,7 +16,7 @@ jest.mock('next/navigation', () => ({
 
 const mockSaveDraft = jest.fn();
 const mockSubmitForReview = jest.fn();
-let mockContextState: any = {};
+let mockContextState: Record<string, unknown> = {};
 
 jest.mock('@/components/editor/EditorDraftContext', () => ({
   useEditorDraft: () => ({

@@ -16,7 +16,7 @@ jest.mock('gsap', () => ({
 }));
 
 jest.mock('@gsap/react', () => ({
-  useGSAP: (cb: any) => cb(),
+  useGSAP: (cb: () => void) => cb(),
 }));
 
 describe('ImageEmbedModal', () => {

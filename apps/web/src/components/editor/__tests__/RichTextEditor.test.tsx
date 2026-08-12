@@ -84,7 +84,7 @@ describe('RichTextEditor', () => {
     // Find the X button inside the tag element.
     // We have one tag "React". The X icon is an svg in a button next to it.
     // The closest button next to 'React' text.
-    const removeButtons = screen.getAllByRole('button');
+    // Find the X button inside the tag element.
     // The first button in the tags list (which doesn't have text) is the remove button for "React"
     // Since there are many buttons, let's target by finding the parent container or relying on structure
     // actually, let's query the specific button using a class or nearby text

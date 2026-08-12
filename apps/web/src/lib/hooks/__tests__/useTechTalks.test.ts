@@ -159,7 +159,7 @@ describe('usePublishedTechTalks', () => {
 
     const { rerender, result } = renderHook(
       ({ search }: { search?: string }) => usePublishedTechTalks(1, 20, search),
-        { initialProps: { search: undefined } }
+        { initialProps: { search: undefined as string | undefined } }
     );
 
     await waitFor(() => expect(result.current.loading).toBe(false));

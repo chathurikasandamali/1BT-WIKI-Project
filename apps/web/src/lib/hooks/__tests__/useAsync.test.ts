@@ -122,7 +122,7 @@ describe('useAsync', () => {
   });
 
   it('handles AbortError quietly', async () => {
-    const asyncFunction = jest.fn().mockImplementation(async (signal?: AbortSignal) => {
+    const asyncFunction = jest.fn().mockImplementation(async () => {
       throw new DOMException('Aborted', 'AbortError');
     });
     

@@ -31,7 +31,7 @@ describe('useReviewer hooks - edge cases and uncovered branches', () => {
     });
 
     it('respects cancellation on unmount for success path', async () => {
-      let resolvePromise: (val: any) => void;
+      let resolvePromise: (val: unknown) => void;
       const promise = new Promise((res) => { resolvePromise = res; });
       mockListPending.mockReturnValueOnce(promise);
 
@@ -47,7 +47,7 @@ describe('useReviewer hooks - edge cases and uncovered branches', () => {
     });
 
     it('respects cancellation on unmount for error path', async () => {
-      let rejectPromise: (err: any) => void;
+      let rejectPromise: (err: unknown) => void;
       const promise = new Promise((_, rej) => { rejectPromise = rej; });
       mockListPending.mockReturnValueOnce(promise);
 
@@ -74,7 +74,7 @@ describe('useReviewer hooks - edge cases and uncovered branches', () => {
       });
 
       expect(result.current.articles).toHaveLength(1);
-      expect(result.current.articles[0].id).toBe('refetched-1');
+      expect(result.current.articles![0]!.id).toBe('refetched-1');
     });
 
     it('refetch (fetchArticles) handles Error rejection', async () => {
@@ -122,7 +122,7 @@ describe('useReviewer hooks - edge cases and uncovered branches', () => {
     });
 
     it('respects cancellation on unmount for success path', async () => {
-      let resolvePromise: (val: any) => void;
+      let resolvePromise: (val: unknown) => void;
       const promise = new Promise((res) => { resolvePromise = res; });
       mockGetArticleForReview.mockReturnValueOnce(promise);
 
@@ -137,7 +137,7 @@ describe('useReviewer hooks - edge cases and uncovered branches', () => {
     });
 
     it('respects cancellation on unmount for error path', async () => {
-      let rejectPromise: (err: any) => void;
+      let rejectPromise: (err: unknown) => void;
       const promise = new Promise((_, rej) => { rejectPromise = rej; });
       mockGetArticleForReview.mockReturnValueOnce(promise);
 

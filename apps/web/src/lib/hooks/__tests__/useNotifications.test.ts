@@ -23,10 +23,10 @@ const mockMarkNotificationAsRead = markNotificationAsRead as jest.Mock;
 const mockGetPusherClient = getPusherClient as jest.Mock;
 
 describe('useNotifications', () => {
-  let mockChannel: any;
-  let mockPusherClient: any;
-  let channelBindCallbacks: Record<string, Function>;
-  let connectionBindCallbacks: Record<string, Function>;
+  let mockChannel: { bind: jest.Mock; unbind_all: jest.Mock };
+  let mockPusherClient: { subscribe: jest.Mock; unsubscribe: jest.Mock; connection: { bind: jest.Mock } };
+  let channelBindCallbacks: Record<string, (...args: unknown[]) => void>;
+  let connectionBindCallbacks: Record<string, (...args: unknown[]) => void>;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -97,7 +97,7 @@ describe('useNotifications', () => {
 
     // Simulate pusher event
     act(() => {
-      channelBindCallbacks['notification:new']({
+      channelBindCallbacks['notification:new']!({
         id: 'new-notif-1',
         title: 'New Notification',
         message: 'This is new',
@@ -107,12 +107,12 @@ describe('useNotifications', () => {
     });
 
     expect(result.current.notifications).toHaveLength(1);
-    expect(result.current.notifications[0].id).toBe('new-notif-1');
+    expect(result.current.notifications[0]!.id).toBe('new-notif-1');
     expect(result.current.unreadCount).toBe(1);
 
     // Deduplication test
     act(() => {
-      channelBindCallbacks['notification:new']({
+      channelBindCallbacks['notification:update']!({
         id: 'new-notif-1', // same ID
         title: 'New Notification',
         message: 'This is new',
@@ -148,7 +148,7 @@ describe('useNotifications', () => {
     mockGetUnreadCount.mockResolvedValue(5);
     
     await act(async () => {
-      await connectionBindCallbacks['connected']();
+      await connectionBindCallbacks['connected']!();
     });
 
     expect(mockGetUnreadCount).toHaveBeenCalledTimes(2);
@@ -172,7 +172,7 @@ describe('useNotifications', () => {
     });
 
     expect(mockMarkNotificationAsRead).toHaveBeenCalledWith('notif-1');
-    expect(result.current.notifications[0].isRead).toBe(true);
+    expect(result.current.notifications[0]!.isRead).toBe(true);
     expect(result.current.unreadCount).toBe(0);
   });
 
@@ -242,7 +242,7 @@ describe('useNotifications', () => {
     mockGetUnreadCount.mockRejectedValue(new Error('Reconcile failed'));
     
     await act(async () => {
-      await connectionBindCallbacks['connected']();
+      await connectionBindCallbacks['connected']!();
     });
 
     expect(mockGetUnreadCount).toHaveBeenCalledTimes(2); // Should still call it
