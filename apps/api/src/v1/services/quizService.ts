@@ -11,7 +11,6 @@ import {
   type QuizRecord,
 } from '@models/quiz.types.js';
 import settingsService, { type SettingsService } from '@services/settingsService.js';
-import { TechTalk } from '../types/techTalk.types.js';
 
 export interface QuizServiceDeps {
   articleRepository: typeof ArticleRepository;

@@ -51,30 +51,41 @@ const toQuizRecord = (row: PrismaQuiz): QuizRecord => {
   };
 };
 
-/** Persists a quiz with questions as a single JSONB column. */
-const create = async (input: CreateQuizInput): Promise<QuizRecord> => {
-  const result = await prisma.quiz.create({
-    data: {
-      articleId: input.articleId,
-      isFallback: input.isFallback,
-      configSnapshot: input.configSnapshot as Prisma.InputJsonValue,
-      questions: input.questions as unknown as Prisma.InputJsonValue,
-    },
-  });
+export class QuizRepository {
+  /**
+   * Persist a quiz with its questions as a single JSONB column.
+   *
+   * @param input - The article/fallback flag, generated questions, and the
+   * config snapshot that produced them.
+   * @returns The newly created quiz row.
+   */
+  async create(input: CreateQuizInput): Promise<QuizRecord> {
+    const result = await prisma.quiz.create({
+      data: {
+        articleId: input.articleId,
+        isFallback: input.isFallback,
+        configSnapshot: input.configSnapshot as Prisma.InputJsonValue,
+        questions: input.questions as unknown as Prisma.InputJsonValue,
+      },
+    });
 
-  return toQuizRecord(result as unknown as PrismaQuiz);
-};
+    return toQuizRecord(result as unknown as PrismaQuiz);
+  }
 
-/** Latest pre-generated fallback quiz for an article, if any. */
-const findLatestFallbackByArticleId = async (
-  articleId: string
-): Promise<QuizRecord | null> => {
-  const result = await prisma.quiz.findFirst({
-    where: { articleId, isFallback: true },
-    orderBy: { generatedAt: 'desc' },
-  });
+  /**
+   * Fetch the most recently generated fallback quiz for an article, if any.
+   *
+   * @param articleId - The article's UUID.
+   * @returns The latest fallback quiz, or `null` if none has been generated.
+   */
+  async findLatestFallbackByArticleId(articleId: string): Promise<QuizRecord | null> {
+    const result = await prisma.quiz.findFirst({
+      where: { articleId, isFallback: true },
+      orderBy: { generatedAt: 'desc' },
+    });
 
-  return result ? toQuizRecord(result as unknown as PrismaQuiz) : null;
-};
+    return result ? toQuizRecord(result as unknown as PrismaQuiz) : null;
+  }
+}
 
-export default { create, findLatestFallbackByArticleId };
+export default new QuizRepository();
