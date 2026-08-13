@@ -4,6 +4,7 @@
  */
 
 import { AppError } from '@errors/AppError.js';
+import * as z from 'zod';
 
 export type QuestionType = 'mcq' | 'single_choice' | 'multiple_choice';
 
@@ -13,11 +14,7 @@ export const QuestionTypeValue = {
   MultipleChoice: 'multiple_choice',
 } as const satisfies Record<string, QuestionType>;
 
-const QUESTION_TYPES: readonly QuestionType[] = [
-  'mcq',
-  'single_choice',
-  'multiple_choice',
-];
+const QUESTION_TYPES = ['mcq', 'single_choice', 'multiple_choice'] as const;
 
 /** A question as produced by the LLM — includes the answers. Never send to clients. */
 export interface GeneratedQuizQuestion {
@@ -57,65 +54,69 @@ export interface GenerateQuizResponse {
   questions: QuizQuestionPublic[];
 }
 
-const isStringArray = (value: unknown): value is string[] =>
-  Array.isArray(value) && value.every((item) => typeof item === 'string');
+/**
+ * Pure structural shape of a generated question — the single source of truth
+ * for both Gemini's response_format JSON Schema (geminiClient.ts) and the
+ * runtime validation below. Deliberately excludes cross-field business rules
+ * (answer-count-per-type, index bounds), which plain JSON Schema can't express.
+ */
+export const quizQuestionShape = z.object({
+  question: z.string(),
+  type: z.enum(QUESTION_TYPES),
+  options: z.array(z.string()).min(2),
+  correctIndexes: z.array(z.number().int().nonnegative()).min(1),
+  explanation: z.string().optional(),
+});
 
-const isIndexArray = (value: unknown, optionCount: number): value is number[] =>
-  Array.isArray(value) &&
-  value.length > 0 &&
-  value.every(
-    (item) =>
-      typeof item === 'number' &&
-      Number.isInteger(item) &&
-      item >= 0 &&
-      item < optionCount
-  );
-
-const parseQuestion = (raw: unknown, index: number): GeneratedQuizQuestion => {
-  if (typeof raw !== 'object' || raw === null) {
-    throw new AppError(`Generated question ${index + 1} is not an object`, 502);
+// LLMs drift between the canonical array shape ("correctIndexes": [2]) and a
+// single-answer shape ("correctIndex": 2) — tolerate both before validating.
+const withCorrectIndexFallback = (raw: unknown): unknown => {
+  if (typeof raw === 'object' && raw !== null && !Array.isArray(raw)) {
+    const candidate = raw as Record<string, unknown>;
+    if (candidate.correctIndexes === undefined && typeof candidate.correctIndex === 'number') {
+      return { ...candidate, correctIndexes: [candidate.correctIndex] };
+    }
   }
-
-  const candidate = raw as Record<string, unknown>;
-  const { question, type, options, explanation } = candidate;
-  // Tolerate the single-answer contract shape ("correctIndex": 2) as well as
-  // the canonical array shape ("correctIndexes": [2]) — LLMs drift between them.
-  const rawIndexes =
-    candidate.correctIndexes ??
-    (typeof candidate.correctIndex === 'number'
-      ? [candidate.correctIndex]
-      : undefined);
-
-  if (typeof question !== 'string' || question.trim().length === 0) {
-    throw new AppError(`Generated question ${index + 1} has no question text`, 502);
-  }
-  if (typeof type !== 'string' || !QUESTION_TYPES.includes(type as QuestionType)) {
-    throw new AppError(`Generated question ${index + 1} has invalid type`, 502);
-  }
-  if (!isStringArray(options) || options.length < 2) {
-    throw new AppError(`Generated question ${index + 1} has invalid options`, 502);
-  }
-  if (!isIndexArray(rawIndexes, options.length)) {
-    throw new AppError(
-      `Generated question ${index + 1} has invalid correct answer indexes`,
-      502
-    );
-  }
-  if (type !== QuestionTypeValue.MultipleChoice && rawIndexes.length !== 1) {
-    throw new AppError(
-      `Generated question ${index + 1} must have exactly one correct answer`,
-      502
-    );
-  }
-
-  return {
-    question: question.trim(),
-    type: type as QuestionType,
-    options,
-    correctIndexes: [...new Set(rawIndexes)].sort((a, b) => a - b),
-    explanation: typeof explanation === 'string' ? explanation : '',
-  };
+  return raw;
 };
+
+const quizQuestionSchema = z
+  .preprocess(withCorrectIndexFallback, quizQuestionShape)
+  .superRefine((question, ctx) => {
+    if (question.question.trim().length === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'has no question text',
+        path: ['question'],
+      });
+    }
+    if (question.correctIndexes.some((index) => index >= question.options.length)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'has an out-of-range correct answer index',
+        path: ['correctIndexes'],
+      });
+    }
+    if (
+      question.type !== QuestionTypeValue.MultipleChoice &&
+      question.correctIndexes.length !== 1
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'must have exactly one correct answer',
+        path: ['correctIndexes'],
+      });
+    }
+  })
+  .transform(
+    (question): GeneratedQuizQuestion => ({
+      question: question.question.trim(),
+      type: question.type,
+      options: question.options,
+      correctIndexes: [...new Set(question.correctIndexes)].sort((a, b) => a - b),
+      explanation: question.explanation ?? '',
+    })
+  );
 
 /**
  * Validates and normalizes the raw LLM output into typed questions.
@@ -158,16 +159,25 @@ export const parseGeneratedQuestions = (
     throw new AppError('Generated quiz payload contains no questions', 502);
   }
 
-  const questions = payload.map(parseQuestion);
-
-  if (questions.length !== expectedCount) {
+  const result = z.array(quizQuestionSchema).safeParse(payload);
+  if (!result.success) {
+    const issue = result.error.issues[0];
+    const questionNumber =
+      typeof issue?.path[0] === 'number' ? issue.path[0] + 1 : payload.length;
     throw new AppError(
-      `Expected ${expectedCount} generated questions but received ${questions.length}`,
+      `Generated question ${questionNumber} ${issue?.message ?? 'is invalid'}`,
       502
     );
   }
 
-  return questions;
+  if (result.data.length !== expectedCount) {
+    throw new AppError(
+      `Expected ${expectedCount} generated questions but received ${result.data.length}`,
+      502
+    );
+  }
+
+  return result.data;
 };
 
 /** Strips correct answers before a quiz leaves the API. */
