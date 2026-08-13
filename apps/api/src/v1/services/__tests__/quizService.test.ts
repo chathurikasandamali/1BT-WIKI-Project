@@ -36,16 +36,18 @@ const makeGeneratedQuestions = (): GeneratedQuizQuestion[] =>
     explanation: `Explanation ${i + 1}`,
   }));
 
-const makeStoredQuiz = (isFallback: boolean) => ({
+const makeStoredQuiz = (isFallback: boolean, overrides: Record<string, unknown> = {}) => ({
   id: 'quiz-1',
   articleId,
   isFallback,
   generatedAt: new Date(),
+  configSnapshot: { promptVersion: '1.0.0' },
   questions: makeGeneratedQuestions().map((q, i) => ({
     ...q,
     id: `question-${i}`,
     quizId: 'quiz-1',
   })),
+  ...overrides,
 });
 
 const makeMockArticleRepo = () => ({
@@ -55,6 +57,10 @@ const makeMockArticleRepo = () => ({
 const makeMockQuizRepo = () => ({
   create: jest.fn<() => Promise<unknown>>(),
   findLatestFallbackByArticleId: jest.fn<() => Promise<unknown>>(),
+  findFocusAspectsByArticleId: jest.fn<() => Promise<string | null>>().mockResolvedValue(null),
+  upsertFocusAspects: jest.fn<() => Promise<string>>(),
+  findById: jest.fn<() => Promise<unknown>>(),
+  update: jest.fn<() => Promise<unknown>>(),
 });
 
 const makeMockGemini = () => ({
@@ -150,6 +156,32 @@ describe('QuizService.generateQuiz', () => {
     }
   });
 
+  it('should pass the author-saved focus aspects to the LLM provider when set', async () => {
+    mockArticleRepo.findById.mockResolvedValue(publishedArticle);
+    mockQuizRepo.findFocusAspectsByArticleId.mockResolvedValue('Focus on branching');
+    mockGemini.generateQuestions.mockResolvedValue(makeGeneratedQuestions());
+    mockQuizRepo.create.mockResolvedValue(makeStoredQuiz(false));
+
+    await service.generateQuiz(articleId);
+
+    expect(mockGemini.generateQuestions).toHaveBeenCalledWith(
+      expect.objectContaining({ focusAspects: 'Focus on branching' })
+    );
+  });
+
+  it('should not pass a focusAspects key when none is saved', async () => {
+    mockArticleRepo.findById.mockResolvedValue(publishedArticle);
+    mockGemini.generateQuestions.mockResolvedValue(makeGeneratedQuestions());
+    mockQuizRepo.create.mockResolvedValue(makeStoredQuiz(false));
+
+    await service.generateQuiz(articleId);
+
+    const [callArgs] = mockGemini.generateQuestions.mock.calls[0] as unknown as [
+      Record<string, unknown>
+    ];
+    expect(callArgs).not.toHaveProperty('focusAspects');
+  });
+
   it('should serve the stored fallback quiz when the Gemini output is invalid', async () => {
     mockArticleRepo.findById.mockResolvedValue(publishedArticle);
     mockGemini.generateQuestions.mockRejectedValue(
@@ -238,5 +270,232 @@ describe('QuizService.pregenerateFallbackQuiz', () => {
       service.pregenerateFallbackQuiz(articleId)
     ).resolves.toBeUndefined();
     expect(mockQuizRepo.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('QuizService.setFocusAspects', () => {
+  let mockArticleRepo: ReturnType<typeof makeMockArticleRepo>;
+  let mockQuizRepo: ReturnType<typeof makeMockQuizRepo>;
+  let mockGemini: ReturnType<typeof makeMockGemini>;
+  let mockSettingsService: ReturnType<typeof makeMockSettingsService>;
+  let service: QuizService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockArticleRepo = makeMockArticleRepo();
+    mockQuizRepo = makeMockQuizRepo();
+    mockGemini = makeMockGemini();
+    mockSettingsService = makeMockSettingsService();
+    service = createQuizService({
+      articleRepository: mockArticleRepo as unknown as QuizServiceDeps['articleRepository'],
+      quizRepository: mockQuizRepo as unknown as QuizServiceDeps['quizRepository'],
+      llmProvider: mockGemini as unknown as QuizServiceDeps['llmProvider'],
+      settingsService: mockSettingsService as unknown as QuizServiceDeps['settingsService'],
+    });
+  });
+
+  it('should throw AppError 404 if the article is not found', async () => {
+    mockArticleRepo.findById.mockResolvedValue(null);
+
+    await expect(
+      service.setFocusAspects(articleId, 'author-1', 'Focus on branching')
+    ).rejects.toThrow(new AppError('Article not found', 404));
+  });
+
+  it('should throw AppError 403 if the requester is not the author', async () => {
+    mockArticleRepo.findById.mockResolvedValue(publishedArticle);
+
+    await expect(
+      service.setFocusAspects(articleId, 'someone-else', 'Focus on branching')
+    ).rejects.toThrow(
+      new AppError('Only the author can set quiz focus aspects for this article', 403)
+    );
+    expect(mockQuizRepo.upsertFocusAspects).not.toHaveBeenCalled();
+  });
+
+  it('should throw AppError 400 for empty aspects', async () => {
+    mockArticleRepo.findById.mockResolvedValue(publishedArticle);
+
+    await expect(
+      service.setFocusAspects(articleId, 'author-1', '   ')
+    ).rejects.toThrow(AppError);
+    expect(mockQuizRepo.upsertFocusAspects).not.toHaveBeenCalled();
+  });
+
+  it('should throw AppError 400 for aspects longer than 1000 characters', async () => {
+    mockArticleRepo.findById.mockResolvedValue(publishedArticle);
+
+    await expect(
+      service.setFocusAspects(articleId, 'author-1', 'a'.repeat(1001))
+    ).rejects.toThrow(AppError);
+    expect(mockQuizRepo.upsertFocusAspects).not.toHaveBeenCalled();
+  });
+
+  it('should trim and persist valid aspects for the author', async () => {
+    mockArticleRepo.findById.mockResolvedValue(publishedArticle);
+    mockQuizRepo.upsertFocusAspects.mockResolvedValue('Focus on branching');
+
+    const result = await service.setFocusAspects(
+      articleId,
+      'author-1',
+      '  Focus on branching  '
+    );
+
+    expect(mockQuizRepo.upsertFocusAspects).toHaveBeenCalledWith(
+      articleId,
+      'Focus on branching',
+      'author-1'
+    );
+    expect(result).toBe('Focus on branching');
+  });
+});
+
+describe('QuizService.getFocusAspects', () => {
+  let mockArticleRepo: ReturnType<typeof makeMockArticleRepo>;
+  let mockQuizRepo: ReturnType<typeof makeMockQuizRepo>;
+  let mockGemini: ReturnType<typeof makeMockGemini>;
+  let mockSettingsService: ReturnType<typeof makeMockSettingsService>;
+  let service: QuizService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockArticleRepo = makeMockArticleRepo();
+    mockQuizRepo = makeMockQuizRepo();
+    mockGemini = makeMockGemini();
+    mockSettingsService = makeMockSettingsService();
+    service = createQuizService({
+      articleRepository: mockArticleRepo as unknown as QuizServiceDeps['articleRepository'],
+      quizRepository: mockQuizRepo as unknown as QuizServiceDeps['quizRepository'],
+      llmProvider: mockGemini as unknown as QuizServiceDeps['llmProvider'],
+      settingsService: mockSettingsService as unknown as QuizServiceDeps['settingsService'],
+    });
+  });
+
+  it('should throw AppError 404 if the article is not found', async () => {
+    mockArticleRepo.findById.mockResolvedValue(null);
+
+    await expect(
+      service.getFocusAspects(articleId, 'author-1')
+    ).rejects.toThrow(new AppError('Article not found', 404));
+  });
+
+  it('should throw AppError 403 if the requester is not the author', async () => {
+    mockArticleRepo.findById.mockResolvedValue(publishedArticle);
+
+    await expect(
+      service.getFocusAspects(articleId, 'someone-else')
+    ).rejects.toThrow(
+      new AppError('Only the author can view quiz focus aspects for this article', 403)
+    );
+    expect(mockQuizRepo.findFocusAspectsByArticleId).not.toHaveBeenCalled();
+  });
+
+  it('should return null when no aspects have been saved', async () => {
+    mockArticleRepo.findById.mockResolvedValue(publishedArticle);
+    mockQuizRepo.findFocusAspectsByArticleId.mockResolvedValue(null);
+
+    await expect(service.getFocusAspects(articleId, 'author-1')).resolves.toBeNull();
+  });
+
+  it('should return the saved aspects for the author', async () => {
+    mockArticleRepo.findById.mockResolvedValue(publishedArticle);
+    mockQuizRepo.findFocusAspectsByArticleId.mockResolvedValue('Focus on branching');
+
+    await expect(service.getFocusAspects(articleId, 'author-1')).resolves.toBe(
+      'Focus on branching'
+    );
+  });
+});
+
+describe('QuizService.saveAsFallback', () => {
+  let mockArticleRepo: ReturnType<typeof makeMockArticleRepo>;
+  let mockQuizRepo: ReturnType<typeof makeMockQuizRepo>;
+  let mockGemini: ReturnType<typeof makeMockGemini>;
+  let mockSettingsService: ReturnType<typeof makeMockSettingsService>;
+  let service: QuizService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockArticleRepo = makeMockArticleRepo();
+    mockQuizRepo = makeMockQuizRepo();
+    mockGemini = makeMockGemini();
+    mockSettingsService = makeMockSettingsService();
+    service = createQuizService({
+      articleRepository: mockArticleRepo as unknown as QuizServiceDeps['articleRepository'],
+      quizRepository: mockQuizRepo as unknown as QuizServiceDeps['quizRepository'],
+      llmProvider: mockGemini as unknown as QuizServiceDeps['llmProvider'],
+      settingsService: mockSettingsService as unknown as QuizServiceDeps['settingsService'],
+    });
+  });
+
+  it('should throw AppError 404 when the quiz does not exist', async () => {
+    mockQuizRepo.findById.mockResolvedValue(null);
+
+    await expect(
+      service.saveAsFallback(articleId, 'quiz-1', 'author-1')
+    ).rejects.toThrow(new AppError('Quiz not found for this article', 404));
+  });
+
+  it('should throw AppError 404 when the quiz belongs to a different article', async () => {
+    mockQuizRepo.findById.mockResolvedValue(makeStoredQuiz(false, { articleId: 'other-article' }));
+
+    await expect(
+      service.saveAsFallback(articleId, 'quiz-1', 'author-1')
+    ).rejects.toThrow(new AppError('Quiz not found for this article', 404));
+  });
+
+  it('should throw AppError 403 when the requester is not the author', async () => {
+    mockQuizRepo.findById.mockResolvedValue(makeStoredQuiz(false));
+    mockArticleRepo.findById.mockResolvedValue(publishedArticle);
+
+    await expect(
+      service.saveAsFallback(articleId, 'quiz-1', 'someone-else')
+    ).rejects.toThrow(
+      new AppError('Only the author can save a fallback quiz for this article', 403)
+    );
+    expect(mockQuizRepo.create).not.toHaveBeenCalled();
+    expect(mockQuizRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('should insert a new fallback quiz when none exists yet', async () => {
+    mockQuizRepo.findById.mockResolvedValue(makeStoredQuiz(false));
+    mockArticleRepo.findById.mockResolvedValue(publishedArticle);
+    mockQuizRepo.findLatestFallbackByArticleId.mockResolvedValue(null);
+    mockQuizRepo.create.mockResolvedValue(makeStoredQuiz(true, { id: 'quiz-2' }));
+
+    const result = await service.saveAsFallback(articleId, 'quiz-1', 'author-1');
+
+    expect(mockQuizRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        articleId,
+        isFallback: true,
+        configSnapshot: expect.objectContaining({ savedFromQuizId: 'quiz-1' }),
+      })
+    );
+    expect(mockQuizRepo.update).not.toHaveBeenCalled();
+    expect(result.isFallback).toBe(true);
+    for (const question of result.questions) {
+      expect(question).not.toHaveProperty('correctIndexes');
+    }
+  });
+
+  it('should overwrite the existing fallback quiz in place when one already exists', async () => {
+    mockQuizRepo.findById.mockResolvedValue(makeStoredQuiz(false));
+    mockArticleRepo.findById.mockResolvedValue(publishedArticle);
+    mockQuizRepo.findLatestFallbackByArticleId.mockResolvedValue(
+      makeStoredQuiz(true, { id: 'existing-fallback' })
+    );
+    mockQuizRepo.update.mockResolvedValue(makeStoredQuiz(true, { id: 'existing-fallback' }));
+
+    const result = await service.saveAsFallback(articleId, 'quiz-1', 'author-1');
+
+    expect(mockQuizRepo.update).toHaveBeenCalledWith(
+      'existing-fallback',
+      expect.objectContaining({
+        configSnapshot: expect.objectContaining({ savedFromQuizId: 'quiz-1' }),
+      })
+    );
+    expect(mockQuizRepo.create).not.toHaveBeenCalled();
+    expect(result.quizId).toBe('existing-fallback');
   });
 });

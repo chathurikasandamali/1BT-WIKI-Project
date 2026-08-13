@@ -45,6 +45,7 @@ export interface QuizRecord {
   isFallback: boolean;
   generatedAt: Date;
   questions: QuizQuestionRecord[];
+  configSnapshot: Record<string, unknown>;
 }
 
 export interface GenerateQuizResponse {
