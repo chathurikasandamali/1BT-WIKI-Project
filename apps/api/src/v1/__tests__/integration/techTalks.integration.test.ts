@@ -3,7 +3,11 @@ import request from 'supertest';
 import { HttpStatusCode } from '@/v1/utils/httpStatus.js';
 
 await jest.unstable_mockModule('@repo/db', () => ({
-  TechTalkStatus: { draft: 'draft', published: 'published', unpublished: 'unpublished' },
+  TechTalkStatus: {
+    draft: 'draft',
+    published: 'published',
+    unpublished: 'unpublished',
+  },
   prisma: {
     techTalk: {
       create: jest.fn(),
@@ -34,14 +38,17 @@ await jest.unstable_mockModule('@middleware/auth.middleware.js', () => ({
         .json({ success: false, error: 'Authentication required' });
     }
   ),
-  requireRole: (allowedRole: string) =>
+  requireRole:
+    (allowedRole: string) =>
     (
       req: import('express').Request,
       res: import('express').Response,
       next: import('express').NextFunction
     ) => {
       if (req.user?.role !== allowedRole) {
-        res.status(HttpStatusCode.FORBIDDEN).json({ success: false, error: 'Access denied' });
+        res
+          .status(HttpStatusCode.FORBIDDEN)
+          .json({ success: false, error: 'Access denied' });
         return;
       }
       next();
@@ -54,13 +61,17 @@ const mockTechTalkRepository = {
   updateStatus: jest.fn<any>().mockResolvedValue({}),
   update: jest.fn<any>().mockResolvedValue({}),
   findPublished: jest.fn<any>().mockResolvedValue({ techTalks: [], total: 0 }),
+  listAll: jest.fn<any>().mockResolvedValue({ techTalks: [], total: 0 }),
+  unpublish: jest.fn<any>().mockResolvedValue({}),
   softDelete: jest.fn<any>().mockResolvedValue({}),
 };
 
 await jest.unstable_mockModule('@repositories/techTalkRepository.js', () => ({
   default: mockTechTalkRepository,
   techTalkRepository: mockTechTalkRepository,
-  TechTalkRepository: jest.fn().mockImplementation(() => mockTechTalkRepository),
+  TechTalkRepository: jest
+    .fn()
+    .mockImplementation(() => mockTechTalkRepository),
 }));
 
 await jest.unstable_mockModule('@v1/lib/b2Client.js', () => ({
@@ -216,26 +227,41 @@ describe('POST /api/v1/techTalks/:id/publish - Integration', () => {
 
     expect(res.status).toBe(HttpStatusCode.BAD_REQUEST);
     expect(res.body.error).toBe(
-      'Cannot publish a Tech Talk with status "published". Only Draft Tech Talks can be published.'
+      'Cannot publish a Tech Talk with status "published". Only Draft or Unpublished Tech Talks can be published.'
     );
   });
 
-  it('returns 400 when tech talk status is unpublished', async () => {
-    mockTechTalkRepository.findById.mockResolvedValue({
-      id: 'tt-1',
+  it('returns 200 for Admin republishing an Unpublished tech talk', async () => {
+    const unpublishedTalk = {
+      id: 'tt-unpub-1',
+      title: 'Unpublished Talk',
       status: 'unpublished',
-    });
+    };
+    const republishedTalk = {
+      ...unpublishedTalk,
+      status: 'published',
+    };
+
+    mockTechTalkRepository.findById.mockResolvedValue(unpublishedTalk);
+    mockTechTalkRepository.updateStatus.mockResolvedValue(republishedTalk);
 
     const res = await request(app)
-      .post(publishPath('tt-1'))
+      .post(publishPath('tt-unpub-1'))
       .set('x-test-user-id', 'admin-1')
       .set('x-test-user-email', 'admin@test.com')
       .set('x-test-user-role', 'Admin');
 
-    expect(res.status).toBe(HttpStatusCode.BAD_REQUEST);
-    expect(res.body.error).toBe(
-      'Cannot publish a Tech Talk with status "unpublished". Only Draft Tech Talks can be published.'
+    expect(res.status).toBe(HttpStatusCode.OK);
+    expect(mockTechTalkRepository.findById).toHaveBeenCalledWith('tt-unpub-1');
+    expect(mockTechTalkRepository.updateStatus).toHaveBeenCalledWith(
+      'tt-unpub-1',
+      'published'
     );
+    expect(res.body).toEqual({
+      success: true,
+      data: republishedTalk,
+      message: 'Tech Talk published successfully',
+    });
   });
 
   it('returns 200 for Admin publishing a Draft tech talk', async () => {
@@ -269,6 +295,128 @@ describe('POST /api/v1/techTalks/:id/publish - Integration', () => {
       data: publishedTalk,
       message: 'Tech Talk published successfully',
     });
+  });
+});
+
+describe('POST /api/v1/techTalks/:id/unpublish - Integration', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  const unpublishPath = (id: string) => `/api/v1/techTalks/${id}/unpublish`;
+
+  it('returns 401 when unauthenticated', async () => {
+    const res = await request(app).post(unpublishPath('tt-1'));
+    expect(res.status).toBe(HttpStatusCode.UNAUTHORIZED);
+  });
+
+  it('returns 403 when authenticated as non-Admin (e.g. Employee)', async () => {
+    const res = await request(app)
+      .post(unpublishPath('tt-1'))
+      .set('x-test-user-id', 'emp-1')
+      .set('x-test-user-email', 'employee@test.com')
+      .set('x-test-user-role', 'Employee');
+
+    expect(res.status).toBe(HttpStatusCode.FORBIDDEN);
+  });
+
+  it('returns 404 when tech talk is not found', async () => {
+    const error = new Error('Record to update not found');
+    (error as any).code = 'P2025';
+    mockTechTalkRepository.unpublish.mockRejectedValue(error);
+
+    const res = await request(app)
+      .post(unpublishPath('non-existent-id'))
+      .set('x-test-user-id', 'admin-1')
+      .set('x-test-user-email', 'admin@test.com')
+      .set('x-test-user-role', 'Admin');
+
+    expect(res.status).toBe(HttpStatusCode.NOT_FOUND);
+    expect(res.body.error).toBe('Tech Talk not found or is not published');
+    expect(mockTechTalkRepository.unpublish).toHaveBeenCalledWith(
+      'non-existent-id'
+    );
+    expect(mockTechTalkRepository.findById).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when tech talk status is a draft (conditional update matches no row)', async () => {
+    const error = new Error('Record to update not found');
+    (error as any).code = 'P2025';
+    mockTechTalkRepository.unpublish.mockRejectedValue(error);
+
+    const res = await request(app)
+      .post(unpublishPath('tt-1'))
+      .set('x-test-user-id', 'admin-1')
+      .set('x-test-user-email', 'admin@test.com')
+      .set('x-test-user-role', 'Admin');
+
+    expect(res.status).toBe(HttpStatusCode.NOT_FOUND);
+    expect(res.body.error).toBe('Tech Talk not found or is not published');
+    expect(mockTechTalkRepository.unpublish).toHaveBeenCalledWith('tt-1');
+    expect(mockTechTalkRepository.findById).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when tech talk is already unpublished (conditional update matches no row)', async () => {
+    const error = new Error('Record to update not found');
+    (error as any).code = 'P2025';
+    mockTechTalkRepository.unpublish.mockRejectedValue(error);
+
+    const res = await request(app)
+      .post(unpublishPath('tt-1'))
+      .set('x-test-user-id', 'admin-1')
+      .set('x-test-user-email', 'admin@test.com')
+      .set('x-test-user-role', 'Admin');
+
+    expect(res.status).toBe(HttpStatusCode.NOT_FOUND);
+    expect(res.body.error).toBe('Tech Talk not found or is not published');
+    expect(mockTechTalkRepository.unpublish).toHaveBeenCalledWith('tt-1');
+    expect(mockTechTalkRepository.findById).not.toHaveBeenCalled();
+  });
+
+  it('returns 200 for Admin unpublishing a Published tech talk, changing only the status', async () => {
+    const publishedTalk = {
+      id: 'tt-pub-1',
+      title: 'Original Title',
+      description: 'Original description',
+      presenters: ['Alice'],
+      tags: ['React'],
+      eventDate: '2026-06-01T10:00:00.000Z',
+      slidesUrl: 'https://example.com/slides.pdf',
+      youtubeVideoId: 'dQw4w9WgXcQ',
+      status: 'published',
+      createdBy: 'admin-1',
+      deletedAt: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    };
+    const unpublishedTalk = { ...publishedTalk, status: 'unpublished' };
+
+    mockTechTalkRepository.unpublish.mockResolvedValue(unpublishedTalk);
+
+    const res = await request(app)
+      .post(unpublishPath('tt-pub-1'))
+      .set('x-test-user-id', 'admin-1')
+      .set('x-test-user-email', 'admin@test.com')
+      .set('x-test-user-role', 'Admin');
+
+    expect(res.status).toBe(HttpStatusCode.OK);
+    expect(mockTechTalkRepository.unpublish).toHaveBeenCalledTimes(1);
+    expect(mockTechTalkRepository.unpublish).toHaveBeenCalledWith('tt-pub-1');
+    expect(mockTechTalkRepository.findById).not.toHaveBeenCalled();
+    expect(mockTechTalkRepository.updateStatus).not.toHaveBeenCalled();
+    expect(res.body).toEqual({
+      success: true,
+      data: unpublishedTalk,
+      message: 'Tech Talk unpublished successfully',
+    });
+    expect(res.body.data.status).toBe('unpublished');
+    // Other fields remain unchanged — only the status should change
+    expect(res.body.data.title).toBe('Original Title');
+    expect(res.body.data.description).toBe('Original description');
+    expect(res.body.data.presenters).toEqual(['Alice']);
+    expect(res.body.data.slidesUrl).toBe('https://example.com/slides.pdf');
+    expect(res.body.data.youtubeVideoId).toBe('dQw4w9WgXcQ');
+    expect(res.body.data.deletedAt).toBeNull();
   });
 });
 
@@ -446,6 +594,148 @@ describe('GET /api/v1/techTalks - Integration', () => {
   });
 });
 
+describe('GET /api/v1/techTalks/listAll - Integration', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  const adminListPath = `/api/v1/techTalks/listAll`;
+
+  it('returns 401 when unauthenticated', async () => {
+    const res = await request(app).get(adminListPath);
+    expect(res.status).toBe(HttpStatusCode.UNAUTHORIZED);
+  });
+
+  it('returns 403 when authenticated as non-Admin (e.g. Employee)', async () => {
+    const res = await request(app)
+      .get(adminListPath)
+      .set('x-test-user-id', 'emp-1')
+      .set('x-test-user-email', 'employee@test.com')
+      .set('x-test-user-role', 'Employee');
+
+    expect(res.status).toBe(HttpStatusCode.FORBIDDEN);
+  });
+
+  it('returns 200 for Admin with draft, published, and unpublished tech talks, applying search/sort/pagination and total count', async () => {
+    const techTalks = [
+      {
+        id: 'tt-draft-1',
+        title: 'Draft Talk',
+        description: null,
+        presenters: ['Charlie'],
+        tags: ['Draft'],
+        eventDate: '2026-10-01T10:00:00.000Z',
+        slidesUrl: null,
+        youtubeVideoId: null,
+        status: 'draft',
+        createdAt: '2026-08-01T00:00:00.000Z',
+        updatedAt: '2026-08-01T00:00:00.000Z',
+      },
+      {
+        id: 'tt-pub-1',
+        title: 'Published Talk',
+        description: null,
+        presenters: ['Alice'],
+        tags: ['React'],
+        eventDate: '2026-09-01T10:00:00.000Z',
+        slidesUrl: null,
+        youtubeVideoId: null,
+        status: 'published',
+        createdAt: '2026-08-01T00:00:00.000Z',
+        updatedAt: '2026-08-01T00:00:00.000Z',
+      },
+      {
+        id: 'tt-unpub-1',
+        title: 'Unpublished Talk',
+        description: null,
+        presenters: ['Bob'],
+        tags: ['Node'],
+        eventDate: '2026-08-01T10:00:00.000Z',
+        slidesUrl: null,
+        youtubeVideoId: null,
+        status: 'unpublished',
+        createdAt: '2026-08-01T00:00:00.000Z',
+        updatedAt: '2026-08-01T00:00:00.000Z',
+      },
+    ];
+
+    mockTechTalkRepository.listAll.mockResolvedValue({
+      techTalks,
+      total: 3,
+    });
+
+    const res = await request(app)
+      .get(
+        `${adminListPath}?search=Talk&sort=eventDate&order=desc&page=1&limit=3`
+      )
+      .set('x-test-user-id', 'admin-1')
+      .set('x-test-user-email', 'admin@test.com')
+      .set('x-test-user-role', 'Admin');
+
+    expect(res.status).toBe(HttpStatusCode.OK);
+    expect(mockTechTalkRepository.listAll).toHaveBeenCalledWith({
+      page: 1,
+      limit: 3,
+      search: 'Talk',
+      sort: 'eventDate',
+      order: 'desc',
+    });
+    expect(res.body).toEqual({
+      success: true,
+      data: {
+        techTalks,
+        total: 3,
+        page: 1,
+        limit: 3,
+      },
+      message: 'Tech Talks retrieved successfully',
+    });
+    expect(
+      res.body.data.techTalks.map((talk: { status: string }) => talk.status)
+    ).toEqual(['draft', 'published', 'unpublished']);
+  });
+
+  it('returns 200 for Admin with an empty list and total 0 when no non-deleted tech talks exist', async () => {
+    mockTechTalkRepository.listAll.mockResolvedValue({
+      techTalks: [],
+      total: 0,
+    });
+
+    const res = await request(app)
+      .get(adminListPath)
+      .set('x-test-user-id', 'admin-1')
+      .set('x-test-user-email', 'admin@test.com')
+      .set('x-test-user-role', 'Admin');
+
+    expect(res.status).toBe(HttpStatusCode.OK);
+    expect(res.body.data).toEqual({
+      techTalks: [],
+      total: 0,
+      page: 1,
+      limit: 20,
+    });
+  });
+
+  it('returns 200 for Admin with an invalid sort field falling back to the default sort (permissive fallback)', async () => {
+    mockTechTalkRepository.listAll.mockResolvedValue({
+      techTalks: [],
+      total: 0,
+    });
+
+    const res = await request(app)
+      .get(`${adminListPath}?sort=invalidField`)
+      .set('x-test-user-id', 'admin-1')
+      .set('x-test-user-email', 'admin@test.com')
+      .set('x-test-user-role', 'Admin');
+
+    expect(res.status).toBe(HttpStatusCode.OK);
+    expect(res.body.success).toBe(true);
+    expect(mockTechTalkRepository.listAll).toHaveBeenCalledWith(
+      expect.objectContaining({ sort: 'invalidField' })
+    );
+  });
+});
+
 describe('GET /api/v1/techTalks/:id - Integration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -501,7 +791,9 @@ describe('GET /api/v1/techTalks/:id - Integration', () => {
       data: publishedTalk,
       message: 'Tech Talk retrieved successfully',
     });
-    expect(res.body.data.slidesUrl).toBe('https://storage.example.com/slides/tt-pub-1.pdf');
+    expect(res.body.data.slidesUrl).toBe(
+      'https://storage.example.com/slides/tt-pub-1.pdf'
+    );
     expect(res.body.data.youtubeVideoId).toBe('dQw4w9WgXcQ');
   });
 
@@ -590,7 +882,9 @@ describe('DELETE /api/v1/techTalks/:id - Integration', () => {
 
     expect(res.status).toBe(HttpStatusCode.NOT_FOUND);
     expect(res.body.error).toBe('Tech Talk not found');
-    expect(mockTechTalkRepository.softDelete).toHaveBeenCalledWith('non-existent-id');
+    expect(mockTechTalkRepository.softDelete).toHaveBeenCalledWith(
+      'non-existent-id'
+    );
   });
 
   it('returns 200 and soft-deletes the tech talk for Admin (regardless of draft/published status)', async () => {

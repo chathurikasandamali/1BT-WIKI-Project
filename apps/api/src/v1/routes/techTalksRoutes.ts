@@ -8,9 +8,10 @@ import { UserRoleValue } from '@/types/userTypes.js';
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 const techTalkController = new TechTalkController();
-const { create, publish, update, listPublished, getById, deleteTechTalk } = techTalkController;
+const { create, publish, unpublish, update, listPublished, listAll, getById, deleteTechTalk } = techTalkController;
 
 router.get('/', authenticate, listPublished);
+router.get('/listAll', authenticate, requireRole(UserRoleValue.Admin), listAll);
 router.get('/:id', authenticate, getById);
 
 router.post(
@@ -22,6 +23,8 @@ router.post(
 );
 
 router.post('/:id/publish', authenticate, requireRole(UserRoleValue.Admin), publish);
+
+router.post('/:id/unpublish', authenticate, requireRole(UserRoleValue.Admin), unpublish);
 
 router.patch('/:id', authenticate, requireRole(UserRoleValue.Admin), upload.single('slides'), update);
 

@@ -13,12 +13,14 @@ jest.unstable_mockModule('@services/techTalkService.js', () => ({
 const { TechTalkController } = await import('../techTalkController.js');
 
 const makeMockService = (): jest.Mocked<
-  Pick<TechTalkService, 'createTechTalk' | 'publishTechTalk' | 'updateTechTalk' | 'listPublished' | 'getTechTalkById' | 'deleteTechTalk'>
+  Pick<TechTalkService, 'createTechTalk' | 'publishTechTalk' | 'unpublishTechTalk' | 'updateTechTalk' | 'listPublished' | 'listAll' | 'getTechTalkById' | 'deleteTechTalk'>
 > => ({
   createTechTalk: jest.fn(),
   publishTechTalk: jest.fn(),
+  unpublishTechTalk: jest.fn(),
   updateTechTalk: jest.fn(),
   listPublished: jest.fn(),
+  listAll: jest.fn(),
   getTechTalkById: jest.fn(),
   deleteTechTalk: jest.fn(),
 });
@@ -98,6 +100,67 @@ describe('TechTalkController', () => {
     });
   });
 
+  describe('listAll', () => {
+    it('should parse query parameters and call service.listAll', async () => {
+      req.query = {
+        page: '2',
+        limit: '10',
+        search: 'Architecture',
+        sort: 'title',
+        order: 'asc',
+      };
+      const mockResult = {
+        techTalks: [],
+        total: 0,
+        page: 2,
+        limit: 10,
+      };
+      mockService.listAll.mockResolvedValue(mockResult as any);
+
+      await controller.listAll(req as Request, res as Response, next);
+
+      expect(mockService.listAll).toHaveBeenCalledWith({
+        page: 2,
+        limit: 10,
+        search: 'Architecture',
+        sort: 'title',
+        order: 'asc',
+      });
+      expect(res.status).toHaveBeenCalledWith(HttpStatusCode.OK);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockResult,
+        message: 'Tech Talks retrieved successfully',
+      });
+    });
+
+    it('should fallback to default page 1 and limit 20 when non-numeric query params provided', async () => {
+      req.query = {};
+      const mockResult = { techTalks: [], total: 0, page: 1, limit: 20 };
+      mockService.listAll.mockResolvedValue(mockResult as any);
+
+      await controller.listAll(req as Request, res as Response, next);
+
+      expect(mockService.listAll).toHaveBeenCalledWith({
+        page: 1,
+        limit: 20,
+        search: undefined,
+        sort: undefined,
+        order: undefined,
+      });
+    });
+
+    it('should forward service errors to next', async () => {
+      req.query = { sort: 'invalid' };
+      const error = new AppError('Invalid sort field', HttpStatusCode.BAD_REQUEST);
+      mockService.listAll.mockRejectedValue(error);
+
+      await controller.listAll(req as Request, res as Response, next);
+
+      expect(next).toHaveBeenCalledWith(error);
+    });
+  });
+
   describe('create', () => {
     it('should throw AppError if data field is missing', async () => {
       req.body = {};
@@ -162,6 +225,34 @@ describe('TechTalkController', () => {
       mockService.publishTechTalk.mockRejectedValue(error);
 
       await controller.publish(req as Request, res as Response, next);
+
+      expect(next).toHaveBeenCalledWith(error);
+    });
+  });
+
+  describe('unpublish', () => {
+    it('should call service.unpublishTechTalk with id and return 200 on success', async () => {
+      req.params = { id: 'tt-123' };
+      const unpublishedTalk = { id: 'tt-123', status: 'unpublished', title: 'Tech Talk 1' };
+      mockService.unpublishTechTalk.mockResolvedValue(unpublishedTalk as any);
+
+      await controller.unpublish(req as Request, res as Response, next);
+
+      expect(mockService.unpublishTechTalk).toHaveBeenCalledWith('tt-123');
+      expect(res.status).toHaveBeenCalledWith(HttpStatusCode.OK);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: unpublishedTalk,
+        message: 'Tech Talk unpublished successfully',
+      });
+    });
+
+    it('should forward errors to next', async () => {
+      req.params = { id: 'tt-invalid' };
+      const error = new AppError('Tech Talk not found', HttpStatusCode.NOT_FOUND);
+      mockService.unpublishTechTalk.mockRejectedValue(error);
+
+      await controller.unpublish(req as Request, res as Response, next);
 
       expect(next).toHaveBeenCalledWith(error);
     });
