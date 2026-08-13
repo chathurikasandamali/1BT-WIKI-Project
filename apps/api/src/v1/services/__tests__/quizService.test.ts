@@ -1,37 +1,15 @@
 import { jest } from '@jest/globals';
 import { AppError } from '@errors/AppError.js';
+import type { GeneratedQuizQuestion } from '@models/quiz.types.js';
 import {
-  DEFAULT_QUESTION_COUNT,
-  type GeneratedQuizQuestion,
-} from '@models/quiz.types.js';
-
-jest.unstable_mockModule('@repositories/articleRepository.js', () => ({
-  default: {
-    findById: jest.fn(),
-  },
-}));
-
-jest.unstable_mockModule('@repositories/quizRepository.js', () => ({
-  default: {
-    create: jest.fn(),
-    findLatestFallbackByArticleId: jest.fn(),
-  },
-}));
-
-jest.unstable_mockModule('@/v1/lib/geminiClient.js', () => ({
-  default: {
-    generateQuestions: jest.fn(),
-  },
-}));
-
-const { default: QuizService } = await import('../quizService.js');
-const { default: ArticleRepository } =
-  await import('@repositories/articleRepository.js');
-const { default: QuizRepository } =
-  await import('@repositories/quizRepository.js');
-const { default: GeminiClient } = await import('@/v1/lib/geminiClient.js');
+  createQuizService,
+  type QuizService,
+  type QuizServiceDeps,
+} from '../quizService.js';
 
 const articleId = 'article-123';
+
+const quizConfig = { questionCount: 10, optionsPerQuestion: 4 };
 
 const publishedArticle = {
   id: articleId,
@@ -50,7 +28,7 @@ const publishedArticle = {
 };
 
 const makeGeneratedQuestions = (): GeneratedQuizQuestion[] =>
-  Array.from({ length: DEFAULT_QUESTION_COUNT }, (_, i) => ({
+  Array.from({ length: quizConfig.questionCount }, (_, i) => ({
     question: `Question ${i + 1}?`,
     type: i === 0 ? 'multiple_choice' : 'mcq',
     options: ['A', 'B', 'C', 'D'],
@@ -70,16 +48,50 @@ const makeStoredQuiz = (isFallback: boolean) => ({
   })),
 });
 
-beforeEach(() => {
-  jest.clearAllMocks();
-  jest.spyOn(console, 'error').mockImplementation(() => undefined);
+const makeMockArticleRepo = () => ({
+  findById: jest.fn<() => Promise<unknown>>(),
+});
+
+const makeMockQuizRepo = () => ({
+  create: jest.fn<() => Promise<unknown>>(),
+  findLatestFallbackByArticleId: jest.fn<() => Promise<unknown>>(),
+});
+
+const makeMockGemini = () => ({
+  generateQuestions: jest.fn<() => Promise<unknown>>(),
+});
+
+const makeMockSettingsService = () => ({
+  getQuizConfig: jest.fn<() => Promise<unknown>>(),
 });
 
 describe('QuizService.generateQuiz', () => {
-  it('should throw AppError 404 if article is not found', async () => {
-    (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(null);
+  let mockArticleRepo: ReturnType<typeof makeMockArticleRepo>;
+  let mockQuizRepo: ReturnType<typeof makeMockQuizRepo>;
+  let mockGemini: ReturnType<typeof makeMockGemini>;
+  let mockSettingsService: ReturnType<typeof makeMockSettingsService>;
+  let service: QuizService;
 
-    await expect(QuizService.generateQuiz(articleId)).rejects.toThrow(
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    mockArticleRepo = makeMockArticleRepo();
+    mockQuizRepo = makeMockQuizRepo();
+    mockGemini = makeMockGemini();
+    mockSettingsService = makeMockSettingsService();
+    mockSettingsService.getQuizConfig.mockResolvedValue(quizConfig);
+    service = createQuizService({
+      articleRepository: mockArticleRepo as unknown as QuizServiceDeps['articleRepository'],
+      quizRepository: mockQuizRepo as unknown as QuizServiceDeps['quizRepository'],
+      geminiClient: mockGemini as unknown as QuizServiceDeps['geminiClient'],
+      settingsService: mockSettingsService as unknown as QuizServiceDeps['settingsService'],
+    });
+  });
+
+  it('should throw AppError 404 if article is not found', async () => {
+    mockArticleRepo.findById.mockResolvedValue(null);
+
+    await expect(service.generateQuiz(articleId)).rejects.toThrow(
       new AppError('Article not found', 404)
     );
   });
@@ -87,56 +99,51 @@ describe('QuizService.generateQuiz', () => {
   it.each(['Draft', 'Pending', 'Unpublished'])(
     'should throw AppError 400 if article status is %s',
     async (status) => {
-      (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue({
+      mockArticleRepo.findById.mockResolvedValue({
         ...publishedArticle,
         status,
       });
 
-      await expect(QuizService.generateQuiz(articleId)).rejects.toThrow(
+      await expect(service.generateQuiz(articleId)).rejects.toThrow(
         new AppError('Quiz can only be generated for Published articles', 400)
       );
     }
   );
 
   it('should throw AppError 422 if the article body has no text', async () => {
-    (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue({
+    mockArticleRepo.findById.mockResolvedValue({
       ...publishedArticle,
       body: { type: 'doc', content: [] },
     });
 
-    await expect(QuizService.generateQuiz(articleId)).rejects.toThrow(
+    await expect(service.generateQuiz(articleId)).rejects.toThrow(
       new AppError('Article has no content to generate a quiz from', 422)
     );
-    expect(GeminiClient.generateQuestions).not.toHaveBeenCalled();
-    expect(QuizRepository.findLatestFallbackByArticleId).not.toHaveBeenCalled();
+    expect(mockGemini.generateQuestions).not.toHaveBeenCalled();
+    expect(mockQuizRepo.findLatestFallbackByArticleId).not.toHaveBeenCalled();
   });
 
   it('should generate, persist, and return questions without correct answers', async () => {
-    (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(
-      publishedArticle
-    );
-    (GeminiClient.generateQuestions as jest.Mock<any>).mockResolvedValue(
-      makeGeneratedQuestions()
-    );
-    (QuizRepository.create as jest.Mock<any>).mockResolvedValue(
-      makeStoredQuiz(false)
-    );
+    mockArticleRepo.findById.mockResolvedValue(publishedArticle);
+    mockGemini.generateQuestions.mockResolvedValue(makeGeneratedQuestions());
+    mockQuizRepo.create.mockResolvedValue(makeStoredQuiz(false));
 
-    const result = await QuizService.generateQuiz(articleId);
+    const result = await service.generateQuiz(articleId);
 
-    expect(GeminiClient.generateQuestions).toHaveBeenCalledWith(
+    expect(mockGemini.generateQuestions).toHaveBeenCalledWith(
       expect.objectContaining({
         articleTitle: 'Test Article',
-        questionCount: DEFAULT_QUESTION_COUNT,
+        questionCount: quizConfig.questionCount,
+        optionsPerQuestion: quizConfig.optionsPerQuestion,
       })
     );
-    expect(QuizRepository.create).toHaveBeenCalledWith(
+    expect(mockQuizRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({ articleId, isFallback: false })
     );
 
     expect(result.quizId).toBe('quiz-1');
     expect(result.isFallback).toBe(false);
-    expect(result.questions).toHaveLength(DEFAULT_QUESTION_COUNT);
+    expect(result.questions).toHaveLength(quizConfig.questionCount);
     for (const question of result.questions) {
       expect(question).not.toHaveProperty('correctIndexes');
       expect(question).not.toHaveProperty('explanation');
@@ -144,86 +151,90 @@ describe('QuizService.generateQuiz', () => {
   });
 
   it('should serve the stored fallback quiz when the Gemini output is invalid', async () => {
-    (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(
-      publishedArticle
+    mockArticleRepo.findById.mockResolvedValue(publishedArticle);
+    mockGemini.generateQuestions.mockResolvedValue('this is not json {');
+    mockQuizRepo.findLatestFallbackByArticleId.mockResolvedValue(
+      makeStoredQuiz(true)
     );
-    (GeminiClient.generateQuestions as jest.Mock<any>).mockResolvedValue(
-      'this is not json {'
-    );
-    (
-      QuizRepository.findLatestFallbackByArticleId as jest.Mock<any>
-    ).mockResolvedValue(makeStoredQuiz(true));
 
-    const result = await QuizService.generateQuiz(articleId);
+    const result = await service.generateQuiz(articleId);
 
     expect(result.isFallback).toBe(true);
-    expect(result.questions).toHaveLength(DEFAULT_QUESTION_COUNT);
-    expect(QuizRepository.create).not.toHaveBeenCalled();
+    expect(result.questions).toHaveLength(quizConfig.questionCount);
+    expect(mockQuizRepo.create).not.toHaveBeenCalled();
   });
 
   it('should serve the stored fallback quiz when the Gemini call fails', async () => {
-    (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(
-      publishedArticle
-    );
-    (GeminiClient.generateQuestions as jest.Mock<any>).mockRejectedValue(
+    mockArticleRepo.findById.mockResolvedValue(publishedArticle);
+    mockGemini.generateQuestions.mockRejectedValue(
       new AppError('Failed to reach Gemini', 502)
     );
-    (
-      QuizRepository.findLatestFallbackByArticleId as jest.Mock<any>
-    ).mockResolvedValue(makeStoredQuiz(true));
+    mockQuizRepo.findLatestFallbackByArticleId.mockResolvedValue(
+      makeStoredQuiz(true)
+    );
 
-    const result = await QuizService.generateQuiz(articleId);
+    const result = await service.generateQuiz(articleId);
 
     expect(result.isFallback).toBe(true);
   });
 
   it('should rethrow the Gemini error when no fallback quiz exists', async () => {
-    (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(
-      publishedArticle
-    );
-    (GeminiClient.generateQuestions as jest.Mock<any>).mockRejectedValue(
+    mockArticleRepo.findById.mockResolvedValue(publishedArticle);
+    mockGemini.generateQuestions.mockRejectedValue(
       new AppError('Gemini request timed out', 504)
     );
-    (
-      QuizRepository.findLatestFallbackByArticleId as jest.Mock<any>
-    ).mockResolvedValue(null);
+    mockQuizRepo.findLatestFallbackByArticleId.mockResolvedValue(null);
 
-    await expect(QuizService.generateQuiz(articleId)).rejects.toThrow(
+    await expect(service.generateQuiz(articleId)).rejects.toThrow(
       new AppError('Gemini request timed out', 504)
     );
   });
 });
 
 describe('QuizService.pregenerateFallbackQuiz', () => {
+  let mockArticleRepo: ReturnType<typeof makeMockArticleRepo>;
+  let mockQuizRepo: ReturnType<typeof makeMockQuizRepo>;
+  let mockGemini: ReturnType<typeof makeMockGemini>;
+  let mockSettingsService: ReturnType<typeof makeMockSettingsService>;
+  let service: QuizService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    mockArticleRepo = makeMockArticleRepo();
+    mockQuizRepo = makeMockQuizRepo();
+    mockGemini = makeMockGemini();
+    mockSettingsService = makeMockSettingsService();
+    mockSettingsService.getQuizConfig.mockResolvedValue(quizConfig);
+    service = createQuizService({
+      articleRepository: mockArticleRepo as unknown as QuizServiceDeps['articleRepository'],
+      quizRepository: mockQuizRepo as unknown as QuizServiceDeps['quizRepository'],
+      geminiClient: mockGemini as unknown as QuizServiceDeps['geminiClient'],
+      settingsService: mockSettingsService as unknown as QuizServiceDeps['settingsService'],
+    });
+  });
+
   it('should persist a fallback quiz for a published article', async () => {
-    (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(
-      publishedArticle
-    );
-    (GeminiClient.generateQuestions as jest.Mock<any>).mockResolvedValue(
-      makeGeneratedQuestions()
-    );
-    (QuizRepository.create as jest.Mock<any>).mockResolvedValue(
-      makeStoredQuiz(true)
-    );
+    mockArticleRepo.findById.mockResolvedValue(publishedArticle);
+    mockGemini.generateQuestions.mockResolvedValue(makeGeneratedQuestions());
+    mockQuizRepo.create.mockResolvedValue(makeStoredQuiz(true));
 
-    await QuizService.pregenerateFallbackQuiz(articleId);
+    await service.pregenerateFallbackQuiz(articleId);
 
-    expect(QuizRepository.create).toHaveBeenCalledWith(
+    expect(mockQuizRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({ articleId, isFallback: true })
     );
   });
 
   it('should swallow errors instead of throwing', async () => {
-    (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(
-      publishedArticle
-    );
-    (GeminiClient.generateQuestions as jest.Mock<any>).mockRejectedValue(
+    mockArticleRepo.findById.mockResolvedValue(publishedArticle);
+    mockGemini.generateQuestions.mockRejectedValue(
       new AppError('Failed to reach Gemini', 502)
     );
 
     await expect(
-      QuizService.pregenerateFallbackQuiz(articleId)
+      service.pregenerateFallbackQuiz(articleId)
     ).resolves.toBeUndefined();
-    expect(QuizRepository.create).not.toHaveBeenCalled();
+    expect(mockQuizRepo.create).not.toHaveBeenCalled();
   });
 });

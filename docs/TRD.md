@@ -190,10 +190,10 @@ NEON_AUTH_BASE_URL=https://ep-green-breeze-aohz9nmm.neonauth.c-2.ap-southeast-1.
 | `article_comments` | `id, article_id (FK), user_id (FK), body, created_at, updated_at, deleted_at`                                                                                           |
 | `tech_talks`       | `id, created_by (FK admin), title, presenters, tags, description, event_date, slides_url, video_url, status (draft/published), hidden, created_at, updated_at`          |
 | `notifications`    | `id, recipient_id (FK user), type, message, related_entity_id, read_at, created_at`                                                                                     |
-| `quizzes`          | `id, article_id (FK), config_snapshot (jsonb), generated_at`                                                                                                            |
-| `quiz_questions`   | `id, quiz_id (FK), question, options (jsonb), correct_answer, type`                                                                                                     |
+| `quizzes`          | `id, article_id (FK), is_fallback, config_snapshot (jsonb), questions (jsonb array of { question, type, options, correctIndexes, explanation }), generated_at`         |
 | `quiz_attempts`    | `id, quiz_id (FK), user_id (FK), answers (jsonb), score, correct_count, total_count, attempted_at`                                                                      |
-| `quiz_config`      | singleton/admin-configurable: `enabled, questions_per_quiz, difficulty, question_types, daily_limit_per_user`                                                           |
+
+> As implemented, `quizzes`/`quiz_questions` were built as a single denormalized `quizzes` table (questions stored as jsonb) instead of two tables — see README.md § AI Quiz Generation. `quiz_config` was implemented as the `quiz` category of the generic `app_settings` key-value table (see `apps/api/src/v1/types/settings.types.ts`), not as its own table. `quiz_attempts` remains future/out-of-scope work.
 
 Article status machine (owned by Malindu):
 

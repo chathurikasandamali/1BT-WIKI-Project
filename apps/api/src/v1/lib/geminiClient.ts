@@ -8,16 +8,15 @@
 import { AppError } from '@errors/AppError.js';
 import {
   buildGeneratorPrompt,
-  buildValidatorPrompt,
-  PROMPT_VERSION,
   type QuizPromptInput,
 } from '@v1/lib/prompts/quizPrompts.js';
-import { DEFAULT_QUESTION_COUNT } from '@models/quiz.types.js';
 import { GoogleGenAI } from "@google/genai";
 import * as z from "zod";
 
-
+// Infra constants — deliberately kept as code constants, not admin settings.
+// questionCount / optionsPerQuestion come from the admin quiz_config setting.
 const DEFAULT_TIMEOUT_MS = 60_000;
+const GEMINI_MODEL = 'gemini-3.5-flash';
 
 const quizJsonQuestionSchema: z.JSONType = {
   type: "object",
@@ -53,8 +52,6 @@ const quizSchema = z.fromJSONSchema(quizJsonSchema);
 
 
 const generateQuestions = async (input: QuizPromptInput): Promise<unknown> => {
-  const questionCount = input.questionCount ?? DEFAULT_QUESTION_COUNT;
-
   const controller = new AbortController();
   const ai = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY,
@@ -69,8 +66,8 @@ const generateQuestions = async (input: QuizPromptInput): Promise<unknown> => {
 
   try {
     const interaction = await ai.interactions.create({
-      model: "gemini-3.5-flash",
-      input: buildGeneratorPrompt({ ...input, questionCount }),
+      model: GEMINI_MODEL,
+      input: buildGeneratorPrompt(input),
       stream: false,
       response_format: {
         schema: quizJsonSchema,

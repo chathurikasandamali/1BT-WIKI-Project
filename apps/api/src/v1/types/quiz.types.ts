@@ -19,12 +19,6 @@ const QUESTION_TYPES: readonly QuestionType[] = [
   'multiple_choice',
 ];
 
-/** Number of questions generated per quiz until admin quiz_config exists. */
-export const DEFAULT_QUESTION_COUNT = 10;
-
-/** Options rendered per question. */
-export const OPTIONS_PER_QUESTION = 4;
-
 /** A question as produced by the LLM — includes the answers. Never send to clients. */
 export interface GeneratedQuizQuestion {
   question: string;
@@ -128,11 +122,14 @@ const parseQuestion = (raw: unknown, index: number): GeneratedQuizQuestion => {
  * Accepts a JSON array, an object with a `questions` array, or a JSON string
  * (optionally wrapped in markdown code fences).
  *
+ * `expectedCount` is the admin-configurable question count — callers must pass
+ * the effective quiz config value, never a hardcoded default.
+ *
  * @throws AppError(502) when the payload does not satisfy the quiz contract.
  */
 export const parseGeneratedQuestions = (
   raw: unknown,
-  expectedCount: number = DEFAULT_QUESTION_COUNT
+  expectedCount: number
 ): GeneratedQuizQuestion[] => {
   let payload: unknown = raw;
 

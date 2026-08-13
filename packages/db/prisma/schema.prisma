@@ -157,35 +157,23 @@ model verification {
   @@schema("neon_auth")
 }
 
-enum ArticleStatus {
-  Draft
-  Pending
-  Published
-  Unpublished
-
-  @@map("article_status")
-  @@schema("public")
-}
-
 model article {
-  id        String        @id @default(uuid()) @db.Uuid
-  title     String        @db.VarChar(500)
-  body      Json          @default("{}")
-  status    ArticleStatus @map("status")
-  authorId  String        @map("author_id") @db.Uuid
-  views     Int           @default(0)
-  tags      String[]      @default([]) @map("article_tags")
-  deletedAt DateTime?     @map("deleted_at") @db.Timestamptz(6)
-  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
-
+  id          String              @id @default(uuid()) @db.Uuid
+  title       String              @db.VarChar(500)
+  body        Json                @default("{}")
+  status      ArticleStatus       @map("status")
+  authorId    String              @map("author_id") @db.Uuid
+  views       Int                 @default(0)
+  tags        String[]            @default([]) @map("article_tags")
+  deletedAt   DateTime?           @map("deleted_at") @db.Timestamptz(6)
+  createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
   attachments articleAttachment[]
   comments    comment[]
   likes       like[]
   reviews     articleReview[]
+  user        user                @relation(fields: [authorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   quizzes     quiz[]
-
-  user user @relation(fields: [authorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([authorId], map: "idx_articles_author_id")
   @@index([deletedAt], map: "idx_articles_deleted_at")
@@ -224,9 +212,8 @@ model comment {
   deletedAt DateTime? @map("deleted_at") @db.Timestamp(6)
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
-
-  article article @relation(fields: [articleId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  user    user    @relation(fields: [createdBy], references: [id], onUpdate: NoAction)
+  article   article   @relation(fields: [articleId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user      user      @relation(fields: [createdBy], references: [id], onUpdate: NoAction)
 
   @@index([articleId, createdAt], map: "idx_article_comments_active", where: raw("(deleted_at IS NULL)"))
   @@index([articleId], map: "idx_article_comments_article_id")
@@ -240,14 +227,120 @@ model like {
   articleId String   @map("article_id") @db.Uuid
   userId    String   @map("user_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-
-  article article @relation(fields: [articleId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  user    user    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  article   article  @relation(fields: [articleId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([articleId, userId], map: "uq_article_likes")
   @@index([articleId], map: "idx_article_likes_article_id")
   @@index([userId], map: "idx_article_likes_user_id")
   @@map("article_likes")
+  @@schema("public")
+}
+
+model notification {
+  id            String                    @id @default(uuid()) @db.Uuid
+  recipientId   String                    @map("recipient_id") @db.Uuid
+  title         String                    @map("notification_title") @db.VarChar(255)
+  referenceType NotificationReferenceType @map("notification_reference_type")
+  referenceId   String                    @map("reference_id") @db.Uuid
+  type          NotificationType          @map("notification_type")
+  message       String
+  isRead        Boolean                   @default(false) @map("is_read")
+  readAt        DateTime?                 @map("read_at") @db.Timestamp(6)
+  deletedAt     DateTime?                 @map("deleted_at") @db.Timestamp(6)
+  createdAt     DateTime                  @default(now()) @map("created_at") @db.Timestamp(6)
+  user          user                      @relation(fields: [recipientId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([recipientId, isRead], map: "idx_notifications_is_read", where: raw("(is_read = false)"))
+  @@index([recipientId], map: "idx_notifications_recipient_id")
+  @@index([referenceType, referenceId], map: "idx_notifications_reference")
+  @@map("notifications")
+  @@schema("public")
+}
+
+model techTalk {
+  id             String         @id @default(uuid()) @db.Uuid
+  title          String         @db.VarChar(500)
+  description    String?
+  presenters     String[]       @default([])
+  eventDate      DateTime       @map("event_date") @db.Timestamp(6)
+  slidesUrl      String?        @map("slides_url")
+  status         TechTalkStatus @default(draft) @map("tech_talks_status")
+  createdBy      String         @map("created_by") @db.Uuid
+  deletedAt      DateTime?      @map("deleted_at") @db.Timestamp(6)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamp(6)
+  tags           String[]       @default([])
+  youtubeVideoId String?        @map("youtube_video_id")
+  user           user           @relation(fields: [createdBy], references: [id], onUpdate: NoAction)
+
+  @@index([createdBy], map: "idx_tech_talks_created_by")
+  @@index([deletedAt], map: "idx_tech_talks_deleted_at")
+  @@index([eventDate(sort: Desc)], map: "idx_tech_talks_event_date")
+  @@index([eventDate(sort: Desc)], map: "idx_tech_talks_published", where: raw("((tech_talks_status = 'published'::tech_talk_status) AND (deleted_at IS NULL))"))
+  @@index([status], map: "idx_tech_talks_status")
+  @@map("tech_talks")
+  @@schema("public")
+}
+
+model quiz {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  articleId      String   @map("article_id") @db.Uuid
+  isFallback     Boolean  @default(false) @map("is_fallback")
+  configSnapshot Json     @default("{}") @map("config_snapshot")
+  questions      Json     @default("[]")
+  generatedAt    DateTime @default(now()) @map("generated_at") @db.Timestamptz(6)
+  article        article  @relation(fields: [articleId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([articleId], map: "idx_quizzes_article_id")
+  @@index([articleId, isFallback], map: "idx_quizzes_fallback")
+  @@map("quizzes")
+  @@schema("public")
+}
+
+model articleReview {
+  id            String       @id @default(uuid()) @db.Uuid
+  articleId     String       @map("article_id") @db.Uuid
+  reviewerId    String       @map("reviewer_id") @db.Uuid
+  feedback      String?      @map("review_feedback")
+  status        ReviewStatus @map("review_status")
+  createdBy     String       @map("created_by") @db.Uuid
+  deletedAt     DateTime?    @map("deleted_at") @db.Timestamp(6)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamp(6)
+  article       article      @relation(fields: [articleId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  createdByUser user         @relation("article_reviews_created_byTouser", fields: [createdBy], references: [id], onUpdate: NoAction)
+  reviewerUser  user         @relation("article_reviews_reviewer_idTouser", fields: [reviewerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([articleId], map: "idx_article_reviews_article_id")
+  @@index([reviewerId], map: "idx_article_reviews_reviewer_id")
+  @@map("article_reviews")
+  @@schema("public")
+}
+
+/// Key-value store for runtime-admin-configurable settings, grouped by category.
+/// The `category` column is a plain string; the allow-list is enforced in the
+/// application layer (apps/api/src/v1/types/settings.types.ts) so new
+/// categories never require a DB migration.
+model appSettings {
+  key       String   @id
+  category  String   @map("category")
+  value     Json     @default("{}")
+  updatedBy String?  @map("updated_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([category], map: "idx_app_settings_category")
+  @@map("app_settings")
+  @@schema("public")
+}
+
+enum ArticleStatus {
+  Draft
+  Pending
+  Published
+  Unpublished
+
+  @@map("article_status")
   @@schema("public")
 }
 
@@ -271,28 +364,6 @@ enum NotificationType {
   @@schema("public")
 }
 
-model notification {
-  id            String                    @id @default(uuid()) @db.Uuid
-  recipientId   String                    @map("recipient_id") @db.Uuid
-  title         String                    @map("notification_title") @db.VarChar(255)
-  referenceType NotificationReferenceType @map("notification_reference_type")
-  referenceId   String                    @map("reference_id") @db.Uuid
-  type          NotificationType          @map("notification_type")
-  message       String
-  isRead        Boolean                   @default(false) @map("is_read")
-  readAt        DateTime?                 @map("read_at") @db.Timestamp(6)
-  deletedAt     DateTime?                 @map("deleted_at") @db.Timestamp(6)
-  createdAt     DateTime                  @default(now()) @map("created_at") @db.Timestamp(6)
-
-  user user @relation(fields: [recipientId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@index([recipientId, isRead], map: "idx_notifications_is_read", where: raw("(is_read = false)"))
-  @@index([recipientId], map: "idx_notifications_recipient_id")
-  @@index([referenceType, referenceId], map: "idx_notifications_reference")
-  @@map("notifications")
-  @@schema("public")
-}
-
 enum TechTalkStatus {
   draft
   published
@@ -302,74 +373,11 @@ enum TechTalkStatus {
   @@schema("public")
 }
 
-model techTalk {
-  id               String         @id @default(uuid()) @db.Uuid
-  title            String         @db.VarChar(500)
-  description      String?
-  presenters       String[]       @default([])
-  tags             String[]       @default([])
-  eventDate        DateTime       @map("event_date") @db.Timestamp(6)
-  slidesUrl        String?        @map("slides_url")
-  youtubeVideoId   String?        @map("youtube_video_id")
-  status           TechTalkStatus @default(draft) @map("tech_talks_status")
-  createdBy        String         @map("created_by") @db.Uuid
-  deletedAt        DateTime?      @map("deleted_at") @db.Timestamp(6)
-  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamp(6)
-
-  user user @relation(fields: [createdBy], references: [id], onUpdate: NoAction)
-
-  @@index([createdBy], map: "idx_tech_talks_created_by")
-  @@index([deletedAt], map: "idx_tech_talks_deleted_at")
-  @@index([eventDate(sort: Desc)], map: "idx_tech_talks_event_date")
-  @@index([eventDate(sort: Desc)], map: "idx_tech_talks_published", where: raw("((tech_talks_status = 'published'::tech_talk_status) AND (deleted_at IS NULL))"))
-  @@index([status], map: "idx_tech_talks_status")
-  @@map("tech_talks")
-  @@schema("public")
-}
-
 enum ReviewStatus {
   Pending
   Approved
   Rejected
 
   @@map("review_status")
-  @@schema("public")
-}
-
-model quiz {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  articleId      String   @map("article_id") @db.Uuid
-  isFallback     Boolean  @default(false) @map("is_fallback")
-  configSnapshot Json     @default("{}") @map("config_snapshot")
-  questions      Json     @default("[]")
-  generatedAt    DateTime @default(now()) @map("generated_at") @db.Timestamptz(6)
-
-  article article @relation(fields: [articleId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@index([articleId], map: "idx_quizzes_article_id")
-  @@index([articleId, isFallback], map: "idx_quizzes_fallback")
-  @@map("quizzes")
-  @@schema("public")
-}
-
-model articleReview {
-  id         String       @id @default(uuid()) @db.Uuid
-  articleId  String       @map("article_id") @db.Uuid
-  reviewerId String       @map("reviewer_id") @db.Uuid
-  feedback   String?      @map("review_feedback")
-  status     ReviewStatus @map("review_status")
-  createdBy  String       @map("created_by") @db.Uuid
-  deletedAt  DateTime?    @map("deleted_at") @db.Timestamp(6)
-  createdAt  DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt  DateTime     @updatedAt @map("updated_at") @db.Timestamp(6)
-
-  article       article @relation(fields: [articleId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  createdByUser user    @relation("article_reviews_created_byTouser", fields: [createdBy], references: [id], onUpdate: NoAction)
-  reviewerUser  user    @relation("article_reviews_reviewer_idTouser", fields: [reviewerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@index([articleId], map: "idx_article_reviews_article_id")
-  @@index([reviewerId], map: "idx_article_reviews_reviewer_id")
-  @@map("article_reviews")
   @@schema("public")
 }

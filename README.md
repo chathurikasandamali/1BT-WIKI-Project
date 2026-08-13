@@ -208,7 +208,7 @@ quizRoutes → quizController → quizService → geminiClient (Gemini API)
                                   │               │
                         articleRepository   quizPrompts (versioned)
                                   │
-                            quizRepository → quizzes / quiz_questions (Neon PostgreSQL)
+                            quizRepository → quizzes (Neon PostgreSQL, questions stored as jsonb)
 ```
 
 1. `quizService.generateQuiz` loads the article and rejects anything not `Published`.
@@ -233,16 +233,20 @@ When a reviewer **approves** an article (`reviewerService.approveArticle`), a fa
 | `v1/lib/prompts/quizPrompts.ts` | Versioned generator/validator prompts (`PROMPT_VERSION`) |
 | `v1/utils/tiptapText.ts` | TipTap JSON → plain text (stand-in until content-authoring ships a shared one) |
 | `v1/types/quiz.types.ts` | Domain types + LLM output validator + answer stripping |
-| `db/migrations/20260728120000_create_quizzes.sql` | `quiz_question_type` enum, `quizzes`, `quiz_questions` tables |
+| `db/migrations/20260728120000_create_quizzes.sql` | Original schema: `quiz_question_type` enum, `quizzes`, `quiz_questions` tables |
+| `db/migrations/20260811120000_denormalize_quiz_questions.sql` | Collapses to the current shape: adds `questions` jsonb to `quizzes`, drops `quiz_questions` and the enum |
 
 The Prisma models (`quiz`, `quizQuestion`, `QuizQuestionType`) live in `packages/db/prisma/schema.prisma`; run `pnpm --filter @repo/db build` after schema changes to regenerate the client.
 
 ### Database
 
-- `quizzes`: `id`, `article_id` (FK → articles, cascade), `is_fallback`, `config_snapshot` (jsonb), `generated_at`
-- `quiz_questions`: `id`, `quiz_id` (FK → quizzes, cascade), `question`, `question_type` (enum), `options` (jsonb array of strings), `correct_answer` (jsonb array of indexes — supports multi-answer), `explanation`
+- `quizzes`: `id`, `article_id` (FK → articles, cascade), `is_fallback`, `config_snapshot` (jsonb), `questions` (jsonb array — each entry is `{ question, type, options, correctIndexes, explanation }`, see `GeneratedQuizQuestion` in `v1/types/quiz.types.ts`), `generated_at`
 
-Apply the migration to the Neon dev branch via `apps/api/src/db/migrations/run_migration.ts` (or `pnpm --filter @repo/db db:push`).
+Originally split across `quizzes` + `quiz_questions` (with a `quiz_question_type` enum); denormalized into a single `quizzes` table with a `questions` jsonb column to avoid a Neon transaction failure encountered with the two-table version. The `quiz_questions` table and enum no longer exist.
+
+Apply this migration to the Neon dev branch via `apps/api/src/db/migrations/run_migration.ts` — it only runs a single named `.sql` file against `VERCEL_DATABASE_URL` and does not touch Prisma's own migration history.
+
+**Do not use `pnpm --filter @repo/db db:push` to apply migrations that carry seed data (or any migration under `packages/db/prisma/migrations`).** `db push` diffs `schema.prisma` against the live DB and applies the difference directly — it never executes migration `.sql` files, so any `INSERT`/seed statements inside them are silently skipped, and if a table it creates already exists, a later `prisma migrate deploy` for the same migration fails with `relation already exists` (root-caused and fixed for `app_settings` on 2026-08-13). For Prisma-native migrations, use `pnpm --filter @repo/db migrate:deploy` (or check status first with `pnpm --filter @repo/db migrate:status`); reserve `db:push` for local schema prototyping only.
 
 ### Environment variables
 

@@ -2,10 +2,14 @@ import { jest } from '@jest/globals';
 import { AppError } from '@errors/AppError.js';
 import type { ArticleRepository } from '@repositories/articleRepository.js';
 import type { ArticleReviewRepository } from '@repositories/articleReviewRepository.js';
+import type { QuizService } from '@services/quizService.js';
 import { ReviewStatus } from '@repo/db/generated/prisma/index.js';
 
 jest.unstable_mockModule('@repositories/articleRepository.js', () => ({
   ArticleRepository: jest.fn(),
+  default: {
+    findById: jest.fn(),
+  },
 }));
 
 jest.unstable_mockModule('@repositories/articleReviewRepository.js', () => ({
@@ -15,13 +19,6 @@ jest.unstable_mockModule('@repositories/articleReviewRepository.js', () => ({
 jest.unstable_mockModule('@services/notificationService.js', () => ({
   default: {
     send: jest.fn(() => Promise.resolve()),
-  },
-}));
-
-jest.unstable_mockModule('@services/quizService.js', () => ({
-  default: {
-    generateQuiz: jest.fn(() => Promise.resolve()),
-    pregenerateFallbackQuiz: jest.fn(() => Promise.resolve()),
   },
 }));
 
@@ -51,20 +48,29 @@ const makeMockUserRepo = () => ({
   findById: jest.fn<() => Promise<{ name?: string; email?: string } | null>>(),
 });
 
+const makeMockQuizService = (): QuizService =>
+  ({
+    generateQuiz: jest.fn(() => Promise.resolve()),
+    pregenerateFallbackQuiz: jest.fn(() => Promise.resolve()),
+  }) as unknown as QuizService;
+
 describe('ReviewerService.listPending', () => {
   let mockArticleRepo: ReturnType<typeof makeMockArticleRepo>;
   let mockReviewRepo: ReturnType<typeof makeMockReviewRepo>;
   let mockUserRepo: ReturnType<typeof makeMockUserRepo>;
+  let mockQuizService: QuizService;
   let service: InstanceType<typeof ReviewerService>;
 
   beforeEach(() => {
     mockArticleRepo = makeMockArticleRepo();
     mockReviewRepo = makeMockReviewRepo();
     mockUserRepo = makeMockUserRepo();
+    mockQuizService = makeMockQuizService();
     service = new ReviewerService(
       mockArticleRepo as unknown as ArticleRepository,
       mockReviewRepo as unknown as ArticleReviewRepository,
-      mockUserRepo as never
+      mockUserRepo as never,
+      mockQuizService
     );
     jest.clearAllMocks();
   });
@@ -146,14 +152,18 @@ describe('ReviewerService.approveArticle', () => {
   const reviewerId = 'reviewer-1';
   let mockArticleRepo: ReturnType<typeof makeMockArticleRepo>;
   let mockReviewRepo: ReturnType<typeof makeMockReviewRepo>;
+  let mockQuizService: QuizService;
   let service: InstanceType<typeof ReviewerService>;
 
   beforeEach(() => {
     mockArticleRepo = makeMockArticleRepo();
     mockReviewRepo = makeMockReviewRepo();
+    mockQuizService = makeMockQuizService();
     service = new ReviewerService(
       mockArticleRepo as unknown as ArticleRepository,
-      mockReviewRepo as unknown as ArticleReviewRepository
+      mockReviewRepo as unknown as ArticleReviewRepository,
+      undefined,
+      mockQuizService
     );
     jest.clearAllMocks();
   });
@@ -236,14 +246,18 @@ describe('ReviewerService.rejectArticle', () => {
   const reviewerId = 'reviewer-1';
   let mockArticleRepo: ReturnType<typeof makeMockArticleRepo>;
   let mockReviewRepo: ReturnType<typeof makeMockReviewRepo>;
+  let mockQuizService: QuizService;
   let service: InstanceType<typeof ReviewerService>;
 
   beforeEach(() => {
     mockArticleRepo = makeMockArticleRepo();
     mockReviewRepo = makeMockReviewRepo();
+    mockQuizService = makeMockQuizService();
     service = new ReviewerService(
       mockArticleRepo as unknown as ArticleRepository,
-      mockReviewRepo as unknown as ArticleReviewRepository
+      mockReviewRepo as unknown as ArticleReviewRepository,
+      undefined,
+      mockQuizService
     );
     jest.clearAllMocks();
   });
@@ -391,16 +405,19 @@ describe('ReviewerService.getArticleForReview', () => {
   let mockArticleRepo: ReturnType<typeof makeMockArticleRepo>;
   let mockReviewRepo: ReturnType<typeof makeMockReviewRepo>;
   let mockUserRepo: ReturnType<typeof makeMockUserRepo>;
+  let mockQuizService: QuizService;
   let service: InstanceType<typeof ReviewerService>;
 
   beforeEach(() => {
     mockArticleRepo = makeMockArticleRepo();
     mockReviewRepo = makeMockReviewRepo();
     mockUserRepo = makeMockUserRepo();
+    mockQuizService = makeMockQuizService();
     service = new ReviewerService(
       mockArticleRepo as unknown as ArticleRepository,
       mockReviewRepo as unknown as ArticleReviewRepository,
-      mockUserRepo as never
+      mockUserRepo as never,
+      mockQuizService
     );
     jest.clearAllMocks();
   });
