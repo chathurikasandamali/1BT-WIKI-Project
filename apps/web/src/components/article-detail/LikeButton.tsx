@@ -53,6 +53,7 @@ export function LikeButton({ initialLikeCount, initialLikedByMe, articleId }: Li
     <>
       <button
         onClick={toggleLike}
+        type="button"
         disabled={pending}
         aria-pressed={liked}
         aria-label={liked ? 'Unlike article' : 'Like article'}
