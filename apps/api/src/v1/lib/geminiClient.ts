@@ -10,6 +10,10 @@ import {
   buildGeneratorPrompt,
   type QuizPromptInput,
 } from '@v1/lib/prompts/quizPrompts.js';
+import {
+  parseGeneratedQuestions,
+  type GeneratedQuizQuestion,
+} from '@v1/types/quiz.types.js';
 import { GoogleGenAI } from "@google/genai";
 import * as z from "zod";
 
@@ -51,7 +55,9 @@ const quizJsonSchema: z.JSONType = {
 const quizSchema = z.fromJSONSchema(quizJsonSchema);
 
 
-const generateQuestions = async (input: QuizPromptInput): Promise<unknown> => {
+const generateQuestions = async (
+  input: QuizPromptInput
+): Promise<GeneratedQuizQuestion[]> => {
   const controller = new AbortController();
   const ai = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY,
@@ -78,7 +84,7 @@ const generateQuestions = async (input: QuizPromptInput): Promise<unknown> => {
 
     console.log("Raw output from geminiClient.generateQuestions:", interaction);
     const quizGenerationResponse = quizSchema.parse(JSON.parse(interaction.output_text?? ''));
-    return quizGenerationResponse;
+    return parseGeneratedQuestions(quizGenerationResponse, input.questionCount);
   } catch (error) {
     console.error("Error generating quiz questions:", error);
     if (error instanceof AppError) {

@@ -6,7 +6,6 @@ import { PROMPT_VERSION } from '@v1/lib/prompts/quizPrompts.js';
 import { AppError } from '@errors/AppError.js';
 import { ArticleStatusValue, type Article } from '@models/article.types.js';
 import {
-  parseGeneratedQuestions,
   toPublicQuestions,
   type GenerateQuizResponse,
   type QuizRecord,
@@ -66,14 +65,12 @@ export const createQuizService = (deps: QuizServiceDeps) => {
     const quizConfig = await settings.getQuizConfig();
 
     console.log("Calling geminiClient.generateQuestions with article title:", article.title);
-    const rawOutput = await client.generateQuestions({
+    const questions = await client.generateQuestions({
       articleTitle: article.title,
       articleText,
       questionCount: quizConfig.questionCount,
       optionsPerQuestion: quizConfig.optionsPerQuestion,
     });
-
-    const questions = parseGeneratedQuestions(rawOutput, quizConfig.questionCount);
 
     return quizRepository.create({
       articleId: article.id,

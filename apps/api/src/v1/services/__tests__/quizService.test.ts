@@ -58,7 +58,7 @@ const makeMockQuizRepo = () => ({
 });
 
 const makeMockGemini = () => ({
-  generateQuestions: jest.fn<() => Promise<unknown>>(),
+  generateQuestions: jest.fn<() => Promise<GeneratedQuizQuestion[]>>(),
 });
 
 const makeMockSettingsService = () => ({
@@ -152,7 +152,9 @@ describe('QuizService.generateQuiz', () => {
 
   it('should serve the stored fallback quiz when the Gemini output is invalid', async () => {
     mockArticleRepo.findById.mockResolvedValue(publishedArticle);
-    mockGemini.generateQuestions.mockResolvedValue('this is not json {');
+    mockGemini.generateQuestions.mockRejectedValue(
+      new AppError('Generated quiz payload is not valid JSON', 502)
+    );
     mockQuizRepo.findLatestFallbackByArticleId.mockResolvedValue(
       makeStoredQuiz(true)
     );
