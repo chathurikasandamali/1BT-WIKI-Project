@@ -3,14 +3,12 @@
 import { useEffect, useState } from 'react';
 import { Menu, X } from 'lucide-react';
 import { BRAND_NAME, BRAND_SUB_NAME } from '@/lib/constants/brand';
-import { SearchIcon } from '@/components/shared/icons/SearchIcon';
 import type { PreviewKind } from '@/components/landing/previewContent';
 
 interface LandingNavbarProps {
   isAuthenticating: boolean;
   onAuthenticate: () => void;
   onReset: () => void;
-  onSearch: (query: string) => boolean;
   onSelectKind: (kind: PreviewKind) => void;
 }
 
@@ -18,12 +16,9 @@ export function LandingNavbar({
   isAuthenticating,
   onAuthenticate,
   onReset,
-  onSearch,
   onSelectKind,
 }: LandingNavbarProps): React.JSX.Element {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [query, setQuery] = useState('');
-  const [searchStatus, setSearchStatus] = useState('');
 
   useEffect(() => {
     if (!isMenuOpen) return;
@@ -45,36 +40,6 @@ export function LandingNavbar({
     onSelectKind(kind);
     setIsMenuOpen(false);
   };
-
-  const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const didFindPreview = onSearch(query);
-    setSearchStatus(
-      didFindPreview
-        ? `Showing a preview for ${query}.`
-        : `No preview matched ${query}. Try APIs, cloud, frontend or data.`
-    );
-  };
-
-  const searchField = (id: string) => (
-    <form className="relative w-full" onSubmit={handleSearch} role="search">
-      <label className="sr-only" htmlFor={id}>
-        Search article and tech talk previews
-      </label>
-      <SearchIcon
-        className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-text-secondary"
-        aria-hidden="true"
-      />
-      <input
-        id={id}
-        type="search"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        placeholder="Search previews"
-        className="h-11 w-full rounded-full border border-brand-border bg-brand-bg pl-11 pr-4 text-sm text-brand-text-primary outline-none transition focus:border-brand-red focus:ring-4 focus:ring-brand-red/10"
-      />
-    </form>
-  );
 
   return (
     <header className="relative z-50 border-b border-brand-border/80 bg-white/90 backdrop-blur-xl">
@@ -120,11 +85,7 @@ export function LandingNavbar({
           </button>
         </nav>
 
-        <div className="ml-auto hidden min-w-0 max-w-xs flex-1 xl:block">
-          {searchField('desktop-preview-search')}
-        </div>
-
-        <div className="ml-auto hidden items-center gap-3 xl:flex xl:ml-0">
+        <div className="ml-auto hidden items-center gap-3 xl:flex">
           <button
             type="button"
             onClick={onAuthenticate}
@@ -174,11 +135,10 @@ export function LandingNavbar({
             className="mx-auto flex max-w-2xl flex-col gap-2"
             aria-label="Mobile navigation"
           >
-            {searchField('mobile-preview-search')}
             <button
               type="button"
               onClick={handleReset}
-              className="mt-2 rounded-xl px-4 py-3 text-left text-sm font-semibold text-brand-dark hover:bg-brand-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red"
+              className="rounded-xl px-4 py-3 text-left text-sm font-semibold text-brand-dark hover:bg-brand-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red"
             >
               Home
             </button>
@@ -224,9 +184,6 @@ export function LandingNavbar({
         </div>
       )}
 
-      <p className="sr-only" aria-live="polite">
-        {searchStatus}
-      </p>
     </header>
   );
 }

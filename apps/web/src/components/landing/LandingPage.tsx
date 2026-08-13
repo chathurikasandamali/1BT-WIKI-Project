@@ -7,7 +7,6 @@ import { LandingNavbar } from '@/components/landing/LandingNavbar';
 import { PreviewExperience } from '@/components/landing/PreviewExperience';
 import {
   findFirstPreview,
-  findPreviewByQuery,
   type PreviewKind,
 } from '@/components/landing/previewContent';
 import { authClient } from '@/lib/auth/client';
@@ -52,22 +51,12 @@ export function LandingPage(): React.JSX.Element {
     setSelectedItemId(findFirstPreview(kind).id);
   };
 
-  const handleSearch = (query: string): boolean => {
-    const preview = findPreviewByQuery(query);
-
-    if (!preview) return false;
-
-    setSelectedItemId(preview.id);
-    return true;
-  };
-
   return (
     <div className="min-h-screen bg-brand-bg text-brand-text-primary">
       <LandingNavbar
         isAuthenticating={isAuthenticating}
         onAuthenticate={handleAuthenticate}
         onReset={() => setSelectedItemId(null)}
-        onSearch={handleSearch}
         onSelectKind={handleSelectKind}
       />
 

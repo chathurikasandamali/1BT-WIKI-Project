@@ -76,22 +76,3 @@ export function findFirstPreview(kind: PreviewKind): PreviewItem {
 
   return PREVIEW_ITEMS.find((item) => item.kind === kind) ?? fallbackPreview;
 }
-
-export function findPreviewByQuery(query: string): PreviewItem | undefined {
-  const normalizedQuery = query.trim().toLowerCase();
-
-  if (!normalizedQuery) return undefined;
-
-  return PREVIEW_ITEMS.find((item) => {
-    const searchableContent = [
-      item.label,
-      item.title,
-      item.excerpt,
-      ...item.tags,
-    ]
-      .join(' ')
-      .toLowerCase();
-
-    return searchableContent.includes(normalizedQuery);
-  });
-}

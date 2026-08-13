@@ -62,6 +62,9 @@ describe('SignInPage', () => {
     expect(
       screen.getByRole('button', { name: /browse tech talks/i })
     ).toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText(/search previews/i)
+    ).not.toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
