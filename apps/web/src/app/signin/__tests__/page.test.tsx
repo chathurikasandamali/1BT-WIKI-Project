@@ -255,6 +255,17 @@ describe('SignInPage', () => {
       expect(firstTechTalk).toHaveAttribute('aria-pressed', 'true');
       expect(secondTechTalk).toHaveAttribute('aria-pressed', 'false');
     });
+
+    fireEvent(window, new Event('resize'));
+
+    await waitFor(() => {
+      expect(firstTechTalk).toHaveAttribute('aria-pressed', 'true');
+      expect(
+        screen.getByRole('heading', {
+          name: /learn from the people doing the work/i,
+        })
+      ).toBeInTheDocument();
+    });
   });
 
   it('keeps the final card and panel aligned after rapid selections', async () => {

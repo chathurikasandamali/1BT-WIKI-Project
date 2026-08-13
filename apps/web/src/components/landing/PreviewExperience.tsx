@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, Sparkles, UsersRound } from 'lucide-react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
@@ -33,6 +33,12 @@ const CARD_POSITIONS = [
 
 const CARD_ROTATIONS = [-4, 5, -2, 4];
 
+function getSplitXPercent(cardsStage: HTMLElement): number {
+  if (cardsStage.offsetWidth === 0) return -100;
+
+  return -(cardsStage.offsetLeft / cardsStage.offsetWidth) * 100;
+}
+
 function PreviewTypeIcon({ item }: { item: PreviewItem }): React.JSX.Element {
   const iconClassName = 'h-5 w-5';
 
@@ -58,6 +64,7 @@ export function PreviewExperience({
   const hasEnteredRef = useRef(false);
   const wasSelectedRef = useRef(false);
   const activeItemIdRef = useRef<string | null>(selectedItemId);
+  const requestedItemIdRef = useRef<string | null>(selectedItemId);
   const selectionVersionRef = useRef(0);
   const panelFrameRef = useRef<number | null>(null);
   const [activeItemId, setActiveItemId] = useState<string | null>(
@@ -70,6 +77,8 @@ export function PreviewExperience({
   const selectedItem = PREVIEW_ITEMS.find(
     (item) => item.id === displayedItemId
   );
+
+  requestedItemIdRef.current = selectedItemId;
 
   useGSAP(
     () => {
@@ -85,6 +94,8 @@ export function PreviewExperience({
         '(prefers-reduced-motion: reduce)'
       ).matches;
       const isDesktop = window.matchMedia('(min-width: 1024px)').matches;
+      const cardsSplitXPercent =
+        isDesktop && cardsStage ? getSplitXPercent(cardsStage) : 0;
       const selectionVersion = ++selectionVersionRef.current;
 
       timelineRef.current?.kill();
@@ -343,7 +354,7 @@ export function PreviewExperience({
             x: isDesktop ? -48 : 0,
             pointerEvents: isDesktop ? 'none' : 'auto',
           });
-          gsap.set(cardsStage, { xPercent: isDesktop ? -104 : 0 });
+          gsap.set(cardsStage, { xPercent: cardsSplitXPercent });
           gsap.set(detailsPanel, {
             autoAlpha: 1,
             x: 0,
@@ -377,7 +388,7 @@ export function PreviewExperience({
             },
             0
           )
-          .to(cardsStage, { xPercent: isDesktop ? -104 : 0, duration: 0.35 }, 0)
+          .to(cardsStage, { xPercent: cardsSplitXPercent, duration: 0.35 }, 0)
           .to(
             heroCopy,
             {
@@ -499,7 +510,7 @@ export function PreviewExperience({
           x: isDesktop ? -48 : 0,
           pointerEvents: isDesktop ? 'none' : 'auto',
         });
-        gsap.set(cardsStage, { xPercent: isDesktop ? -104 : 0 });
+        gsap.set(cardsStage, { xPercent: cardsSplitXPercent });
         gsap.set(detailsPanel, {
           autoAlpha: 1,
           x: 0,
@@ -553,13 +564,18 @@ export function PreviewExperience({
             },
             'layout'
           )
-          .to(cardsStage, { xPercent: -104, duration: 0.68 }, 'layout')
+          .to(
+            cardsStage,
+            { xPercent: cardsSplitXPercent, duration: 0.68 },
+            'layout'
+          )
           .fromTo(
             detailsPanel,
-            { autoAlpha: 0, x: 56 },
+            { autoAlpha: 0, x: 56, y: 0 },
             {
               autoAlpha: 1,
               x: 0,
+              y: 0,
               duration: 0.55,
               pointerEvents: 'auto',
             },
@@ -590,23 +606,137 @@ export function PreviewExperience({
     }
   );
 
+  useEffect(() => {
+    let resizeFrame: number | null = null;
+
+    const synchronizeSelectedLayout = () => {
+      resizeFrame = null;
+
+      const requestedItemId = requestedItemIdRef.current;
+      const cardsStage = cardsStageRef.current;
+      const detailsPanel = detailsPanelRef.current;
+      const heroCopy = heroCopyRef.current;
+
+      if (!requestedItemId || !cardsStage || !detailsPanel || !heroCopy) return;
+
+      const cards = gsap.utils.toArray<HTMLElement>('[data-preview-card]');
+      const cardSurfaces = gsap.utils.toArray<HTMLElement>(
+        '[data-card-surface]'
+      );
+      const activeCard = cards.find(
+        (card) => card.dataset.previewCard === requestedItemId
+      );
+      const isDesktop = window.matchMedia('(min-width: 1024px)').matches;
+
+      if (!activeCard) return;
+
+      timelineRef.current?.kill();
+      selectionVersionRef.current += 1;
+
+      if (panelFrameRef.current !== null) {
+        cancelAnimationFrame(panelFrameRef.current);
+        panelFrameRef.current = null;
+      }
+
+      gsap.killTweensOf([
+        ...cards,
+        ...cardSurfaces,
+        cardsStage,
+        detailsPanel,
+        heroCopy,
+        panelContentRef.current,
+      ]);
+
+      activeItemIdRef.current = requestedItemId;
+      setActiveItemId(requestedItemId);
+      setStage('details');
+      setIsAnimating(false);
+
+      gsap.set(cardSurfaces, { y: 0 });
+      gsap.set(cardsStage, {
+        xPercent: isDesktop ? getSplitXPercent(cardsStage) : 0,
+      });
+      gsap.set(heroCopy, {
+        autoAlpha: isDesktop ? 0 : 1,
+        x: isDesktop ? -48 : 0,
+        y: 0,
+        pointerEvents: isDesktop ? 'none' : 'auto',
+      });
+      gsap.set(detailsPanel, {
+        autoAlpha: 1,
+        x: 0,
+        y: 0,
+        pointerEvents: 'auto',
+      });
+      gsap.set(panelContentRef.current, {
+        autoAlpha: 1,
+        x: 0,
+        y: 0,
+        pointerEvents: 'auto',
+      });
+
+      cards.forEach((card, index) => {
+        const isActiveCard = card === activeCard;
+
+        gsap.set(card, {
+          x: 0,
+          y: 0,
+          scale: isActiveCard ? 1 : 0.91,
+          opacity: isActiveCard ? 1 : 0.34,
+          rotation: isActiveCard ? 0 : (CARD_ROTATIONS[index] ?? 0),
+          zIndex: isActiveCard ? 80 : index + 20,
+        });
+      });
+
+      const stageBounds = cardsStage.getBoundingClientRect();
+      const cardBounds = activeCard.getBoundingClientRect();
+
+      gsap.set(activeCard, {
+        x:
+          stageBounds.left +
+          stageBounds.width / 2 -
+          (cardBounds.left + cardBounds.width / 2),
+        y:
+          stageBounds.top +
+          stageBounds.height / 2 -
+          (cardBounds.top + cardBounds.height / 2),
+        scale: 1.08,
+      });
+    };
+
+    const handleResize = () => {
+      if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
+      resizeFrame = requestAnimationFrame(synchronizeSelectedLayout);
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
+    };
+  }, []);
+
   const isDetailsStage = stage === 'details';
 
   return (
     <main
       ref={scopeRef}
-      className="relative isolate min-h-[calc(100vh-5rem)] overflow-hidden bg-brand-bg"
+      className="relative isolate min-h-[calc(100svh-5rem)] overflow-hidden bg-brand-bg"
     >
       <div className="pointer-events-none absolute -left-48 top-24 h-96 w-96 rounded-full bg-brand-red/[0.045] blur-3xl" />
       <div className="pointer-events-none absolute -right-36 bottom-0 h-[440px] w-[440px] rounded-full bg-white blur-3xl" />
 
       <section
-        className="relative mx-auto max-w-[1440px] px-5 pb-16 pt-12 sm:px-8 sm:pt-16 lg:min-h-[760px] lg:px-10 lg:py-0"
+        className="relative mx-auto max-w-[1440px] px-5 pb-16 pt-12 sm:px-8 sm:pt-16 lg:grid lg:min-h-[calc(100svh-5rem)] lg:grid-cols-1 lg:items-start lg:px-10 lg:py-5 min-[1440px]:py-8"
         aria-labelledby="landing-heading"
       >
         <div
           ref={heroCopyRef}
-          className="hero-copy relative z-20 max-w-2xl lg:absolute lg:left-10 lg:top-1/2 lg:w-[43%] lg:-translate-y-1/2"
+          className={cn(
+            'hero-copy relative z-20 max-w-2xl lg:col-start-1 lg:row-start-1 lg:w-[43%] lg:self-center',
+            isDetailsStage && 'lg:absolute lg:invisible'
+          )}
         >
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-brand-red/15 bg-white px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-brand-red shadow-sm">
             <Sparkles className="h-4 w-4" aria-hidden="true" />
@@ -656,10 +786,10 @@ export function PreviewExperience({
           </div>
         </div>
 
-        <div className="relative mt-12 lg:mt-0 lg:min-h-[760px]">
+        <div className="relative mt-12 lg:col-start-1 lg:row-start-1 lg:mt-0 lg:grid lg:w-full lg:grid-cols-2 lg:items-center lg:gap-10">
           <div
             ref={cardsStageRef}
-            className="cards-stage relative h-[530px] w-full sm:mx-auto sm:h-[560px] sm:max-w-2xl lg:absolute lg:right-10 lg:top-1/2 lg:h-[590px] lg:w-[47%] lg:-translate-y-1/2"
+            className="cards-stage relative h-[530px] w-full sm:mx-auto sm:h-[560px] sm:max-w-2xl lg:col-start-2 lg:row-start-1 lg:h-[min(590px,calc(100svh-12rem))] lg:w-full lg:max-w-none"
             aria-label="Article and tech talk previews"
           >
             <div className="pointer-events-none absolute left-1/2 top-1/2 h-[76%] w-[76%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-brand-red/10 bg-white/40" />
@@ -719,7 +849,7 @@ export function PreviewExperience({
           {selectedItem && (
             <aside
               ref={detailsPanelRef}
-              className="details-panel invisible relative z-20 mt-8 rounded-[28px] border border-brand-border bg-white p-6 opacity-0 shadow-[0_28px_80px_rgba(26,26,26,0.12)] sm:p-9 lg:absolute lg:right-10 lg:top-1/2 lg:mt-0 lg:w-[48%] lg:-translate-y-1/2 lg:p-10"
+              className="details-panel invisible relative z-20 mt-8 rounded-[28px] border border-brand-border bg-white p-6 opacity-0 shadow-[0_28px_80px_rgba(26,26,26,0.12)] sm:p-9 lg:col-start-2 lg:row-start-1 lg:mt-0 lg:w-full lg:self-center lg:p-7 min-[1440px]:p-9 min-[1800px]:p-10"
               aria-hidden={!isDetailsStage}
               aria-busy={isAnimating}
               aria-labelledby="preview-panel-title"
@@ -736,7 +866,7 @@ export function PreviewExperience({
               </button>
 
               <div ref={panelContentRef}>
-                <div className="mt-10 flex items-center gap-3 text-xs font-bold tracking-[0.2em] text-brand-red">
+                <div className="mt-10 flex items-center gap-3 text-xs font-bold tracking-[0.2em] text-brand-red lg:mt-7 min-[1440px]:mt-9">
                   <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-red/10">
                     <PreviewTypeIcon item={selectedItem} />
                   </span>
@@ -745,15 +875,18 @@ export function PreviewExperience({
 
                 <h2
                   id="preview-panel-title"
-                  className="mt-6 font-display text-3xl font-bold leading-tight tracking-[-0.045em] text-brand-dark sm:text-4xl"
+                  className="mt-6 font-display text-3xl font-bold leading-tight tracking-[-0.045em] text-brand-dark sm:text-4xl lg:mt-5 lg:text-3xl min-[1440px]:text-4xl"
                 >
                   {selectedItem.panelTitle}
                 </h2>
-                <p className="mt-5 text-base leading-7 text-brand-text-secondary sm:text-lg sm:leading-8">
+                <p className="mt-5 text-base leading-7 text-brand-text-secondary sm:text-lg sm:leading-8 lg:mt-4">
                   {selectedItem.panelDescription}
                 </p>
 
-                <div className="mt-7 flex flex-wrap gap-2" aria-label="Topics">
+                <div
+                  className="mt-7 flex flex-wrap gap-2 lg:mt-6"
+                  aria-label="Topics"
+                >
                   {selectedItem.tags.map((tag) => (
                     <span
                       key={tag}
@@ -774,7 +907,7 @@ export function PreviewExperience({
                       ? 'Signing in'
                       : 'Log in to explore with Google'
                   }
-                  className="mt-9 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-brand-red px-6 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(204,0,0,0.2)] transition hover:bg-brand-red-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red focus-visible:ring-offset-2 disabled:cursor-wait disabled:bg-brand-red-disabled sm:w-auto"
+                  className="mt-9 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-brand-red px-6 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(204,0,0,0.2)] transition hover:bg-brand-red-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red focus-visible:ring-offset-2 disabled:cursor-wait disabled:bg-brand-red-disabled sm:w-auto lg:mt-7"
                 >
                   {isAuthenticating ? 'Signing in...' : 'Log in to explore'}
                   <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
