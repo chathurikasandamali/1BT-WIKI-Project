@@ -16,6 +16,7 @@ import {
   type SettingCategory,
   type SettingDefinition,
   type QuizConfig,
+  type QuizLlmConfig,
 } from '@models/settings.types.js';
 
 export interface SettingsServiceDeps {
@@ -159,7 +160,15 @@ export const createSettingsService = (deps: SettingsServiceDeps) => {
   const getQuizConfig = async (): Promise<QuizConfig> =>
     (await getSetting('quiz', 'quiz_config')) as QuizConfig;
 
-  return { getSetting, listByCategory, updateSetting, getQuizConfig };
+  /**
+   * Convenience accessor for the quiz LLM provider settings (provider, model,
+   * API key). Returns the real, unmasked value — only for internal use by the
+   * quiz generation pipeline, never surfaced directly to controllers.
+   */
+  const getQuizLlmConfig = async (): Promise<QuizLlmConfig> =>
+    (await getSetting('quiz', 'quiz_llm_config')) as QuizLlmConfig;
+
+  return { getSetting, listByCategory, updateSetting, getQuizConfig, getQuizLlmConfig };
 };
 
 export type SettingsService = ReturnType<typeof createSettingsService>;

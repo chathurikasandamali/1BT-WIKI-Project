@@ -2,6 +2,7 @@
 
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import { AppError } from '@errors/AppError.js';
+import { DEFAULT_QUIZ_LLM_CONFIG } from '@models/settings.types.js';
 import {
   createSettingsService,
   type SettingsService,
@@ -79,6 +80,40 @@ describe('SettingsService.getQuizConfig', () => {
   });
 });
 
+describe('SettingsService.getQuizLlmConfig', () => {
+  let mockRepo: ReturnType<typeof makeMockRepository>;
+  let service: SettingsService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockRepo = makeMockRepository();
+    service = buildService(mockRepo);
+  });
+
+  it('should return the code defaults (including the env-sourced apiKey) when no DB row exists', async () => {
+    mockRepo.findByKey.mockResolvedValue(null);
+
+    await expect(service.getQuizLlmConfig()).resolves.toEqual(DEFAULT_QUIZ_LLM_CONFIG);
+    expect(mockRepo.findByKey).toHaveBeenCalledWith('quiz_llm_config');
+  });
+
+  it('should return the real, unmasked apiKey from a stored value', async () => {
+    mockRepo.findByKey.mockResolvedValue(
+      makeRow({
+        key: 'quiz_llm_config',
+        category: 'quiz',
+        value: { provider: 'gemini', model: 'gemini-3.5-flash', apiKey: 'sk-real-key' },
+      })
+    );
+
+    await expect(service.getQuizLlmConfig()).resolves.toEqual({
+      provider: 'gemini',
+      model: 'gemini-3.5-flash',
+      apiKey: 'sk-real-key',
+    });
+  });
+});
+
 describe('SettingsService.getSetting / listByCategory', () => {
   let mockRepo: ReturnType<typeof makeMockRepository>;
   let service: SettingsService;
@@ -108,6 +143,7 @@ describe('SettingsService.getSetting / listByCategory', () => {
 
     await expect(service.listByCategory('quiz')).resolves.toEqual({
       quiz_config: { questionCount: 7, optionsPerQuestion: 4 },
+      quiz_llm_config: DEFAULT_QUIZ_LLM_CONFIG,
     });
   });
 

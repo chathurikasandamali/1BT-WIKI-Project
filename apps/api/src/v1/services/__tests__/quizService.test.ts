@@ -83,7 +83,7 @@ describe('QuizService.generateQuiz', () => {
     service = createQuizService({
       articleRepository: mockArticleRepo as unknown as QuizServiceDeps['articleRepository'],
       quizRepository: mockQuizRepo as unknown as QuizServiceDeps['quizRepository'],
-      geminiClient: mockGemini as unknown as QuizServiceDeps['geminiClient'],
+      llmProvider: mockGemini as unknown as QuizServiceDeps['llmProvider'],
       settingsService: mockSettingsService as unknown as QuizServiceDeps['settingsService'],
     });
   });
@@ -211,7 +211,7 @@ describe('QuizService.pregenerateFallbackQuiz', () => {
     service = createQuizService({
       articleRepository: mockArticleRepo as unknown as QuizServiceDeps['articleRepository'],
       quizRepository: mockQuizRepo as unknown as QuizServiceDeps['quizRepository'],
-      geminiClient: mockGemini as unknown as QuizServiceDeps['geminiClient'],
+      llmProvider: mockGemini as unknown as QuizServiceDeps['llmProvider'],
       settingsService: mockSettingsService as unknown as QuizServiceDeps['settingsService'],
     });
   });

@@ -1,6 +1,7 @@
 import ArticleRepository from '@repositories/articleRepository.js';
 import QuizRepository from '@repositories/quizRepository.js';
-import geminiClient from '@/v1/lib/geminiClient.js';
+import quizProvider from '@v1/lib/llm/quizProviderFactory.js';
+import type { QuizGenerationProvider } from '@v1/lib/llm/quizProvider.types.js';
 import { extractTextFromTipTap } from '@utils/tiptapText.js';
 import { PROMPT_VERSION } from '@v1/lib/prompts/quizPrompts.js';
 import { AppError } from '@errors/AppError.js';
@@ -15,7 +16,7 @@ import settingsService, { type SettingsService } from '@services/settingsService
 export interface QuizServiceDeps {
   articleRepository: typeof ArticleRepository;
   quizRepository: typeof QuizRepository;
-  geminiClient: typeof geminiClient;
+  llmProvider: QuizGenerationProvider;
   settingsService: SettingsService;
 }
 
@@ -31,7 +32,7 @@ const toResponse = (quiz: QuizRecord): GenerateQuizResponse => ({
  * mocks (tests) or the production singletons (default export).
  */
 export const createQuizService = (deps: QuizServiceDeps) => {
-  const { articleRepository, quizRepository, geminiClient: client, settingsService: settings } = deps;
+  const { articleRepository, quizRepository, llmProvider, settingsService: settings } = deps;
 
   const loadPublishedArticle = async (articleId: string): Promise<Article> => {
     const article = await articleRepository.findById(articleId);
@@ -63,8 +64,8 @@ export const createQuizService = (deps: QuizServiceDeps) => {
     // snapshot records exactly which config produced this quiz.
     const quizConfig = await settings.getQuizConfig();
 
-    console.log("Calling geminiClient.generateQuestions with article title:", article.title);
-    const questions = await client.generateQuestions({
+    console.log("Calling llmProvider.generateQuestions with article title:", article.title);
+    const questions = await llmProvider.generateQuestions({
       articleTitle: article.title,
       articleText,
       questionCount: quizConfig.questionCount,
@@ -144,6 +145,6 @@ export type QuizService = ReturnType<typeof createQuizService>;
 export default createQuizService({
   articleRepository: ArticleRepository,
   quizRepository: QuizRepository,
-  geminiClient,
+  llmProvider: quizProvider,
   settingsService,
 });
