@@ -3,8 +3,9 @@ import { AppError } from '@errors/AppError.js';
 import { createQuizController } from '@controllers/quizController.js';
 import type { QuizService } from '@services/quizService.js';
 import { makeMockReqResNext } from '../../__tests__/helpers/mockExpress.helpers.js';
+import {randomUUID } from 'node:crypto'
 
-const validArticleId = '1c9e6f64-9155-4f5e-b3a8-2f4d1c1a9b0e';
+const validArticleId = randomUUID();
 
 const makeMockQuizService = (): QuizService =>
   ({
