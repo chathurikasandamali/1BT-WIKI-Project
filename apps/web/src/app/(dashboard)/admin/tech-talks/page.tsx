@@ -26,8 +26,6 @@ type SortDir = 'asc' | 'desc';
 
 const PAGE_SIZE = 12;
 
-const STATUS_FILTERS: TechTalkStatus[] = ['draft', 'published', 'unpublished'];
-
 // -- Helpers ------------------------------------------------------------------
 
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
