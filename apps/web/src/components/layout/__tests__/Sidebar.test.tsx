@@ -118,6 +118,38 @@ describe('Sidebar navigation', () => {
     expect(link).toHaveAttribute('href', '/reviewer/approvals');
     expect(link).toHaveTextContent('Approvals');
   });
+
+  it('does NOT render the Tech Talk Management link for a plain User role', () => {
+    mockUseUser.mockReturnValue({
+      user: { id: 'u1', name: 'Plain User', role: 'User' },
+      loading: false,
+    });
+
+    render(<Sidebar />);
+    expect(screen.queryByTestId('nav-admin-tech-talks')).not.toBeInTheDocument();
+  });
+
+  it('does NOT render the Tech Talk Management link for a Reviewer role', () => {
+    mockUseUser.mockReturnValue({
+      user: { id: 'u2', name: 'Reviewer User', role: 'Reviewer' },
+      loading: false,
+    });
+
+    render(<Sidebar />);
+    expect(screen.queryByTestId('nav-admin-tech-talks')).not.toBeInTheDocument();
+  });
+
+  it('renders the Tech Talk Management link for Admin role', () => {
+    mockUseUser.mockReturnValue({
+      user: { id: 'u3', name: 'Admin User', role: 'Admin' },
+      loading: false,
+    });
+
+    render(<Sidebar />);
+    const link = screen.getByTestId('nav-admin-tech-talks');
+    expect(link).toHaveAttribute('href', '/admin/tech-talks');
+    expect(link).toHaveTextContent('Tech Talk Management');
+  });
 });
 
 describe('Sidebar collapsed state', () => {
