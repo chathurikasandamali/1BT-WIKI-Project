@@ -9,7 +9,8 @@
 import { prisma } from '@repo/db';
 import { AppError } from '@errors/AppError.js';
 import type { Prisma } from '@repo/db';
-import type { SettingCategory } from '@models/settings.types.js';
+import { SENSITIVE_SETTING_FIELDS, type SettingCategory } from '@models/settings.types.js';
+import { encrypt, decrypt } from '@v1/lib/crypto/secretCipher.js';
 
 /** A stored setting row (camelCase domain shape). */
 export interface SettingRecord {
@@ -28,6 +29,32 @@ const SETTING_SELECT = {
   updatedAt: true,
 } as const;
 
+/** Field names (if any) that must be encrypted at rest for a given (category, key). */
+const sensitiveFieldsFor = (category: SettingCategory, key: string): readonly string[] =>
+  SENSITIVE_SETTING_FIELDS[category]?.[key] ?? [];
+
+/** Applies `transform` to each sensitive field present (and non-empty) in `value`. */
+const transformSensitiveFields = (
+  category: SettingCategory,
+  key: string,
+  value: Record<string, unknown>,
+  transform: (raw: string) => string
+): Record<string, unknown> => {
+  const fields = sensitiveFieldsFor(category, key);
+  if (fields.length === 0) {
+    return value;
+  }
+
+  const result = { ...value };
+  for (const field of fields) {
+    const raw = result[field];
+    if (typeof raw === 'string' && raw.length > 0) {
+      result[field] = transform(raw);
+    }
+  }
+  return result;
+};
+
 const toRecord = (row: unknown): SettingRecord => {
   const r = row as {
     key: string;
@@ -37,10 +64,12 @@ const toRecord = (row: unknown): SettingRecord => {
     updatedAt: Date;
   };
 
+  const value = (r.value as Record<string, unknown>) ?? {};
+
   return {
     key: r.key,
     category: r.category,
-    value: (r.value as Record<string, unknown>) ?? {},
+    value: transformSensitiveFields(r.category, r.key, value, decrypt),
     updatedBy: r.updatedBy,
     updatedAt: r.updatedAt,
   };
@@ -85,17 +114,18 @@ const upsert = async (
   updatedBy: string | null
 ): Promise<SettingRecord> => {
   try {
+    const encryptedValue = transformSensitiveFields(category, key, value, encrypt);
     const row = await prisma.appSettings.upsert({
       where: { key },
       update: {
         category,
-        value: value as Prisma.InputJsonValue,
+        value: encryptedValue as Prisma.InputJsonValue,
         updatedBy,
       },
       create: {
         key,
         category,
-        value: value as Prisma.InputJsonValue,
+        value: encryptedValue as Prisma.InputJsonValue,
         updatedBy,
       },
       select: SETTING_SELECT,
