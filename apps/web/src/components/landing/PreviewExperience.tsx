@@ -744,12 +744,14 @@ export function PreviewExperience({
           </div>
           <h1
             id="landing-heading"
-            className="font-display text-[clamp(2.75rem,7vw,5.75rem)] font-bold leading-[0.96] tracking-[-0.065em] text-brand-dark"
+            className="font-display text-[clamp(2.75rem,7vw,5.75rem)] 
+            font-bold leading-[0.96] tracking-[-0.065em] text-brand-dark"
           >
             Knowledge grows when we{' '}
             <span className="text-brand-red">share it.</span>
           </h1>
-          <p className="mt-7 max-w-xl text-base leading-7 text-brand-text-secondary sm:text-lg sm:leading-8">
+          <p className="mt-7 max-w-xl text-base leading-7 text-brand-text-secondary 
+          sm:text-lg sm:leading-8">
             Discover practical articles and tech talks shaped by the lessons,
             ideas and experiences shared across the 1BT community.
           </p>
@@ -757,7 +759,9 @@ export function PreviewExperience({
             <button
               type="button"
               onClick={() => onSelectItem('article-reliable-apis')}
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-brand-red px-6 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(204,0,0,0.2)] transition hover:bg-brand-red-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red focus-visible:ring-offset-2"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-brand-red 
+              px-6 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(204,0,0,0.2)] transition 
+              hover:bg-brand-red-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red focus-visible:ring-offset-2"
             >
               Explore articles
               <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
@@ -765,7 +769,9 @@ export function PreviewExperience({
             <button
               type="button"
               onClick={() => onSelectItem('tech-talk-cloud-lessons')}
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-brand-border bg-white px-6 text-sm font-semibold text-brand-dark transition hover:border-brand-dark hover:bg-brand-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red focus-visible:ring-offset-2"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-brand-border 
+              bg-white px-6 text-sm font-semibold text-brand-dark transition hover:border-brand-dark hover:bg-brand-hover 
+              focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red focus-visible:ring-offset-2"
             >
               Browse tech talks
               <TechTalkIcon className="h-4 w-4" aria-hidden="true" />
@@ -792,7 +798,8 @@ export function PreviewExperience({
             className="cards-stage relative h-[530px] w-full sm:mx-auto sm:h-[560px] sm:max-w-2xl lg:col-start-2 lg:row-start-1 lg:h-[min(590px,calc(100svh-12rem))] lg:w-full lg:max-w-none"
             aria-label="Article and tech talk previews"
           >
-            <div className="pointer-events-none absolute left-1/2 top-1/2 h-[76%] w-[76%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-brand-red/10 bg-white/40" />
+            <div className="pointer-events-none absolute left-1/2 top-1/2 h-[76%] w-[76%] -translate-x-1/2 -translate-y-1/2 rounded-full border 
+            border-brand-red/10 bg-white/40" />
             <div className="pointer-events-none absolute left-1/2 top-1/2 h-[54%] w-[54%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-brand-border" />
 
             {PREVIEW_ITEMS.map((item, index) => {
@@ -849,7 +856,8 @@ export function PreviewExperience({
           {selectedItem && (
             <aside
               ref={detailsPanelRef}
-              className="details-panel invisible relative z-20 mt-8 rounded-[28px] border border-brand-border bg-white p-6 opacity-0 shadow-[0_28px_80px_rgba(26,26,26,0.12)] sm:p-9 lg:col-start-2 lg:row-start-1 lg:mt-0 lg:w-full lg:self-center lg:p-7 min-[1440px]:p-9 min-[1800px]:p-10"
+              className="details-panel invisible relative z-20 mt-8 rounded-[28px] border border-brand-border bg-white p-6 opacity-0 
+              shadow-[0_28px_80px_rgba(26,26,26,0.12)] sm:p-9 lg:col-start-2 lg:row-start-1 lg:mt-0 lg:w-full lg:self-center lg:p-7 min-[1440px]:p-9 min-[1800px]:p-10"
               aria-hidden={!isDetailsStage}
               aria-busy={isAnimating}
               aria-labelledby="preview-panel-title"
@@ -859,7 +867,8 @@ export function PreviewExperience({
                 onClick={() => onSelectItem(null)}
                 disabled={!isDetailsStage || isAnimating}
                 tabIndex={isDetailsStage ? 0 : -1}
-                className="flex h-11 w-11 items-center justify-center rounded-full border border-brand-border text-brand-dark transition hover:border-brand-dark hover:bg-brand-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red disabled:pointer-events-none"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-brand-border text-brand-dark transition hover:border-brand-dark 
+                hover:bg-brand-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red disabled:pointer-events-none"
                 aria-label="Back to all previews"
               >
                 <ArrowLeftIcon className="h-5 w-5" aria-hidden="true" />
@@ -907,7 +916,8 @@ export function PreviewExperience({
                       ? 'Signing in'
                       : 'Log in to explore with Google'
                   }
-                  className="mt-9 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-brand-red px-6 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(204,0,0,0.2)] transition hover:bg-brand-red-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red focus-visible:ring-offset-2 disabled:cursor-wait disabled:bg-brand-red-disabled sm:w-auto lg:mt-7"
+                  className="mt-9 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-brand-red px-6 text-sm font-semibold 
+                  text-white shadow-[0_14px_30px_rgba(204,0,0,0.2)] transition hover:bg-brand-red-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red focus-visible:ring-offset-2 disabled:cursor-wait disabled:bg-brand-red-disabled sm:w-auto lg:mt-7"
                 >
                   {isAuthenticating ? 'Signing in...' : 'Log in to explore'}
                   <ArrowUpRight className="h-4 w-4" aria-hidden="true" />

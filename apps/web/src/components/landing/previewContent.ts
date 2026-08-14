@@ -67,6 +67,13 @@ export const PREVIEW_ITEMS: PreviewItem[] = [
   },
 ];
 
+const firstPreviewByKind = new Map<PreviewKind, PreviewItem>();
+for (const item of PREVIEW_ITEMS) {
+  if (!firstPreviewByKind.has(item.kind)) {
+    firstPreviewByKind.set(item.kind, item);
+  }
+}
+
 export function findFirstPreview(kind: PreviewKind): PreviewItem {
   const fallbackPreview = PREVIEW_ITEMS[0];
 
@@ -74,5 +81,5 @@ export function findFirstPreview(kind: PreviewKind): PreviewItem {
     throw new Error('At least one landing preview is required.');
   }
 
-  return PREVIEW_ITEMS.find((item) => item.kind === kind) ?? fallbackPreview;
+  return firstPreviewByKind.get(kind) ?? fallbackPreview;
 }
