@@ -45,6 +45,7 @@ export interface QuizRecord {
   isFallback: boolean;
   generatedAt: Date;
   questions: QuizQuestionRecord[];
+  configSnapshot: Record<string, unknown>;
 }
 
 export interface GenerateQuizResponse {
@@ -56,7 +57,7 @@ export interface GenerateQuizResponse {
 
 /**
  * Pure structural shape of a generated question — the single source of truth
- * for both Gemini's response_format JSON Schema (geminiClient.ts) and the
+ * for both Gemini's response_format JSON Schema (geminiQuizProvider.ts) and the
  * runtime validation below. Deliberately excludes cross-field business rules
  * (answer-count-per-type, index bounds), which plain JSON Schema can't express.
  */

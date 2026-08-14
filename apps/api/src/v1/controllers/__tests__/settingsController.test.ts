@@ -71,6 +71,22 @@ describe('settingsController.list', () => {
     );
     expect(mockService.listByCategory).not.toHaveBeenCalled();
   });
+
+  it('should mask the LLM apiKey in the listed quiz_llm_config', async () => {
+    (mockService.listByCategory as jest.Mock<any>).mockResolvedValue({
+      quiz_llm_config: { provider: 'gemini', model: 'gemini-3.5-flash', apiKey: 'sk-real-key' },
+    });
+
+    const { req, res, next } = makeMockReqResNext({
+      query: { category: 'quiz' },
+    } as any);
+
+    await controller.list(req as any, res as any, next);
+
+    const [jsonArgs] = (res.json as jest.Mock<any>).mock.calls[0] as [any];
+    expect(jsonArgs.data.quiz.quiz_llm_config.apiKey).not.toBe('sk-real-key');
+    expect(jsonArgs.data.quiz.quiz_llm_config.provider).toBe('gemini');
+  });
 });
 
 describe('settingsController.getOne', () => {
@@ -108,6 +124,24 @@ describe('settingsController.getOne', () => {
       new AppError('Unknown setting category: nope', 400)
     );
     expect(mockService.getSetting).not.toHaveBeenCalled();
+  });
+
+  it('should mask the LLM apiKey when reading quiz_llm_config', async () => {
+    (mockService.getSetting as jest.Mock<any>).mockResolvedValue({
+      provider: 'gemini',
+      model: 'gemini-3.5-flash',
+      apiKey: 'sk-real-key',
+    });
+
+    const { req, res, next } = makeMockReqResNext({
+      params: { category: 'quiz', key: 'quiz_llm_config' },
+    } as any);
+
+    await controller.getOne(req as any, res as any, next);
+
+    const [jsonArgs] = (res.json as jest.Mock<any>).mock.calls[0] as [any];
+    expect(jsonArgs.data.apiKey).not.toBe('sk-real-key');
+    expect(jsonArgs.data.provider).toBe('gemini');
   });
 });
 
@@ -168,5 +202,24 @@ describe('settingsController.update', () => {
     await controller.update(req as any, res as any, next);
 
     expect(next).toHaveBeenCalledWith(error);
+  });
+
+  it('should mask the LLM apiKey in the update response', async () => {
+    (mockService.updateSetting as jest.Mock<any>).mockResolvedValue({
+      provider: 'gemini',
+      model: 'gemini-3.5-flash',
+      apiKey: 'sk-rotated-key',
+    });
+
+    const { req, res, next } = makeMockReqResNext({
+      params: { category: 'quiz', key: 'quiz_llm_config' },
+      body: { apiKey: 'sk-rotated-key' },
+      user: { userId: 'admin-1' } as any,
+    } as any);
+
+    await controller.update(req as any, res as any, next);
+
+    const [jsonArgs] = (res.json as jest.Mock<any>).mock.calls[0] as [any];
+    expect(jsonArgs.data.apiKey).not.toBe('sk-rotated-key');
   });
 });

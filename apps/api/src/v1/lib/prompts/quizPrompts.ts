@@ -9,7 +9,14 @@ export interface QuizPromptInput {
   articleText: string;
   questionCount: number;
   optionsPerQuestion: number;
+  /** Author-defined hint on what the questions should emphasize, if set. */
+  focusAspects?: string;
 }
+
+const buildFocusLine = (focusAspects?: string): string =>
+  focusAspects
+    ? `\nPay special attention to these aspects when writing questions: ${focusAspects}\n`
+    : '';
 
 export const PROMPT_VERSION = '1.0.0';
 
@@ -21,6 +28,7 @@ export const buildGeneratorPrompt = ({
   articleText,
   questionCount,
   optionsPerQuestion,
+  focusAspects,
 }: QuizPromptInput): string => `You are a quiz generator for an internal knowledge base.
 Generate exactly ${questionCount} quiz questions based ONLY on the article below.
 Do not use any outside knowledge; every question and answer must be verifiable from the article text.
@@ -47,7 +55,7 @@ Return ONLY a JSON array with this exact structure — no markdown, no commentar
     "explanation": "Brief explanation of the correct answer(s)"
   }
 ]
-
+${buildFocusLine(focusAspects)}
 Article Title: ${articleTitle}
 Article Content:
 ${articleText}`;
@@ -61,6 +69,7 @@ export const buildValidatorPrompt = ({
   articleText,
   questionCount,
   optionsPerQuestion,
+  focusAspects,
 }: QuizPromptInput): string => `You are a quiz validator. You receive a candidate quiz (JSON array) generated from the article below.
 Check every question against these rules and fix violations where possible:
 1. Exactly ${questionCount} questions, each with exactly ${optionsPerQuestion} options.
@@ -71,7 +80,7 @@ Check every question against these rules and fix violations where possible:
 6. Output is valid JSON matching the generator schema — no markdown fences, no commentary.
 
 Return ONLY the corrected JSON array.
-
+${buildFocusLine(focusAspects)}
 Article Title: ${articleTitle}
 Article Content:
 ${articleText}`;

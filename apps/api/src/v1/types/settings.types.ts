@@ -63,6 +63,33 @@ export const quizConfigSchema = z.object({
   optionsPerQuestion: z.number().int().min(2).max(8),
 });
 
+/** LLM providers supported for quiz generation. Extend as new adapters are added. */
+export type QuizLlmProviderName = 'gemini';
+
+/** Runtime-configurable LLM provider settings for quiz generation. */
+export interface QuizLlmConfig {
+  provider: QuizLlmProviderName;
+  model: string;
+  apiKey: string;
+}
+
+/**
+ * Fallback used when no DB row exists yet. `apiKey` bootstraps from the
+ * legacy env var so existing deployments keep working before an admin sets
+ * one via the settings panel.
+ */
+export const DEFAULT_QUIZ_LLM_CONFIG: QuizLlmConfig = {
+  provider: 'gemini',
+  model: 'gemini-3.5-flash',
+  apiKey: process.env.GEMINI_API_KEY ?? '',
+};
+
+export const quizLlmConfigSchema = z.object({
+  provider: z.enum(['gemini']),
+  model: z.string().min(1),
+  apiKey: z.string().min(1),
+});
+
 // ---------------------------------------------------------------------------
 // Typed registry
 // ---------------------------------------------------------------------------
@@ -73,7 +100,7 @@ export const quizConfigSchema = z.object({
  * then guarantees getSetting/updateSetting stay fully typed.
  */
 export interface SettingValueMap {
-  quiz: { quiz_config: QuizConfig };
+  quiz: { quiz_config: QuizConfig; quiz_llm_config: QuizLlmConfig };
   article: Record<string, never>;
   comment: Record<string, never>;
   techTalk: Record<string, never>;
@@ -99,10 +126,26 @@ export const SETTING_DEFINITIONS: {
 } = {
   quiz: {
     quiz_config: { schema: quizConfigSchema, defaultValue: DEFAULT_QUIZ_CONFIG },
+    quiz_llm_config: { schema: quizLlmConfigSchema, defaultValue: DEFAULT_QUIZ_LLM_CONFIG },
   },
   article: {},
   comment: {},
   techTalk: {},
   pagination: {},
   general: {},
+};
+
+// ---------------------------------------------------------------------------
+// Sensitive fields — masked in API responses, never in stored/validated data
+// ---------------------------------------------------------------------------
+
+/**
+ * (category, key) → field names that must be masked before a setting value
+ * leaves the API (list/get/update responses). The DB and internal service
+ * accessors (e.g. getQuizLlmConfig) always see the real value.
+ */
+export const SENSITIVE_SETTING_FIELDS: Partial<
+  Record<SettingCategory, Record<string, readonly string[]>>
+> = {
+  quiz: { quiz_llm_config: ['apiKey'] },
 };

@@ -1,6 +1,7 @@
 import ArticleRepository from '@repositories/articleRepository.js';
 import QuizRepository from '@repositories/quizRepository.js';
-import geminiClient from '@/v1/lib/geminiClient.js';
+import quizProvider from '@v1/lib/llm/quizProviderFactory.js';
+import type { QuizGenerationProvider } from '@v1/lib/llm/quizProvider.types.js';
 import { extractTextFromTipTap } from '@utils/tiptapText.js';
 import { PROMPT_VERSION } from '@v1/lib/prompts/quizPrompts.js';
 import { AppError } from '@errors/AppError.js';
@@ -15,7 +16,7 @@ import settingsService, { type SettingsService } from '@services/settingsService
 export interface QuizServiceDeps {
   articleRepository: typeof ArticleRepository;
   quizRepository: typeof QuizRepository;
-  geminiClient: typeof geminiClient;
+  llmProvider: QuizGenerationProvider;
   settingsService: SettingsService;
 }
 
@@ -31,7 +32,7 @@ const toResponse = (quiz: QuizRecord): GenerateQuizResponse => ({
  * mocks (tests) or the production singletons (default export).
  */
 export const createQuizService = (deps: QuizServiceDeps) => {
-  const { articleRepository, quizRepository, geminiClient: client, settingsService: settings } = deps;
+  const { articleRepository, quizRepository, llmProvider, settingsService: settings } = deps;
 
   const loadPublishedArticle = async (articleId: string): Promise<Article> => {
     const article = await articleRepository.findById(articleId);
@@ -62,13 +63,16 @@ export const createQuizService = (deps: QuizServiceDeps) => {
     // Effective quiz config comes from the admin app_settings store; the
     // snapshot records exactly which config produced this quiz.
     const quizConfig = await settings.getQuizConfig();
+    // Author-defined hint, if set, that steers what the questions emphasize.
+    const focusAspects = await quizRepository.findFocusAspectsByArticleId(article.id);
 
-    console.log("Calling geminiClient.generateQuestions with article title:", article.title);
-    const questions = await client.generateQuestions({
+    console.log("Calling llmProvider.generateQuestions with article title:", article.title);
+    const questions = await llmProvider.generateQuestions({
       articleTitle: article.title,
       articleText,
       questionCount: quizConfig.questionCount,
       optionsPerQuestion: quizConfig.optionsPerQuestion,
+      ...(focusAspects ? { focusAspects } : {}),
     });
 
     return quizRepository.create({
@@ -79,6 +83,7 @@ export const createQuizService = (deps: QuizServiceDeps) => {
         promptVersion: PROMPT_VERSION,
         questionCount: quizConfig.questionCount,
         optionsPerQuestion: quizConfig.optionsPerQuestion,
+        ...(focusAspects ? { focusAspects } : {}),
       },
     });
   };
@@ -136,7 +141,108 @@ export const createQuizService = (deps: QuizServiceDeps) => {
     }
   };
 
-  return { generateQuiz, pregenerateFallbackQuiz };
+  const MAX_FOCUS_ASPECTS_LENGTH = 1000;
+
+  /**
+   * Sets (or overwrites) the author-defined focus-aspects hint used to steer
+   * future quiz generations for this article. Author-only.
+   */
+  const setFocusAspects = async (
+    articleId: string,
+    requesterId: string,
+    aspects: string
+  ): Promise<string> => {
+    const article = await articleRepository.findById(articleId);
+    if (!article) {
+      throw new AppError('Article not found', 404);
+    }
+    if (article.authorId !== requesterId) {
+      throw new AppError(
+        'Only the author can set quiz focus aspects for this article',
+        403
+      );
+    }
+
+    const trimmed = aspects.trim();
+    if (trimmed.length === 0 || trimmed.length > MAX_FOCUS_ASPECTS_LENGTH) {
+      throw new AppError(
+        `focusAspects must be between 1 and ${MAX_FOCUS_ASPECTS_LENGTH} characters`,
+        400
+      );
+    }
+
+    return quizRepository.upsertFocusAspects(articleId, trimmed, requesterId);
+  };
+
+  /**
+   * Reads the author-defined focus-aspects hint for an article, if any.
+   * Author-only.
+   */
+  const getFocusAspects = async (
+    articleId: string,
+    requesterId: string
+  ): Promise<string | null> => {
+    const article = await articleRepository.findById(articleId);
+    if (!article) {
+      throw new AppError('Article not found', 404);
+    }
+    if (article.authorId !== requesterId) {
+      throw new AppError(
+        'Only the author can view quiz focus aspects for this article',
+        403
+      );
+    }
+
+    return quizRepository.findFocusAspectsByArticleId(articleId);
+  };
+
+  /**
+   * Promotes an already-generated (and author-reviewed) quiz to be the
+   * article's fallback quiz. Overwrites any existing fallback in place so
+   * re-saving after an article edit replaces the stale one, instead of
+   * mutating the previewed quiz row itself.
+   */
+  const saveAsFallback = async (
+    articleId: string,
+    quizId: string,
+    requesterId: string
+  ): Promise<GenerateQuizResponse> => {
+    const sourceQuiz = await quizRepository.findById(quizId);
+    if (!sourceQuiz || sourceQuiz.articleId !== articleId) {
+      throw new AppError('Quiz not found for this article', 404);
+    }
+
+    const article = await articleRepository.findById(articleId);
+    if (!article) {
+      throw new AppError('Article not found', 404);
+    }
+    if (article.authorId !== requesterId) {
+      throw new AppError(
+        'Only the author can save a fallback quiz for this article',
+        403
+      );
+    }
+
+    const questions = sourceQuiz.questions.map(
+      ({ id: _id, quizId: _quizId, ...question }) => question
+    );
+    const configSnapshot = { ...sourceQuiz.configSnapshot, savedFromQuizId: quizId };
+
+    const existingFallback = await quizRepository.findLatestFallbackByArticleId(articleId);
+    const savedQuiz = existingFallback
+      ? await quizRepository.update(existingFallback.id, { questions, configSnapshot })
+      : await quizRepository.create({ articleId, isFallback: true, questions, configSnapshot });
+
+    return toResponse(savedQuiz);
+  };
+
+  return {
+    generateQuiz,
+    pregenerateFallbackQuiz,
+    setFocusAspects,
+    getFocusAspects,
+    saveAsFallback,
+  };
 };
 
 export type QuizService = ReturnType<typeof createQuizService>;
@@ -144,6 +250,6 @@ export type QuizService = ReturnType<typeof createQuizService>;
 export default createQuizService({
   articleRepository: ArticleRepository,
   quizRepository: QuizRepository,
-  geminiClient,
+  llmProvider: quizProvider,
   settingsService,
 });
