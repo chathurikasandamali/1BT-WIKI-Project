@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ArticleCard } from '@/components/article-listing/ArticleCard';
+import { UserHomepageArticleCard } from '@/components/homepage/UserHomepageArticleCard';
 import { TechTalkCard } from '@/components/tech-talk-listing/TechTalkCard';
 import {
   fetchPublishedArticles,
-  type ArticleListItem,
+  type PublishedArticleListItem,
 } from '@/lib/api/articles';
 import {
   fetchPublishedTechTalks,
@@ -23,7 +23,7 @@ const ALL_FEED_ITEMS = 'all' as const;
 type UserHomepageFeedFilter = typeof ALL_FEED_ITEMS | UserHomepageFeedItemType;
 
 type UserHomepageFeedItem =
-  | (ArticleListItem & {
+  | (PublishedArticleListItem & {
     contentType: UserHomepageFeedItemType.Article;
   })
   | (TechTalkListItem & {
@@ -127,7 +127,7 @@ export function UserHomepage(): React.JSX.Element {
         {visibleFeedItems.map((item) => {
           if (item.contentType === UserHomepageFeedItemType.Article) {
             return (
-              <ArticleCard
+              <UserHomepageArticleCard
                 key={`${UserHomepageFeedItemType.Article}-${item.id}`}
                 id={item.id}
                 title={item.title}
@@ -136,6 +136,7 @@ export function UserHomepage(): React.JSX.Element {
                 commentCount={item.commentCount}
                 views={item.views}
                 createdAt={item.createdAt}
+                coverImageUrl={item.coverImageUrl}
               />
             );
           }
@@ -212,7 +213,8 @@ export function UserHomepage(): React.JSX.Element {
           </div>
 
           <div
-            className="w-fit shrink-0 rounded-full border border-brand-border bg-brand-surface px-4 py-2 text-sm font-medium text-brand-text-secondary"
+            className="w-fit shrink-0 rounded-full border border-brand-border bg-brand-surface px-4 py-2 text-sm font-medium 
+            text-brand-text-secondary"
             aria-label="Sort order: Newest first"
           >
             Newest first
