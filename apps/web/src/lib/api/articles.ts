@@ -13,6 +13,8 @@ export interface ArticleDetail {
   title: string;
   body: Record<string, unknown>;
   authorId: string;
+  coverAttachmentId: string | null;
+  coverImageUrl: string | null;
   tags: string[];
   status: ArticleStatus;
   createdAt: string;
@@ -40,6 +42,17 @@ export interface ArticleListItem {
   rejectionFeedback: string | null;
 }
 
+export interface PublishedArticleListItem extends ArticleListItem {
+  coverImageUrl: string | null;
+}
+
+export interface ArticleUpdateInput {
+  title?: string;
+  body?: Record<string, unknown>;
+  tags?: string[];
+  coverAttachmentId?: string | null;
+}
+
 export interface ListMineResult {
   articles: ArticleListItem[];
   total: number;
@@ -47,7 +60,12 @@ export interface ListMineResult {
   limit: number;
 }
 
-export type PublishedArticleListResult = ListMineResult;
+export interface PublishedArticleListResult {
+  articles: PublishedArticleListItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
 /**
  * Statuses accepted by the admin list endpoint's `status` filter.
  * Drafts are private to their authors and never listed; 'Rejected' is a

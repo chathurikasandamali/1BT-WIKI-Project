@@ -48,6 +48,15 @@ export class ArticleAttachmentRepository {
     return result as ArticleAttachment[];
   }
 
+  async findActiveById(id: string): Promise<ArticleAttachment | null> {
+    const result = await prisma.articleAttachment.findFirst({
+      where: { id, deletedAt: null },
+      select: ARTICLE_ATTACHMENT_SELECT,
+    });
+
+    return result as ArticleAttachment | null;
+  }
+
   async softDelete(id: string): Promise<void> {
     await prisma.articleAttachment.update({
       where: { id },
