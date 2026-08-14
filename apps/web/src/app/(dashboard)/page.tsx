@@ -1,12 +1,10 @@
 'use client';
 
-// Homepage — placeholder until FA-05 (homepage feed) is implemented.
-// The /api/users call was scaffolding from create-next-app and has been removed.
-// Real article feed will be wired here by Malindu in FA-05.
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/lib/hooks/useUser';
 import { HomepageFeed } from '@/components/homepage/HomepageFeed';
+import { UserHomepage } from '@/components/homepage/UserHomepage';
 
 export default function HomePage(): React.JSX.Element {
   const { user, loading } = useUser();
@@ -18,9 +16,6 @@ export default function HomePage(): React.JSX.Element {
     }
   }, [user, loading, router]);
 
-  // Show a loading state while we determine the user's role,
-  // OR if we know they are an Admin and are currently redirecting them,
-  // to avoid a visible flicker of the actual homepage content.
   if (loading || user?.role === 'Admin') {
     return (
       <div className="p-8 flex justify-center items-center">
@@ -29,7 +24,9 @@ export default function HomePage(): React.JSX.Element {
     );
   }
 
-  return (
-    <HomepageFeed />
-  );
+  if (user?.role === 'User') {
+    return <UserHomepage />;
+  }
+
+  return <HomepageFeed />;
 }
