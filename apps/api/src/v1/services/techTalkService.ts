@@ -17,7 +17,7 @@ import type {
 } from '@models/techTalk.types.js';
 import { UserRoleValue } from '@/types/userTypes.js';
 import { HttpStatusCode } from '@utils/httpStatus.js';
-import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT } from '@repo/shared';
+import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT, MAX_TECH_TALK_SLIDES_SIZE_BYTES } from '@repo/shared';
 
 export class TechTalkService {
   constructor(
@@ -269,8 +269,7 @@ export class TechTalkService {
   }
 
   private validateSlidesFile(file: Express.Multer.File): void {
-    const maxSizeBytes = 20 * 1024 * 1024; // 20MB
-    if (file.size > maxSizeBytes) {
+    if (file.size > MAX_TECH_TALK_SLIDES_SIZE_BYTES) {
       throw new AppError(
         'Slides file size cannot exceed 20MB',
         HttpStatusCode.BAD_REQUEST

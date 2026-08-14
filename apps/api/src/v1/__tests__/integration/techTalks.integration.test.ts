@@ -1,6 +1,7 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import request from 'supertest';
 import { HttpStatusCode } from '@/v1/utils/httpStatus.js';
+import { createTechTalk } from '@v1/__tests__/helpers/techTalk.fixtures.js';
 
 await jest.unstable_mockModule('@repo/db', () => ({
   TechTalkStatus: {
@@ -146,18 +147,17 @@ describe('POST /api/v1/techTalks - Integration', () => {
   });
 
   it('returns 201 for Admin with valid payload including tags', async () => {
-    const expectedResponse = {
+    const expectedResponse = createTechTalk({
       id: 'tt-uuid-1',
       title: 'Vue vs React',
-      description: null,
       presenters: ['Charlie'],
       tags: ['Frontend', 'JavaScript'],
       eventDate: '2026-10-15T14:00:00.000Z',
-      slidesUrl: null,
       youtubeVideoId: 'dQw4w9WgXcQ',
       status: 'draft',
-      createdBy: 'admin-1',
-    };
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    });
 
     mockTechTalkRepository.create.mockResolvedValue(expectedResponse as any);
 
@@ -214,10 +214,9 @@ describe('POST /api/v1/techTalks/:id/publish - Integration', () => {
   });
 
   it('returns 400 when tech talk status is already published', async () => {
-    mockTechTalkRepository.findById.mockResolvedValue({
-      id: 'tt-1',
-      status: 'published',
-    });
+    mockTechTalkRepository.findById.mockResolvedValue(
+      createTechTalk({ id: 'tt-1' })
+    );
 
     const res = await request(app)
       .post(publishPath('tt-1'))
@@ -232,11 +231,14 @@ describe('POST /api/v1/techTalks/:id/publish - Integration', () => {
   });
 
   it('returns 200 for Admin republishing an Unpublished tech talk', async () => {
-    const unpublishedTalk = {
+    const unpublishedTalk = createTechTalk({
       id: 'tt-unpub-1',
       title: 'Unpublished Talk',
       status: 'unpublished',
-    };
+      eventDate: '2026-09-01T10:00:00.000Z',
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    });
     const republishedTalk = {
       ...unpublishedTalk,
       status: 'published',
@@ -265,11 +267,14 @@ describe('POST /api/v1/techTalks/:id/publish - Integration', () => {
   });
 
   it('returns 200 for Admin publishing a Draft tech talk', async () => {
-    const draftTalk = {
+    const draftTalk = createTechTalk({
       id: 'tt-draft-1',
       title: 'Draft Talk',
       status: 'draft',
-    };
+      eventDate: '2026-09-01T10:00:00.000Z',
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    });
     const publishedTalk = {
       ...draftTalk,
       status: 'published',
@@ -374,7 +379,7 @@ describe('POST /api/v1/techTalks/:id/unpublish - Integration', () => {
   });
 
   it('returns 200 for Admin unpublishing a Published tech talk, changing only the status', async () => {
-    const publishedTalk = {
+    const publishedTalk = createTechTalk({
       id: 'tt-pub-1',
       title: 'Original Title',
       description: 'Original description',
@@ -383,12 +388,9 @@ describe('POST /api/v1/techTalks/:id/unpublish - Integration', () => {
       eventDate: '2026-06-01T10:00:00.000Z',
       slidesUrl: 'https://example.com/slides.pdf',
       youtubeVideoId: 'dQw4w9WgXcQ',
-      status: 'published',
-      createdBy: 'admin-1',
-      deletedAt: null,
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
-    };
+    });
     const unpublishedTalk = { ...publishedTalk, status: 'unpublished' };
 
     mockTechTalkRepository.unpublish.mockResolvedValue(unpublishedTalk);
@@ -427,21 +429,16 @@ describe('PATCH /api/v1/techTalks/:id - Integration', () => {
 
   const patchPath = (id: string) => `/api/v1/techTalks/${id}`;
 
-  const publishedTechTalk = {
+  const publishedTechTalk = createTechTalk({
     id: 'tt-pub-1',
     title: 'Original Title',
     description: 'Original description',
     presenters: ['Alice'],
     tags: ['React'],
     eventDate: '2026-06-01T10:00:00.000Z',
-    slidesUrl: null,
-    youtubeVideoId: null,
-    status: 'published',
-    createdBy: 'admin-1',
-    deletedAt: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
-  };
+  });
 
   it('returns 401 when unauthenticated', async () => {
     const res = await request(app)
@@ -531,7 +528,7 @@ describe('GET /api/v1/techTalks - Integration', () => {
   });
 
   it('returns 200 with published tech talks, filtered, sorted, and paginated for authenticated users', async () => {
-    const publishedTalk = {
+    const publishedTalk = createTechTalk({
       id: 'tt-pub-1',
       title: 'Advanced React Patterns',
       description: 'Deep dive into React patterns',
@@ -540,10 +537,9 @@ describe('GET /api/v1/techTalks - Integration', () => {
       eventDate: '2026-09-01T10:00:00.000Z',
       slidesUrl: 'https://example.com/slides.pdf',
       youtubeVideoId: 'dQw4w9WgXcQ',
-      status: 'published',
       createdAt: '2026-08-01T00:00:00.000Z',
       updatedAt: '2026-08-01T00:00:00.000Z',
-    };
+    });
 
     mockTechTalkRepository.findPublished.mockResolvedValue({
       techTalks: [publishedTalk],
@@ -618,45 +614,35 @@ describe('GET /api/v1/techTalks/listAll - Integration', () => {
 
   it('returns 200 for Admin with draft, published, and unpublished tech talks, applying search/sort/pagination and total count', async () => {
     const techTalks = [
-      {
+      createTechTalk({
         id: 'tt-draft-1',
         title: 'Draft Talk',
-        description: null,
         presenters: ['Charlie'],
         tags: ['Draft'],
         eventDate: '2026-10-01T10:00:00.000Z',
-        slidesUrl: null,
-        youtubeVideoId: null,
-        status: 'draft',
         createdAt: '2026-08-01T00:00:00.000Z',
         updatedAt: '2026-08-01T00:00:00.000Z',
-      },
-      {
+        status: 'draft',
+      }),
+      createTechTalk({
         id: 'tt-pub-1',
         title: 'Published Talk',
-        description: null,
         presenters: ['Alice'],
         tags: ['React'],
         eventDate: '2026-09-01T10:00:00.000Z',
-        slidesUrl: null,
-        youtubeVideoId: null,
-        status: 'published',
         createdAt: '2026-08-01T00:00:00.000Z',
         updatedAt: '2026-08-01T00:00:00.000Z',
-      },
-      {
+      }),
+      createTechTalk({
         id: 'tt-unpub-1',
         title: 'Unpublished Talk',
-        description: null,
         presenters: ['Bob'],
         tags: ['Node'],
         eventDate: '2026-08-01T10:00:00.000Z',
-        slidesUrl: null,
-        youtubeVideoId: null,
-        status: 'unpublished',
         createdAt: '2026-08-01T00:00:00.000Z',
         updatedAt: '2026-08-01T00:00:00.000Z',
-      },
+        status: 'unpublished',
+      }),
     ];
 
     mockTechTalkRepository.listAll.mockResolvedValue({
@@ -741,7 +727,7 @@ describe('GET /api/v1/techTalks/:id - Integration', () => {
     jest.clearAllMocks();
   });
 
-  const publishedTalk = {
+  const publishedTalk = createTechTalk({
     id: 'tt-pub-1',
     title: 'Published Tech Talk',
     description: 'Detailed description',
@@ -750,26 +736,21 @@ describe('GET /api/v1/techTalks/:id - Integration', () => {
     eventDate: '2026-09-01T10:00:00.000Z',
     slidesUrl: 'https://storage.example.com/slides/tt-pub-1.pdf',
     youtubeVideoId: 'dQw4w9WgXcQ',
-    status: 'published',
-    createdBy: 'admin-1',
     createdAt: '2026-08-01T00:00:00.000Z',
     updatedAt: '2026-08-01T00:00:00.000Z',
-  };
+  });
 
-  const draftTalk = {
+  const draftTalk = createTechTalk({
     id: 'tt-draft-1',
     title: 'Draft Tech Talk',
     description: 'Draft description',
     presenters: ['Charlie'],
     tags: ['Testing'],
     eventDate: '2026-10-01T10:00:00.000Z',
-    slidesUrl: null,
-    youtubeVideoId: null,
     status: 'draft',
-    createdBy: 'admin-1',
     createdAt: '2026-08-01T00:00:00.000Z',
     updatedAt: '2026-08-01T00:00:00.000Z',
-  };
+  });
 
   it('returns 401 when unauthenticated', async () => {
     const res = await request(app).get('/api/v1/techTalks/tt-pub-1');
@@ -888,11 +869,10 @@ describe('DELETE /api/v1/techTalks/:id - Integration', () => {
   });
 
   it('returns 200 and soft-deletes the tech talk for Admin (regardless of draft/published status)', async () => {
-    const existingTalk = {
+    const existingTalk = createTechTalk({
       id: 'tt-1',
       title: 'Some Tech Talk',
-      status: 'published',
-    };
+    });
     mockTechTalkRepository.softDelete.mockResolvedValue({
       ...existingTalk,
       deletedAt: new Date(),

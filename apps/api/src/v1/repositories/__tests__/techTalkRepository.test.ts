@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+import { createTechTalk } from '@v1/__tests__/helpers/techTalk.fixtures.js';
 
 jest.unstable_mockModule('@repo/db', () => ({
   TechTalkStatus: {
@@ -21,21 +22,15 @@ const { default: techTalkRepository } =
   await import('../techTalkRepository.js');
 
 describe('TechTalkRepository', () => {
-  const mockTalk = {
+  const mockTalk = createTechTalk({
     id: 'tt-1',
     title: 'Modern Architecture',
-    description: null,
     presenters: ['Alice'],
     tags: [],
     eventDate: new Date('2026-09-01T10:00:00.000Z'),
-    slidesUrl: null,
-    youtubeVideoId: null,
-    status: 'published',
-    createdBy: 'admin-1',
-    deletedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
-  };
+  });
 
   beforeEach(() => {
     jest.clearAllMocks();

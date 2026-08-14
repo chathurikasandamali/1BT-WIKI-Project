@@ -6,6 +6,7 @@ import type {
   UpdateTechTalkInput,
 } from '@models/techTalk.types.js';
 import { HttpStatusCode } from '@v1/utils/httpStatus.js';
+import { createTechTalk } from '@v1/__tests__/helpers/techTalk.fixtures.js';
 
 jest.unstable_mockModule('@repositories/techTalkRepository.js', () => {
   const mockCreate = jest.fn();
@@ -210,14 +211,15 @@ describe('TechTalkService', () => {
 
   describe('createTechTalk - execution & statuses', () => {
     it('creates with status: draft when publishImmediately is falsy or omitted', async () => {
-      mockRepo.create.mockResolvedValue({
-        id: 'tt-1',
-        ...validPayload,
-        tags: [],
-        status: 'draft',
-        slidesUrl: null,
-        createdBy: 'admin-123',
-      });
+      mockRepo.create.mockResolvedValue(
+        createTechTalk({
+          id: 'tt-1',
+          ...validPayload,
+          tags: [],
+          status: 'draft',
+          createdBy: 'admin-123',
+        })
+      );
 
       await service.createTechTalk(validPayload, 'admin-123');
 
@@ -235,14 +237,15 @@ describe('TechTalkService', () => {
     });
 
     it('creates with status: published when publishImmediately: true', async () => {
-      mockRepo.create.mockResolvedValue({
-        id: 'tt-1',
-        ...validPayload,
-        tags: [],
-        status: 'published',
-        slidesUrl: null,
-        createdBy: 'admin-123',
-      });
+      mockRepo.create.mockResolvedValue(
+        createTechTalk({
+          id: 'tt-1',
+          ...validPayload,
+          tags: [],
+          status: 'published',
+          createdBy: 'admin-123',
+        })
+      );
 
       await service.createTechTalk(
         { ...validPayload, publishImmediately: true },
@@ -311,7 +314,11 @@ describe('TechTalkService', () => {
 
   describe('publishTechTalk', () => {
     it('publishes a draft tech talk successfully', async () => {
-      const draftTechTalk = { id: 'tt-1', status: 'draft', title: 'Test Talk' };
+      const draftTechTalk = createTechTalk({
+        id: 'tt-1',
+        title: 'Test Talk',
+        status: 'draft',
+      });
       const publishedTechTalk = { ...draftTechTalk, status: 'published' };
 
       mockRepo.findById.mockResolvedValue(draftTechTalk);
@@ -333,7 +340,7 @@ describe('TechTalkService', () => {
     });
 
     it('rejects publishing when tech talk is already published (400)', async () => {
-      mockRepo.findById.mockResolvedValue({ id: 'tt-1', status: 'published' });
+      mockRepo.findById.mockResolvedValue(createTechTalk({ id: 'tt-1' }));
 
       await expect(service.publishTechTalk('tt-1')).rejects.toThrow(
         new AppError(
@@ -344,11 +351,11 @@ describe('TechTalkService', () => {
     });
 
     it('allows republishing an unpublished tech talk', async () => {
-      const unpublishedTechTalk = {
+      const unpublishedTechTalk = createTechTalk({
         id: 'tt-1',
-        status: 'unpublished',
         title: 'Test Talk',
-      };
+        status: 'unpublished',
+      });
       const publishedTechTalk = { ...unpublishedTechTalk, status: 'published' };
 
       mockRepo.findById.mockResolvedValue(unpublishedTechTalk);
@@ -364,11 +371,10 @@ describe('TechTalkService', () => {
 
   describe('unpublishTechTalk', () => {
     it('unpublishes a published tech talk with a single repository call', async () => {
-      const publishedTechTalk = {
+      const publishedTechTalk = createTechTalk({
         id: 'tt-1',
-        status: 'published',
         title: 'Test Talk',
-      };
+      });
       const unpublishedTechTalk = {
         ...publishedTechTalk,
         status: 'unpublished',
@@ -429,21 +435,17 @@ describe('TechTalkService', () => {
   });
 
   describe('updateTechTalk', () => {
-    const existingTechTalk = {
+    const existingTechTalk = createTechTalk({
       id: 'tt-1',
       title: 'Old Title',
       description: 'Old description',
       presenters: ['Alice'],
       tags: ['React'],
       eventDate: new Date('2026-06-01T10:00:00.000Z'),
-      slidesUrl: null,
-      youtubeVideoId: null,
-      status: 'draft' as const,
-      createdBy: 'admin-1',
-      deletedAt: null,
+      status: 'draft',
       createdAt: new Date(),
       updatedAt: new Date(),
-    };
+    });
 
     it('returns 404 when tech talk does not exist', async () => {
       mockRepo.findById.mockResolvedValue(null);
@@ -605,19 +607,16 @@ describe('TechTalkService', () => {
   describe('listPublished', () => {
     it('defaults to page 1, limit 20 when query parameters are omitted', async () => {
       const mockTalks = [
-        {
+        createTechTalk({
           id: 'tt-1',
           title: 'React 19 Features',
           description: 'Overview of React 19',
           presenters: ['Alice'],
           tags: ['React'],
           eventDate: new Date('2026-08-01T00:00:00.000Z'),
-          slidesUrl: null,
-          youtubeVideoId: null,
-          status: 'published',
           createdAt: new Date('2026-07-01T00:00:00.000Z'),
           updatedAt: new Date('2026-07-01T00:00:00.000Z'),
-        },
+        }),
       ];
       mockRepo.findPublished.mockResolvedValue({
         techTalks: mockTalks,
@@ -700,19 +699,16 @@ describe('TechTalkService', () => {
   describe('listAll', () => {
     it('defaults to page 1, limit 20 when query parameters are omitted', async () => {
       const mockTalks = [
-        {
+        createTechTalk({
           id: 'tt-1',
           title: 'Draft Talk',
-          description: null,
           presenters: ['Alice'],
           tags: [],
           eventDate: new Date('2026-08-01T00:00:00.000Z'),
-          slidesUrl: null,
-          youtubeVideoId: null,
           status: 'draft',
           createdAt: new Date('2026-07-01T00:00:00.000Z'),
           updatedAt: new Date('2026-07-01T00:00:00.000Z'),
-        },
+        }),
       ];
       mockRepo.listAll.mockResolvedValue({ techTalks: mockTalks, total: 1 });
 
@@ -745,9 +741,13 @@ describe('TechTalkService', () => {
 
     it('includes draft, published, and unpublished tech talks', async () => {
       const mockTalks = [
-        { id: 'tt-1', title: 'Draft Talk', status: 'draft' },
-        { id: 'tt-2', title: 'Published Talk', status: 'published' },
-        { id: 'tt-3', title: 'Unpublished Talk', status: 'unpublished' },
+        createTechTalk({ id: 'tt-1', title: 'Draft Talk', status: 'draft' }),
+        createTechTalk({ id: 'tt-2', title: 'Published Talk' }),
+        createTechTalk({
+          id: 'tt-3',
+          title: 'Unpublished Talk',
+          status: 'unpublished',
+        }),
       ];
       mockRepo.listAll.mockResolvedValue({ techTalks: mockTalks, total: 3 });
 
@@ -793,21 +793,20 @@ describe('TechTalkService', () => {
   });
 
   describe('getTechTalkById', () => {
-    const mockPublishedTalk = {
+    const mockPublishedTalk = createTechTalk({
       id: 'tt-1',
       title: 'Published Talk',
-      status: 'published',
-    };
-    const mockDraftTalk = {
+    });
+    const mockDraftTalk = createTechTalk({
       id: 'tt-2',
       title: 'Draft Talk',
       status: 'draft',
-    };
-    const mockUnpublishedTalk = {
+    });
+    const mockUnpublishedTalk = createTechTalk({
       id: 'tt-3',
       title: 'Unpublished Talk',
       status: 'unpublished',
-    };
+    });
 
     it('returns the Tech Talk when published, regardless of requester role', async () => {
       mockRepo.findById.mockResolvedValue(mockPublishedTalk);
@@ -856,7 +855,11 @@ describe('TechTalkService', () => {
 
   describe('deleteTechTalk', () => {
     it('should soft-delete an existing draft tech talk successfully', async () => {
-      const mockTalk = { id: 'tt-123', title: 'Draft Talk', status: 'draft' };
+      const mockTalk = createTechTalk({
+        id: 'tt-123',
+        title: 'Draft Talk',
+        status: 'draft',
+      });
       mockRepo.softDelete.mockResolvedValue({
         ...mockTalk,
         deletedAt: new Date(),
@@ -869,11 +872,10 @@ describe('TechTalkService', () => {
     });
 
     it('should soft-delete an existing published tech talk successfully (no status restriction)', async () => {
-      const mockTalk = {
+      const mockTalk = createTechTalk({
         id: 'tt-123',
         title: 'Published Talk',
-        status: 'published',
-      };
+      });
       mockRepo.softDelete.mockResolvedValue({
         ...mockTalk,
         deletedAt: new Date(),
