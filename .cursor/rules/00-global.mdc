@@ -80,7 +80,7 @@ async function fetchArticle(id: string): Promise<Article> {
 
 ## Code Comments
 - Comment **why**, not **what** — the code shows what; the comment explains intent
-- Use JSDoc for all exported functions, classes, and interfaces
+- Use JSDoc for all functions, classes, and interfaces
 - Remove dead code — do not comment out code; use Git instead
 
 ## Branch Protection (do not generate code that bypasses these)

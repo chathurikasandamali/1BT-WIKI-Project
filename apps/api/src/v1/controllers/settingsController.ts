@@ -29,6 +29,10 @@ const MASK = '••••••••';
  * Replaces sensitive fields (e.g. LLM API keys) with a mask before a setting
  * value leaves the API. The DB and internal service accessors always see the
  * real value — this only guards HTTP responses.
+ * @param category The setting category (e.g. "quiz")
+ * @param key The setting key (e.g. "llm")
+ * @param value The setting value to mask
+ * @returns The masked value, or the original value if not sensitive
  */
 const maskSensitiveFields = (
   category: string,
