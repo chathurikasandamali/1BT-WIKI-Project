@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { RoleGuard } from '@/components/auth/RoleGuard';
 import { getTechTalkById, type TechTalkDetail } from '@/lib/api/techTalks';
+import { useAsync } from '@/lib/hooks/useAsync';
 import { YoutubeEmbed } from '@/components/techTalks/YoutubeEmbed';
 import { formatDate } from '@/lib/utils/date';
 import { ArrowLeftIcon } from '@/components/shared/icons/ArrowLeftIcon';
@@ -13,46 +13,20 @@ import { cn } from '@/lib/utils';
 function AdminTechTalkDetailPageContent(): React.JSX.Element {
   const params = useParams();
   const id = (params?.id as string) || '';
-  const [techTalk, setTechTalk] = useState<TechTalkDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchTechTalk = async (signal?: AbortSignal): Promise<TechTalkDetail> => {
     if (!id) {
-      return;
+      throw new Error('404 Not Found');
     }
 
-    const controller = new AbortController();
+    return getTechTalkById(id, { signal });
+  };
 
-    const loadTechTalk = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        const data = await getTechTalkById(id, {
-          signal: controller.signal,
-        });
-
-        setTechTalk(data);
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') {
-          return;
-        }
-
-        setError(err instanceof Error ? err.message : 'Failed to load Tech Talk');
-      } finally {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadTechTalk();
-
-    return () => {
-      controller.abort();
-    };
-  }, [id]);
+  const { data: techTalk, loading, error } = useAsync<TechTalkDetail>(
+    fetchTechTalk,
+    [id],
+    { useAbortSignal: true }
+  );
 
   if (loading) {
     return (
@@ -65,13 +39,17 @@ function AdminTechTalkDetailPageContent(): React.JSX.Element {
     );
   }
 
-  const errorMessage = error
-    ? error.includes('403')
-      ? 'You do not have permission to view this Tech Talk.'
-      : error.includes('404')
-      ? 'Tech Talk not found.'
-      : error
-    : null;
+  let errorMessage: string | null = null;
+
+  if (error) {
+    if (error.includes('403')) {
+      errorMessage = 'You do not have permission to view this Tech Talk.';
+    } else if (error.includes('404')) {
+      errorMessage = 'Tech Talk not found.';
+    } else {
+      errorMessage = error;
+    }
+  }
 
   if (errorMessage || !techTalk) {
     return (
@@ -100,6 +78,13 @@ function AdminTechTalkDetailPageContent(): React.JSX.Element {
   const presentersLabel = techTalk.presenters.join(', ');
   const hasTags = techTalk.tags.length > 0;
   const formattedEventDate = formatDate(techTalk.eventDate);
+  let statusClassName = 'bg-brand-red/10 text-brand-red border-brand-red/20';
+
+  if (techTalk.status === 'published') {
+    statusClassName = 'bg-green-50 text-green-700 border-green-200';
+  } else if (techTalk.status === 'draft') {
+    statusClassName = 'bg-brand-bg text-brand-text-secondary border-brand-border';
+  }
 
   return (
     <div className="max-w-5xl mx-auto p-4 sm:p-6" data-testid="admin-techtalk-detail-page">
@@ -125,11 +110,7 @@ function AdminTechTalkDetailPageContent(): React.JSX.Element {
                 <span
                   className={cn(
                     'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border capitalize',
-                    techTalk.status === 'published'
-                      ? 'bg-green-50 text-green-700 border-green-200'
-                      : techTalk.status === 'draft'
-                      ? 'bg-brand-bg text-brand-text-secondary border-brand-border'
-                      : 'bg-brand-red/10 text-brand-red border-brand-red/20'
+                    statusClassName
                   )}
                   data-testid="techtalk-detail-status-badge"
                 >

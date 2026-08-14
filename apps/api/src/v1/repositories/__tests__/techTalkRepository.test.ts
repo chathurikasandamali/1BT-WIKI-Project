@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import { createTechTalk } from '@v1/__tests__/helpers/techTalk.fixtures.js';
+import { createTechTalk } from '@repo/shared';
 
 jest.unstable_mockModule('@repo/db', () => ({
   TechTalkStatus: {

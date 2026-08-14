@@ -1,5 +1,6 @@
 ﻿import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
+import { createTechTalk } from '@repo/shared';
 import AdminTechTalkDetailPage from '../page';
 import { getTechTalkById } from '@/lib/api/techTalks';
 import { useParams } from 'next/navigation';
@@ -27,7 +28,7 @@ jest.mock('next/link', () => {
 const mockGetTechTalkById = getTechTalkById as jest.Mock;
 const mockUseParams = useParams as jest.Mock;
 
-const mockTechTalk = {
+const mockTechTalk = createTechTalk({
   id: 'talk-123',
   title: 'Admin Preview Talk',
   description: 'An admin-only description.',
@@ -36,12 +37,10 @@ const mockTechTalk = {
   eventDate: '2026-08-11T12:00:00.000Z',
   slidesUrl: 'https://example.com/admin-slides.pdf',
   youtubeVideoId: 'dQw4w9WgXcQ',
-  status: 'published',
   createdBy: 'admin',
-  deletedAt: null,
   createdAt: '2026-07-01T12:00:00.000Z',
   updatedAt: '2026-07-02T12:00:00.000Z',
-};
+});
 
 describe('AdminTechTalkDetailPage', () => {
   beforeEach(() => {
