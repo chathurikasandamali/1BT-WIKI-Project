@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { ArticleIcon } from '@/components/shared/icons/ArticleIcon';
 import { CommentIcon } from '@/components/shared/icons/CommentIcon';
@@ -48,11 +49,12 @@ export function UserHomepageArticleCard({
       >
         <div className="relative aspect-video w-full overflow-hidden bg-brand-dark">
           {coverImageUrl ? (
-            <img
+            <Image
               src={coverImageUrl}
               alt={`${title} cover`}
-              loading="lazy"
-              decoding="async"
+              fill
+              unoptimized
+              sizes="(min-width: 1024px) 18rem, (min-width: 640px) 36vw, 100vw"
               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
             />
           ) : (

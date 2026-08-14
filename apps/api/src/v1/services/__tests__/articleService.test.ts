@@ -790,6 +790,7 @@ describe('ArticleService.listPublished', () => {
       10,
       {
         includeCounts: true,
+        includeCoverImage: true,
         search: undefined,
         sort: undefined,
         order: undefined,
@@ -809,6 +810,7 @@ describe('ArticleService.listPublished', () => {
           likeCount: 5,
           commentCount: 2,
           rejectionFeedback: null,
+          coverImageUrl: null,
         },
         {
           id: '2',
@@ -822,6 +824,7 @@ describe('ArticleService.listPublished', () => {
           likeCount: 0,
           commentCount: 0,
           rejectionFeedback: null,
+          coverImageUrl: null,
         },
       ],
       total: 2,
@@ -877,6 +880,7 @@ describe('ArticleService.listPublished', () => {
       10,
       {
         includeCounts: true,
+        includeCoverImage: true,
         search: 'search-term',
         sort: 'views',
         order: 'asc',
@@ -921,6 +925,8 @@ describe('ArticleService.getArticleById', () => {
     expect(mockRepo.findById).toHaveBeenCalledWith(articleId, authorId);
     expect(result).toEqual({
       ...base,
+      coverAttachmentId: null,
+      coverImageUrl: null,
       likeCount: 5,
       commentCount: 2,
       likedByMe: true,
@@ -941,6 +947,8 @@ describe('ArticleService.getArticleById', () => {
     expect(mockRepo.findById).toHaveBeenCalledWith(articleId, null);
     expect(result).toEqual({
       ...record,
+      coverAttachmentId: null,
+      coverImageUrl: null,
       likeCount: 0,
       commentCount: 0,
       likedByMe: false,
@@ -984,6 +992,8 @@ describe('ArticleService.getArticleById', () => {
     expect(mockRepo.findById).toHaveBeenCalledWith(articleId, authorId);
     expect(result).toEqual({
       ...record,
+      coverAttachmentId: null,
+      coverImageUrl: null,
       likeCount: 0,
       commentCount: 0,
       likedByMe: false,
@@ -1005,6 +1015,8 @@ describe('ArticleService.getArticleById', () => {
     expect(mockRepo.findById).toHaveBeenCalledWith(articleId, authorId);
     expect(result).toEqual({
       ...record,
+      coverAttachmentId: null,
+      coverImageUrl: null,
       likeCount: 0,
       commentCount: 0,
       likedByMe: false,
