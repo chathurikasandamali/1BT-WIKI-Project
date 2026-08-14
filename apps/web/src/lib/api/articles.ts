@@ -167,3 +167,13 @@ export async function getArticle(id: string): Promise<ArticleDetail> {
   }
   return result.data;
 }
+
+export async function generateQuiz(articleId: string): Promise<void> {
+  const result = await apiFetch(`/articles/${articleId}/quiz/generate`, {
+    method: 'POST',
+  }); 
+  if (!result.success) {
+    throw new Error(result.error || 'Failed to generate quiz');
+  }
+    console.log("Result from generateQuiz API call:", result);
+}

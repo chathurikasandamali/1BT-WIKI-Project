@@ -9,7 +9,8 @@
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
     "sonar": "dotenv -e .env -- npx @sonar/scan",
-    "check": "turbo run lint test sonar"
+    "check": "turbo run lint test sonar",
+    "mock-api": "pnpm --filter api exec cross-env NODE_ENV=test E2E_TEST_MODE=true PORT=5000 tsx --env-file=.env src/index.ts"
   },
   "devDependencies": {
     "dotenv-cli": "^7.4.4",

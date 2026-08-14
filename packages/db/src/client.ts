@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { PrismaClient } from '@repo/db/generated/prisma/client.js';
-import { PrismaNeonHttp } from '@prisma/adapter-neon';
+import { PrismaNeon } from '@prisma/adapter-neon';
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -15,9 +15,8 @@ declare global {
 }
 
 function createPrismaClient(): PrismaClient {
-  const adapter = new PrismaNeonHttp(connectionString!, {
-    arrayMode: false,
-    fullResults: true,
+  const adapter = new PrismaNeon({
+    connectionString
   });
   return new PrismaClient({ adapter });
 }

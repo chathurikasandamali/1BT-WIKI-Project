@@ -1,7 +1,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getArticle, ArticleDetail } from '@/lib/api/articles';
+import { getArticle, ArticleDetail, generateQuiz } from '@/lib/api/articles';
 import { UserAvatar } from '@/components/UserAvatar';
 import { ArticleContent } from '@/components/article-detail/ArticleContent';
 import { LikeButton } from '@/components/article-detail/LikeButton';
@@ -46,6 +46,15 @@ export default function ArticleDetailPage(props: ArticlePageProps) {
       mounted = false;
     };
   }, [params.id]);
+
+  const handleGenerateQuiz = async () => {
+    try {
+      await generateQuiz(params.id);
+      alert('Quiz generation initiated successfully.');
+    } catch (error) {
+      console.error('Error generating quiz:', error);
+    }
+  }
 
   if (loading) {
     return (
@@ -135,7 +144,11 @@ export default function ArticleDetailPage(props: ArticlePageProps) {
             />
           </div>
         </div>
-
+        <div>
+          <button type="button" onClick={handleGenerateQuiz}>
+            Generate Quiz
+          </button>
+        </div>
         <div className="p-8 md:p-12 bg-white">
           <ArticleContent body={article.body} />
         </div>
