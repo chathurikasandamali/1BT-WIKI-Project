@@ -16,7 +16,7 @@ interface UserHomepageArticleCardProps {
   commentCount: number;
   views: number;
   createdAt: string;
-  thumbnailUrl: string | null;
+  coverImageUrl: string | null;
 }
 
 const MAX_VISIBLE_TAGS = 3;
@@ -32,7 +32,7 @@ export function UserHomepageArticleCard({
   commentCount,
   views,
   createdAt,
-  thumbnailUrl,
+  coverImageUrl,
 }: UserHomepageArticleCardProps): React.JSX.Element {
   const [thumbnailLoadFailed, setThumbnailLoadFailed] = React.useState(false);
 
@@ -59,9 +59,9 @@ export function UserHomepageArticleCard({
         lg:grid-cols-[minmax(18rem,0.85fr)_minmax(0,1.5fr)]"
       >
         <div className="relative aspect-video w-full overflow-hidden bg-brand-dark">
-          {thumbnailUrl && !thumbnailLoadFailed ? (
+          {coverImageUrl && !thumbnailLoadFailed ? (
             <Image
-              src={thumbnailUrl}
+              src={coverImageUrl}
               alt={`${title} article thumbnail`}
               fill
               unoptimized

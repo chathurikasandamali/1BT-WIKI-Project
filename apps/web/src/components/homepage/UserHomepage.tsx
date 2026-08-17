@@ -136,7 +136,7 @@ export function UserHomepage(): React.JSX.Element {
                 commentCount={item.commentCount}
                 views={item.views}
                 createdAt={item.createdAt}
-                thumbnailUrl={item.thumbnailUrl}
+                coverImageUrl={item.coverImageUrl}
               />
             );
           }

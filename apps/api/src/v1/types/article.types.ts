@@ -60,7 +60,7 @@ export interface ArticleListItem {
 }
 
 export interface PublishedArticleListItem extends ArticleListItem {
-  thumbnailUrl: string | null;
+  coverImageUrl: string | null;
 }
 
 /**

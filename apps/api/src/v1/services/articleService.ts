@@ -30,6 +30,7 @@ type ArticleUpdateFields = Partial<
 type PublishedArticleRow = Article & {
   _count?: { likes: number; comments: number };
   reviews?: { feedback: string | null }[];
+  coverAttachment?: { fileUrl: string } | null;
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -370,6 +371,7 @@ export class ArticleService {
       limit,
       {
         includeCounts: true,
+        includeCoverImage: true,
         search,
         sort,
         order,
@@ -388,7 +390,7 @@ export class ArticleService {
       likeCount: article._count?.likes ?? 0,
       commentCount: article._count?.comments ?? 0,
       rejectionFeedback: null,
-      thumbnailUrl: getFirstArticleImageUrl(article.body),
+      coverImageUrl: article.coverAttachment?.fileUrl ?? null,
     }));
 
     return { articles: mappedArticles, total, page, limit };
