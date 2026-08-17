@@ -85,9 +85,11 @@ describe('My Articles page', () => {
     // the page ever loads, so we can't use visitPage() (it asserts the URL
     // still matches the visited path).
     cy.visit('/my-articles');
-    cy.url().should('include', '/signin');
+    cy.location('pathname').should('eq', '/signin');
 
-    cy.contains('h1', 'Sign in to continue').should('be.visible');
+    cy.get('button[aria-label="1BT Wiki home"]').should('be.visible');
+    cy.get('button[aria-label="Open navigation menu"]').click();
+    cy.get('#mobile-landing-navigation').contains('button', /^Log in$/).should('be.visible');
   });
 
   it("author deletes own Draft and confirms, and cannot delete non-Draft", () => {

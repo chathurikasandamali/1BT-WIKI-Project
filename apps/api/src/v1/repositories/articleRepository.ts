@@ -22,6 +22,7 @@ type ArticleBody = {
   body: JSONContent;
   tags: string[];
   status: ArticleStatus;
+  coverAttachmentId: string | null;
 };
 
 export type ArticleDetailRecord = Article & {
@@ -30,6 +31,7 @@ export type ArticleDetailRecord = Article & {
     comments: number;
   };
   likes?: Array<{ id: string }>;
+  coverAttachment?: { fileUrl: string } | null;
 };
 
 export class ArticleRepository {
@@ -77,6 +79,12 @@ export class ArticleRepository {
       where: { id, deletedAt: null },
       select: {
         ...ARTICLE_SELECT,
+        coverAttachmentId: true,
+        coverAttachment: {
+          select: {
+            fileUrl: true,
+          },
+        },
         _count: {
           select: {
             likes: true,
@@ -115,6 +123,12 @@ export class ArticleRepository {
       }),
       ...(fields.tags !== undefined && { tags: fields.tags }),
       ...(fields.status !== undefined && { status: fields.status }),
+      ...(fields.coverAttachmentId !== undefined && {
+        coverAttachment:
+          fields.coverAttachmentId === null
+            ? { disconnect: true }
+            : { connect: { id: fields.coverAttachmentId } },
+      }),
     };
 
     const result = await prisma.article.update({
@@ -207,6 +221,7 @@ export class ArticleRepository {
       sort?: string;
       order?: string;
       excludeStatus?: ArticleStatus;
+      includeCoverImage?: boolean;
     }
   ): Promise<{ articles: Article[]; total: number }> {
     const where = {
@@ -220,20 +235,31 @@ export class ArticleRepository {
     };
     const orderBy = buildSortOrder(ARTICLE_SORT_FIELDS, options?.sort, options?.order, 'createdAt');
     const includeCounts = options?.includeCounts ?? status === 'Published';
+    const includeCoverImage = options?.includeCoverImage ?? false;
     const [articles, total] = await Promise.all([
       prisma.article.findMany({
         where,
         orderBy,
         skip: (page - 1) * limit,
         take: limit,
-        ...(includeCounts && {
+        omit: { coverAttachmentId: true },
+        ...((includeCounts || includeCoverImage) && {
           include: {
-            _count: {
-              select: {
-                likes: true,
-                comments: { where: { deletedAt: null } },
+            ...(includeCounts && {
+              _count: {
+                select: {
+                  likes: true,
+                  comments: { where: { deletedAt: null } },
+                },
               },
-            },
+            }),
+            ...(includeCoverImage && {
+              coverAttachment: {
+                select: {
+                  fileUrl: true,
+                },
+              },
+            }),
           },
         }),
       }),

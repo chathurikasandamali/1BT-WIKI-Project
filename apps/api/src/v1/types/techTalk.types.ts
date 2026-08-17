@@ -1,4 +1,5 @@
 import type { TechTalkStatus } from '@repo/db';
+import type { PaginationParams } from '@repo/shared';
 
 export const TECH_TALK_SORT_FIELDS = ['title', 'eventDate'] as const;
 
@@ -51,15 +52,12 @@ export interface UpdateTechTalkInput {
   youtubeVideoId?: string;
 }
 
-export interface TechTalkListQuery {
-  page?: number;
-  limit?: number;
+export interface TechTalkListQuery extends PaginationParams {
   search?: string;
   sort?: string;
   order?: string;
 }
 
-export interface PaginationMeta
-  extends Required<Pick<TechTalkListQuery, 'page' | 'limit'>> {
+export interface PaginationMeta extends Required<PaginationParams> {
   total: number;
 }
