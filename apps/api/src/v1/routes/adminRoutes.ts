@@ -12,6 +12,7 @@ import { Router } from 'express';
 import UserController from '@controllers/userController.js';
 import AdminController from '@controllers/adminController.js';
 import ArticleController from '@controllers/articleController.js';
+import SettingsController from '@controllers/settingsController.js';
 import { authenticate } from '@/middleware/auth.middleware.js';
 import { requireRole } from '@/middleware/rbac.middleware.js';
 
@@ -48,6 +49,24 @@ router.patch(
   authenticate,
   requireRole('Admin'),
   UserController.updateUserBanStatus
+);
+
+// Shared/infrastructure: admin-configurable app_settings store.
+//   GET   /settings[?category=quiz] — list settings (all, or one category)
+//   GET   /settings/:category/:key  — read a single setting
+//   PATCH /settings/:category/:key  — partial-update a setting
+router.get('/settings', authenticate, requireRole('Admin'), SettingsController.list);
+router.get(
+  '/settings/:category/:key',
+  authenticate,
+  requireRole('Admin'),
+  SettingsController.getOne
+);
+router.patch(
+  '/settings/:category/:key',
+  authenticate,
+  requireRole('Admin'),
+  SettingsController.update
 );
 
 export default router;

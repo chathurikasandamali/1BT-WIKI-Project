@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import type { TechTalkService } from '@services/techTalkService.js';
 import { AppError } from '@errors/AppError.js';
 import { makeMockReqResNext } from '@v1/__tests__/helpers/mockExpress.helpers.js';
+import { createTechTalk } from '@repo/shared';
 import { HttpStatusCode } from '@/v1/utils/httpStatus.js';
 
 jest.unstable_mockModule('@services/techTalkService.js', () => ({
@@ -13,12 +14,14 @@ jest.unstable_mockModule('@services/techTalkService.js', () => ({
 const { TechTalkController } = await import('../techTalkController.js');
 
 const makeMockService = (): jest.Mocked<
-  Pick<TechTalkService, 'createTechTalk' | 'publishTechTalk' | 'updateTechTalk' | 'listPublished' | 'getTechTalkById' | 'deleteTechTalk'>
+  Pick<TechTalkService, 'createTechTalk' | 'publishTechTalk' | 'unpublishTechTalk' | 'updateTechTalk' | 'listPublished' | 'listAll' | 'getTechTalkById' | 'deleteTechTalk'>
 > => ({
   createTechTalk: jest.fn(),
   publishTechTalk: jest.fn(),
+  unpublishTechTalk: jest.fn(),
   updateTechTalk: jest.fn(),
   listPublished: jest.fn(),
+  listAll: jest.fn(),
   getTechTalkById: jest.fn(),
   deleteTechTalk: jest.fn(),
 });
@@ -98,6 +101,67 @@ describe('TechTalkController', () => {
     });
   });
 
+  describe('listAll', () => {
+    it('should parse query parameters and call service.listAll', async () => {
+      req.query = {
+        page: '2',
+        limit: '10',
+        search: 'Architecture',
+        sort: 'title',
+        order: 'asc',
+      };
+      const mockResult = {
+        techTalks: [],
+        total: 0,
+        page: 2,
+        limit: 10,
+      };
+      mockService.listAll.mockResolvedValue(mockResult as any);
+
+      await controller.listAll(req as Request, res as Response, next);
+
+      expect(mockService.listAll).toHaveBeenCalledWith({
+        page: 2,
+        limit: 10,
+        search: 'Architecture',
+        sort: 'title',
+        order: 'asc',
+      });
+      expect(res.status).toHaveBeenCalledWith(HttpStatusCode.OK);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockResult,
+        message: 'Tech Talks retrieved successfully',
+      });
+    });
+
+    it('should fallback to default page 1 and limit 20 when non-numeric query params provided', async () => {
+      req.query = {};
+      const mockResult = { techTalks: [], total: 0, page: 1, limit: 20 };
+      mockService.listAll.mockResolvedValue(mockResult as any);
+
+      await controller.listAll(req as Request, res as Response, next);
+
+      expect(mockService.listAll).toHaveBeenCalledWith({
+        page: 1,
+        limit: 20,
+        search: undefined,
+        sort: undefined,
+        order: undefined,
+      });
+    });
+
+    it('should forward service errors to next', async () => {
+      req.query = { sort: 'invalid' };
+      const error = new AppError('Invalid sort field', HttpStatusCode.BAD_REQUEST);
+      mockService.listAll.mockRejectedValue(error);
+
+      await controller.listAll(req as Request, res as Response, next);
+
+      expect(next).toHaveBeenCalledWith(error);
+    });
+  });
+
   describe('create', () => {
     it('should throw AppError if data field is missing', async () => {
       req.body = {};
@@ -124,7 +188,11 @@ describe('TechTalkController', () => {
       const slideFile = { originalname: 'slides.pdf' } as Express.Multer.File;
       req.files = [slideFile];
 
-      const expectedCreated = { id: 'tt-1', ...input, createdBy: 'admin-123' };
+      const expectedCreated = createTechTalk({
+        id: 'tt-1',
+        ...input,
+        createdBy: 'admin-123',
+      });
       mockService.createTechTalk.mockResolvedValue(expectedCreated as any);
 
       await controller.create(req as Request, res as Response, next);
@@ -142,7 +210,10 @@ describe('TechTalkController', () => {
   describe('publish', () => {
     it('should call service.publishTechTalk with id and return 200 on success', async () => {
       req.params = { id: 'tt-123' };
-      const publishedTalk = { id: 'tt-123', status: 'published', title: 'Tech Talk 1' };
+      const publishedTalk = createTechTalk({
+        id: 'tt-123',
+        title: 'Tech Talk 1',
+      });
       mockService.publishTechTalk.mockResolvedValue(publishedTalk as any);
 
       await controller.publish(req as Request, res as Response, next);
@@ -162,6 +233,38 @@ describe('TechTalkController', () => {
       mockService.publishTechTalk.mockRejectedValue(error);
 
       await controller.publish(req as Request, res as Response, next);
+
+      expect(next).toHaveBeenCalledWith(error);
+    });
+  });
+
+  describe('unpublish', () => {
+    it('should call service.unpublishTechTalk with id and return 200 on success', async () => {
+      req.params = { id: 'tt-123' };
+      const unpublishedTalk = createTechTalk({
+        id: 'tt-123',
+        title: 'Tech Talk 1',
+        status: 'unpublished',
+      });
+      mockService.unpublishTechTalk.mockResolvedValue(unpublishedTalk as any);
+
+      await controller.unpublish(req as Request, res as Response, next);
+
+      expect(mockService.unpublishTechTalk).toHaveBeenCalledWith('tt-123');
+      expect(res.status).toHaveBeenCalledWith(HttpStatusCode.OK);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: unpublishedTalk,
+        message: 'Tech Talk unpublished successfully',
+      });
+    });
+
+    it('should forward errors to next', async () => {
+      req.params = { id: 'tt-invalid' };
+      const error = new AppError('Tech Talk not found', HttpStatusCode.NOT_FOUND);
+      mockService.unpublishTechTalk.mockRejectedValue(error);
+
+      await controller.unpublish(req as Request, res as Response, next);
 
       expect(next).toHaveBeenCalledWith(error);
     });
@@ -191,7 +294,11 @@ describe('TechTalkController', () => {
       const slidesFile = { originalname: 'updated.pdf' } as Express.Multer.File;
       req.files = [slidesFile];
 
-      const updatedTalk = { id: 'tt-42', ...input, status: 'draft' };
+      const updatedTalk = createTechTalk({
+        id: 'tt-42',
+        ...input,
+        status: 'draft',
+      });
       mockService.updateTechTalk.mockResolvedValue(updatedTalk as any);
 
       await controller.update(req as Request, res as Response, next);
@@ -221,7 +328,10 @@ describe('TechTalkController', () => {
     it('should call service.getTechTalkById with id and req.user.role, and return 200', async () => {
       req.params = { id: 'tt-123' };
       req.user = { userId: 'u-1', email: 'user@test.com', role: 'User' };
-      const mockTalk = { id: 'tt-123', title: 'Tech Talk Detail', status: 'published' };
+      const mockTalk = createTechTalk({
+        id: 'tt-123',
+        title: 'Tech Talk Detail',
+      });
       mockService.getTechTalkById.mockResolvedValue(mockTalk as any);
 
       await controller.getById(req as Request, res as Response, next);
