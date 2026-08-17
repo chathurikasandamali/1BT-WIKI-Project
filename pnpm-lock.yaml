@@ -120,9 +120,6 @@ importers:
       '@neondatabase/auth':
         specifier: 0.4.2-beta
         version: 0.4.2-beta(c96ab77111eab8b956b3f43d28f39ac1)
-      '@repo/db':
-        specifier: workspace:*
-        version: link:../../packages/db
       '@repo/shared':
         specifier: workspace:*
         version: link:../../packages/shared
