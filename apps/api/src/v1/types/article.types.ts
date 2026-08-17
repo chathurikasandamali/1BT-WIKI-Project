@@ -25,6 +25,7 @@ export interface Article {
   body: JSONContent;
   status: ArticleStatus;
   authorId: string;
+  coverAttachmentId?: string | null;
   authorName: string,
   views: number;
   tags: string[];
@@ -35,6 +36,8 @@ export interface Article {
 }
 
 export interface ArticleDetail extends Article {
+  coverAttachmentId: string | null;
+  coverImageUrl: string | null;
   likeCount: number;
   commentCount: number;
   likedByMe: boolean;
@@ -54,6 +57,10 @@ export interface ArticleListItem {
   commentCount: number;
   views: number;
   rejectionFeedback: string | null;
+}
+
+export interface PublishedArticleListItem extends ArticleListItem {
+  coverImageUrl: string | null;
 }
 
 /**
@@ -118,6 +125,7 @@ export interface UpdateArticleInput {
   title?: string;
   body?: JSONContent;
   tags?: string[];
+  coverAttachmentId?: string | null;
 }
 
 export interface ArticleReview {

@@ -247,13 +247,14 @@ describe('Articles API Integration', () => {
       expect(response.body.data.total).toBe(1);
       expect(response.body.data.page).toBe(1);
       expect(response.body.data.limit).toBe(20);
-      
+
       expect(mockFindByStatus).toHaveBeenCalledWith(
         'Published',
         1,
         20,
         {
           includeCounts: true,
+          includeCoverImage: true,
           search: undefined,
           sort: undefined,
           order: undefined,
@@ -271,13 +272,14 @@ describe('Articles API Integration', () => {
       expect(response.status).toBe(200);
       expect(response.body.data.page).toBe(3);
       expect(response.body.data.limit).toBe(5);
-      
+
       expect(mockFindByStatus).toHaveBeenCalledWith(
         'Published',
         3,
         5,
         {
           includeCounts: true,
+          includeCoverImage: true,
           search: undefined,
           sort: undefined,
           order: undefined,
@@ -302,6 +304,7 @@ describe('Articles API Integration', () => {
         10,
         {
           includeCounts: true,
+          includeCoverImage: true,
           search: 'react',
           sort: 'views',
           order: 'asc',
