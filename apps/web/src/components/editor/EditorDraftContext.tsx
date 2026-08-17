@@ -7,7 +7,6 @@ import React, {
   useRef,
   useCallback,
   useEffect,
-  useMemo,
   type ReactNode,
 } from 'react';
 import type { Editor } from '@tiptap/react';
@@ -615,64 +614,36 @@ export function EditorDraftProvider({
     };
   }, []);
 
-  // ── Context value (memoised to avoid needless consumer re-renders) ────
+  // ── Context value ────────────────────────────────────────────────────────
 
-  const value: EditorDraftContextValue = useMemo(
-    () => ({
-      articleId,
-      articleStatus,
-      title,
-      tags,
-      saveStatus,
-      lastSavedAt,
-      lastError,
-      coverAttachmentId,
-      featuredImageUrl,
-      attachments,
-      wordCount,
-      charCount,
-      setTitle,
-      setTags,
-      registerEditor,
-      ensureDraftExists,
-      saveDraft,
-      uploadImage,
-      uploadCoverImage,
-      removeCoverImage,
-      submitForReview,
-      insertEditorImage,
-      handleTitleBlur,
-      notifyContentChanged,
-      initialBody: initialBodyRef.current,
-      initialStatus: initialStatusRef.current,
-    }),
-    [
-      articleId,
-      articleStatus,
-      title,
-      tags,
-      saveStatus,
-      lastSavedAt,
-      lastError,
-      coverAttachmentId,
-      featuredImageUrl,
-      attachments,
-      wordCount,
-      charCount,
-      setTitle,
-      setTags,
-      registerEditor,
-      ensureDraftExists,
-      saveDraft,
-      uploadImage,
-      uploadCoverImage,
-      removeCoverImage,
-      submitForReview,
-      insertEditorImage,
-      handleTitleBlur,
-      notifyContentChanged,
-    ]
-  );
+  const value: EditorDraftContextValue = {
+    articleId,
+    articleStatus,
+    title,
+    tags,
+    saveStatus,
+    lastSavedAt,
+    lastError,
+    coverAttachmentId,
+    featuredImageUrl,
+    attachments,
+    wordCount,
+    charCount,
+    setTitle,
+    setTags,
+    registerEditor,
+    ensureDraftExists,
+    saveDraft,
+    uploadImage,
+    uploadCoverImage,
+    removeCoverImage,
+    submitForReview,
+    insertEditorImage,
+    handleTitleBlur,
+    notifyContentChanged,
+    initialBody: initialBodyRef.current,
+    initialStatus: initialStatusRef.current,
+  };
 
   return (
     <EditorDraftContext.Provider value={value}>
