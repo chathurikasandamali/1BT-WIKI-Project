@@ -10,9 +10,6 @@ export const MAX_TECH_TALK_SLIDES_SIZE_BYTES = 20 * 1024 * 1024;
 
 export type TechTalkFixtureStatus = 'draft' | 'published' | 'unpublished';
 
-export { TechTalkStatus } from '@repo/db';
-
-
 /**
  * Shared test fixture shape for a Tech Talk.
  *

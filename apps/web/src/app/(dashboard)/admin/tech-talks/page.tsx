@@ -16,7 +16,7 @@ import { ConfirmationModal } from '@/components/shared/ConfirmationModal';
 import { cn } from '@/lib/utils';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { TechTalkStatus } from '@repo/shared';
+import { TechTalkStatus } from '@repo/db';
 
 import { RefreshIcon } from '@/components/shared/icons/RefreshIcon';
 import { SearchIcon } from '@/components/shared/icons/SearchIcon';
