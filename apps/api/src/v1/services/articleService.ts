@@ -214,22 +214,15 @@ export class ArticleService {
 
     const article = await this.findOwned(id, userId);
 
-    let isEditable = false;
     let resetToDraft = false;
 
-    if (article.status === ArticleStatusValue.Draft) {
-      isEditable = true;
-    } else {
+    if (article.status !== ArticleStatusValue.Draft) {
       const latestReview =
         await this.reviewRepository.findLatestByArticleId(id);
-      if (latestReview && latestReview.reviewStatus === 'Rejected') {
-        isEditable = true;
-        resetToDraft = true;
+      if (!latestReview || latestReview.reviewStatus !== 'Rejected') {
+        throw new AppError('Only Draft or Rejected articles can be edited', 400);
       }
-    }
-
-    if (!isEditable) {
-      throw new AppError('Only Draft or Rejected articles can be edited', 400);
+      resetToDraft = true;
     }
 
     if (
