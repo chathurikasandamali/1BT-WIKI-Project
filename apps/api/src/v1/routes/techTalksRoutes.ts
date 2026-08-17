@@ -4,9 +4,15 @@ import { authenticate } from '@/middleware/auth.middleware.js';
 import { requireRole } from '@middleware/rbac.middleware.js';
 import { TechTalkController } from '@controllers/techTalkController.js';
 import { UserRoleValue } from '@/types/userTypes.js';
+import { MAX_TECH_TALK_SLIDES_SIZE_BYTES } from '@/constants/upload.constants.js';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: MAX_TECH_TALK_SLIDES_SIZE_BYTES,
+  },
+});
 const techTalkController = new TechTalkController();
 const { create, publish, unpublish, update, listPublished, listAll, getById, deleteTechTalk } = techTalkController;
 

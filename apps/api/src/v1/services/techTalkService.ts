@@ -22,7 +22,7 @@ import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT, MAX_TECH_TALK_SLIDES_SIZE_BYTES } fro
 export class TechTalkService {
   constructor(
     private readonly techTalkRepository: TechTalkRepository = techTalkRepositoryInstance
-  ) {}
+  ) { }
 
   async getTechTalkById(id: string, requesterRole?: string): Promise<TechTalk> {
     const techTalk = await this.techTalkRepository.findById(id);
