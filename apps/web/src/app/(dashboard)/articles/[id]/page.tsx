@@ -1,12 +1,14 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getArticle, ArticleDetail, generateQuiz } from '@/lib/api/articles';
+import { Sparkles } from 'lucide-react';
+import { getArticle, ArticleDetail } from '@/lib/api/articles';
 import { UserAvatar } from '@/components/UserAvatar';
 import { ArticleContent } from '@/components/article-detail/ArticleContent';
 import { LikeButton } from '@/components/article-detail/LikeButton';
 import { CommentsSection } from '@/components/article-detail/CommentsSection';
 import { ArrowLeftIcon } from '@/components/shared/icons/ArrowLeftIcon';
+import { GenerateQuizModal } from '@/components/quiz/GenerateQuizModal';
 
 interface ArticlePageProps {
   params: Promise<{ id: string }>;
@@ -19,6 +21,7 @@ export default function ArticleDetailPage(props: ArticlePageProps) {
   const [article, setArticle] = useState<ArticleDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isGenerateQuizModalOpen, setIsGenerateQuizModalOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -46,15 +49,6 @@ export default function ArticleDetailPage(props: ArticlePageProps) {
       mounted = false;
     };
   }, [params.id]);
-
-  const handleGenerateQuiz = async () => {
-    try {
-      await generateQuiz(params.id);
-      alert('Quiz generation initiated successfully.');
-    } catch (error) {
-      console.error('Error generating quiz:', error);
-    }
-  }
 
   if (loading) {
     return (
@@ -144,17 +138,32 @@ export default function ArticleDetailPage(props: ArticlePageProps) {
             />
           </div>
         </div>
-        <div>
-          <button type="button" onClick={handleGenerateQuiz}>
-            Generate Quiz
-          </button>
-        </div>
+        {article.status === 'Published' && (
+          <div className="px-8 md:px-12 pt-6">
+            <button
+              type="button"
+              data-cy="article-generate-quiz-button"
+              onClick={() => setIsGenerateQuizModalOpen(true)}
+              className="flex items-center gap-2 rounded-lg border border-brand-border bg-white px-4 py-2 text-sm font-semibold text-brand-text-primary hover:bg-brand-hover transition-colors shadow-sm"
+            >
+              <Sparkles className="h-4 w-4 text-brand-text-secondary" />
+              Generate Quiz
+            </button>
+          </div>
+        )}
         <div className="p-8 md:p-12 bg-white">
           <ArticleContent body={article.body} />
         </div>
       </article>
 
       <CommentsSection articleId={params.id} />
+
+      <GenerateQuizModal
+        isOpen={isGenerateQuizModalOpen}
+        articleId={article.id}
+        onClose={() => setIsGenerateQuizModalOpen(false)}
+        autoGenerate
+      />
     </div>
   );
 }

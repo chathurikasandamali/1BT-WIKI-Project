@@ -18,12 +18,18 @@ interface GenerateQuizModalProps {
   isOpen: boolean;
   articleId: string | null;
   onClose: () => void;
+  /**
+   * Reader-view mode: skips the focus-aspects input step and starts
+   * generation as soon as the modal opens, showing only the result.
+   */
+  autoGenerate?: boolean;
 }
 
 export function GenerateQuizModal({
   isOpen,
   articleId,
   onClose,
+  autoGenerate = false,
 }: GenerateQuizModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -34,6 +40,7 @@ export function GenerateQuizModal({
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<GenerateQuizResponse | null>(null);
+  const autoStartedRef = useRef(false);
 
   useEffect(() => {
     setMounted(true);
@@ -41,7 +48,7 @@ export function GenerateQuizModal({
 
   // Load the saved focus-aspects hint (if any) whenever the modal opens.
   useEffect(() => {
-    if (!isOpen || !articleId) return;
+    if (!isOpen || !articleId || autoGenerate) return;
 
     let cancelled = false;
     setIsLoadingAspects(true);
@@ -68,7 +75,7 @@ export function GenerateQuizModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, articleId]);
+  }, [isOpen, articleId, autoGenerate]);
 
   useGSAP(() => {
     if (!mounted || !overlayRef.current || !modalRef.current) return;
@@ -107,6 +114,7 @@ export function GenerateQuizModal({
     setTimeout(() => {
       setResult(null);
       setError(null);
+      autoStartedRef.current = false;
     }, 300);
   };
 
@@ -118,7 +126,7 @@ export function GenerateQuizModal({
 
     try {
       const trimmed = focusAspects.trim();
-      if (trimmed.length > 0) {
+      if (!autoGenerate && trimmed.length > 0) {
         await setFocusAspects(articleId, trimmed);
       }
 
@@ -130,6 +138,14 @@ export function GenerateQuizModal({
       setIsGenerating(false);
     }
   };
+
+  // Reader-view mode: kick off generation automatically once per open.
+  useEffect(() => {
+    if (!autoGenerate || !isOpen || !articleId || autoStartedRef.current) return;
+    autoStartedRef.current = true;
+    void handleGenerate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoGenerate, isOpen, articleId]);
 
   if (!mounted) return null;
 
@@ -158,7 +174,31 @@ export function GenerateQuizModal({
         </div>
 
         <div className="px-6 py-6 max-h-[60vh] overflow-y-auto">
-          {!result ? (
+          {autoGenerate ? (
+            <>
+              {isGenerating && (
+                <div className="flex flex-col items-center justify-center gap-3 py-6 text-sm text-brand-text-secondary">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-red border-t-transparent" />
+                  Generating quiz...
+                </div>
+              )}
+              {error && (
+                <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-brand-red">
+                  {error}
+                </div>
+              )}
+              {result && (
+                <div>
+                  <p className="mb-2 text-sm font-semibold text-brand-text-primary">
+                    Raw response (for verification only)
+                  </p>
+                  <pre className="whitespace-pre-wrap wrap-break-word rounded-lg bg-gray-50 p-3 text-xs text-brand-text-secondary">
+                    {JSON.stringify(result, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </>
+          ) : !result ? (
             <>
               <label
                 htmlFor="quiz-focus-aspects"
@@ -210,9 +250,9 @@ export function GenerateQuizModal({
             disabled={isGenerating}
             className="rounded-lg px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-brand-border hover:text-brand-text-primary transition-colors disabled:opacity-50"
           >
-            {result ? 'Close' : 'Cancel'}
+            {result || autoGenerate ? 'Close' : 'Cancel'}
           </button>
-          {!result && (
+          {!autoGenerate && !result && (
             <button
               type="button"
               data-cy="generate-quiz-submit-button"

@@ -16,7 +16,7 @@ import {
 } from '@/lib/hooks/useAutoDismissToast';
 import { Toast } from '@/components/shared/Toast';
 import { ConfirmationModal } from '@/components/shared/ConfirmationModal';
-import { GenerateQuizModal } from '@/components/editor/GenerateQuizModal';
+import { GenerateQuizModal } from '@/components/quiz/GenerateQuizModal';
 import { EditIcon } from '@/components/shared/icons/EditIcon';
 import { EyeIcon } from '@/components/shared/icons/EyeIcon';
 
