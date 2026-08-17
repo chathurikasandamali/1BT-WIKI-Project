@@ -7,12 +7,14 @@ import { createTechTalk, TechTalkStatus } from '@repo/shared';
 const mockListAll = jest.fn();
 const mockPublishTechTalk = jest.fn();
 const mockUnpublishTechTalk = jest.fn();
+const mockDeleteTechTalk = jest.fn();
 const mockRefetch = jest.fn();
 
 jest.mock('@/lib/api/techTalks', () => ({
   listAll: (...args: unknown[]) => mockListAll(...args),
   publishTechTalk: (...args: unknown[]) => mockPublishTechTalk(...args),
   unpublishTechTalk: (...args: unknown[]) => mockUnpublishTechTalk(...args),
+  deleteTechTalk: (...args: unknown[]) => mockDeleteTechTalk(...args),
 }));
 
 jest.mock('@/lib/hooks/useTechTalks', () => ({
@@ -626,5 +628,238 @@ describe('AdminTechTalksPage — Publish / Unpublish', () => {
     // The list should still show the original data
     expect(screen.getByText('Draft Talk')).toBeInTheDocument();
     expect(screen.getByTestId('publish-btn-tt-1')).toBeInTheDocument();
+  });
+});
+
+// ── Edit Tests ────────────────────────────────────────────────────────────────
+
+describe('AdminTechTalksPage — Edit', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockListAll.mockResolvedValue(sampleResult);
+    mockRefetch.mockResolvedValue(undefined);
+  });
+
+  it('renders an Edit link for every row', async () => {
+    render(<AdminTechTalksPage />);
+    await waitFor(() =>
+      expect(screen.getByTestId('edit-btn-tt-1')).toBeInTheDocument()
+    );
+    expect(screen.getByTestId('edit-btn-tt-2')).toBeInTheDocument();
+    expect(screen.getByTestId('edit-btn-tt-3')).toBeInTheDocument();
+  });
+
+  it('Edit link points to the correct edit route', async () => {
+    render(<AdminTechTalksPage />);
+    await waitFor(() =>
+      expect(screen.getByTestId('edit-btn-tt-1')).toHaveAttribute(
+        'href',
+        '/admin/tech-talks/tt-1/edit'
+      )
+    );
+    expect(screen.getByTestId('edit-btn-tt-2')).toHaveAttribute(
+      'href',
+      '/admin/tech-talks/tt-2/edit'
+    );
+    expect(screen.getByTestId('edit-btn-tt-3')).toHaveAttribute(
+      'href',
+      '/admin/tech-talks/tt-3/edit'
+    );
+  });
+});
+
+// ── Delete Tests ──────────────────────────────────────────────────────────────
+
+describe('AdminTechTalksPage — Delete', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockListAll.mockResolvedValue(sampleResult);
+    mockRefetch.mockResolvedValue(undefined);
+    mockDeleteTechTalk.mockResolvedValue(undefined);
+  });
+
+  it('renders a Delete button for every row', async () => {
+    render(<AdminTechTalksPage />);
+    await waitFor(() =>
+      expect(screen.getByTestId('delete-btn-tt-1')).toBeInTheDocument()
+    );
+    expect(screen.getByTestId('delete-btn-tt-2')).toBeInTheDocument();
+    expect(screen.getByTestId('delete-btn-tt-3')).toBeInTheDocument();
+  });
+
+  it('clicking Delete opens the confirmation modal with the correct title and message', async () => {
+    render(<AdminTechTalksPage />);
+    await waitFor(() =>
+      expect(screen.getByTestId('delete-btn-tt-1')).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByTestId('delete-btn-tt-1'));
+
+    await waitFor(() =>
+      expect(screen.getByText('Delete Tech Talk?')).toBeInTheDocument()
+    );
+    expect(
+      screen.getByText('Are you sure you want to delete this Tech Talk? This action cannot be undone.')
+    ).toBeInTheDocument();
+  });
+
+  it('clicking Cancel in the Delete modal does NOT call deleteTechTalk', async () => {
+    render(<AdminTechTalksPage />);
+    await waitFor(() =>
+      expect(screen.getByTestId('delete-btn-tt-1')).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByTestId('delete-btn-tt-1'));
+
+    await waitFor(() =>
+      expect(screen.getByText('Delete Tech Talk?')).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByText('Cancel'));
+
+    await waitFor(() =>
+      expect(screen.queryByText('Delete Tech Talk?')).not.toBeInTheDocument()
+    );
+    expect(mockDeleteTechTalk).not.toHaveBeenCalled();
+  });
+
+  it('confirming Delete calls deleteTechTalk with the correct ID', async () => {
+    render(<AdminTechTalksPage />);
+    await waitFor(() =>
+      expect(screen.getByTestId('delete-btn-tt-1')).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByTestId('delete-btn-tt-1'));
+
+    await waitFor(() =>
+      expect(screen.getByText('Delete Tech Talk?')).toBeInTheDocument()
+    );
+
+    fireEvent.click(getConfirmButton());
+
+    await waitFor(() =>
+      expect(mockDeleteTechTalk).toHaveBeenCalledWith('tt-1')
+    );
+  });
+
+  it('successful Delete shows a success toast', async () => {
+    render(<AdminTechTalksPage />);
+    await waitFor(() =>
+      expect(screen.getByTestId('delete-btn-tt-2')).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByTestId('delete-btn-tt-2'));
+
+    await waitFor(() =>
+      expect(screen.getByText('Delete Tech Talk?')).toBeInTheDocument()
+    );
+
+    fireEvent.click(getConfirmButton());
+
+    await waitFor(() =>
+      expect(mockShowToast).toHaveBeenCalledWith(
+        'Tech Talk deleted successfully',
+        'success'
+      )
+    );
+  });
+
+  it('successful Delete calls refetch to refresh the list', async () => {
+    render(<AdminTechTalksPage />);
+    await waitFor(() =>
+      expect(screen.getByTestId('delete-btn-tt-1')).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByTestId('delete-btn-tt-1'));
+
+    await waitFor(() =>
+      expect(screen.getByText('Delete Tech Talk?')).toBeInTheDocument()
+    );
+
+    fireEvent.click(getConfirmButton());
+
+    await waitFor(() =>
+      expect(mockRefetch).toHaveBeenCalled()
+    );
+  });
+
+  it('Delete API failure shows an error toast', async () => {
+    mockDeleteTechTalk.mockRejectedValue(new Error('500 Internal Server Error'));
+
+    render(<AdminTechTalksPage />);
+    await waitFor(() =>
+      expect(screen.getByTestId('delete-btn-tt-1')).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByTestId('delete-btn-tt-1'));
+
+    await waitFor(() =>
+      expect(screen.getByText('Delete Tech Talk?')).toBeInTheDocument()
+    );
+
+    fireEvent.click(getConfirmButton());
+
+    await waitFor(() =>
+      expect(mockShowToast).toHaveBeenCalledWith(
+        '500 Internal Server Error',
+        'error'
+      )
+    );
+  });
+
+  it('Delete API failure does NOT remove the talk from the list', async () => {
+    mockDeleteTechTalk.mockRejectedValue(new Error('Failed'));
+
+    render(<AdminTechTalksPage />);
+    await waitFor(() =>
+      expect(screen.getByText('Draft Talk')).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByTestId('delete-btn-tt-1'));
+
+    await waitFor(() =>
+      expect(screen.getByText('Delete Tech Talk?')).toBeInTheDocument()
+    );
+
+    fireEvent.click(getConfirmButton());
+
+    await waitFor(() =>
+      expect(mockShowToast).toHaveBeenCalledWith('Failed', 'error')
+    );
+
+    // List should still show the original data
+    expect(screen.getByText('Draft Talk')).toBeInTheDocument();
+    expect(screen.getByTestId('delete-btn-tt-1')).toBeInTheDocument();
+  });
+
+  it('delete action buttons are disabled while a mutation is in progress', async () => {
+    let resolveDelete: () => void;
+    mockDeleteTechTalk.mockImplementation(
+      () => new Promise<void>((resolve) => { resolveDelete = resolve; })
+    );
+
+    render(<AdminTechTalksPage />);
+    await waitFor(() =>
+      expect(screen.getByTestId('delete-btn-tt-1')).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByTestId('delete-btn-tt-1'));
+
+    await waitFor(() =>
+      expect(screen.getByText('Delete Tech Talk?')).toBeInTheDocument()
+    );
+
+    fireEvent.click(getConfirmButton());
+
+    await waitFor(() => {
+      expect(screen.getByTestId('delete-btn-tt-2')).toBeDisabled();
+      expect(screen.getByTestId('delete-btn-tt-3')).toBeDisabled();
+    });
+
+    resolveDelete!();
+
+    await waitFor(() =>
+      expect(screen.queryByText('Delete Tech Talk?')).not.toBeInTheDocument()
+    );
   });
 });

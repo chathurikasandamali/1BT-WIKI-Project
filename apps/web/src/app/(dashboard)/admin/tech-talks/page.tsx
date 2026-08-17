@@ -7,6 +7,7 @@ import {
   listAll,
   publishTechTalk,
   unpublishTechTalk,
+  deleteTechTalk,
   type AdminTechTalkListQuery,
 } from '@/lib/api/techTalks';
 import { useAllTechTalks } from '@/lib/hooks/useTechTalks';
@@ -21,6 +22,10 @@ import { TechTalkStatus } from '@repo/shared';
 import { RefreshIcon } from '@/components/shared/icons/RefreshIcon';
 import { SearchIcon } from '@/components/shared/icons/SearchIcon';
 import { ChevronUpIcon } from '@/components/shared/icons/ChevronUpIcon';
+import { EditIcon } from '@/components/shared/icons/EditIcon';
+import { TrashIcon } from '@/components/shared/icons/TrashIcon';
+import { CheckCircleIcon } from '@/components/shared/icons/CheckCircleIcon';
+import { BanIcon } from '@/components/shared/icons/BanIcon';
 
 gsap.registerPlugin(useGSAP);
 
@@ -42,6 +47,24 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
         active && dir === 'desc' && 'rotate-180'
       )}
     />
+  );
+}
+
+function MoreVerticalIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="12" cy="5" r="1" />
+      <circle cx="12" cy="19" r="1" />
+    </svg>
   );
 }
 
@@ -85,6 +108,9 @@ function TechTalkManagementContent(): React.JSX.Element {
   const [sortField, setSortField] = useState<SortField>('eventDate');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [page, setPage] = useState(1);
+
+  // Dropdown visibility state
+  const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
 
   // Debounce search so we do not refetch on every keystroke
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -133,6 +159,39 @@ function TechTalkManagementContent(): React.JSX.Element {
     loadStatusCounts();
   }, [loadStatusCounts]);
 
+  // Click-outside and keydown listener for actions dropdown
+  useEffect(() => {
+    if (!activeDropdownId) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const dropdownElement = document.getElementById(`dropdown-menu-${activeDropdownId}`);
+      const triggerElement = document.getElementById(`dropdown-trigger-${activeDropdownId}`);
+
+      const clickedInsideDropdown = dropdownElement?.contains(target);
+      const clickedTrigger = triggerElement?.contains(target);
+
+      if (!clickedInsideDropdown && !clickedTrigger) {
+        setActiveDropdownId(null);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setActiveDropdownId(null);
+        const triggerElement = document.getElementById(`dropdown-trigger-${activeDropdownId}`);
+        triggerElement?.focus();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [activeDropdownId]);
+
   // GSAP entrance animation
   useGSAP(
     () => {
@@ -179,14 +238,15 @@ function TechTalkManagementContent(): React.JSX.Element {
 
   const showSummaryStats = !loading && !error && !!statusCounts;
 
-  // ── Publish / Unpublish state ────────────────────────────────────────────────
+  // ── Action modal state — covers Publish, Unpublish, and Delete ────────────────
 
-  type PublishAction =
-  | typeof TechTalkStatus.published
-  | typeof TechTalkStatus.unpublished;
+  type ModalAction =
+    | typeof TechTalkStatus.published
+    | typeof TechTalkStatus.unpublished
+    | 'delete';
 
   const [selectedTechTalkId, setSelectedTechTalkId] = useState<string | null>(null);
-  const [selectedAction, setSelectedAction] = useState<PublishAction | null>(null);
+  const [selectedAction, setSelectedAction] = useState<ModalAction | null>(null);
   const [isMutating, setIsMutating] = useState(false);
   const { toast, showToast } = useToast();
 
@@ -198,6 +258,11 @@ function TechTalkManagementContent(): React.JSX.Element {
   const handleOpenUnpublishModal = (id: string) => {
     setSelectedTechTalkId(id);
     setSelectedAction(TechTalkStatus.unpublished);
+  };
+
+  const handleOpenDeleteModal = (id: string) => {
+    setSelectedTechTalkId(id);
+    setSelectedAction('delete');
   };
 
   const handleModalCancel = () => {
@@ -215,9 +280,12 @@ function TechTalkManagementContent(): React.JSX.Element {
       if (selectedAction === TechTalkStatus.published) {
         await publishTechTalk(selectedTechTalkId);
         showToast('Tech Talk published successfully', 'success');
-      } else {
+      } else if (selectedAction === TechTalkStatus.unpublished) {
         await unpublishTechTalk(selectedTechTalkId);
         showToast('Tech Talk unpublished successfully', 'success');
+      } else {
+        await deleteTechTalk(selectedTechTalkId);
+        showToast('Tech Talk deleted successfully', 'success');
       }
 
       setSelectedTechTalkId(null);
@@ -238,6 +306,7 @@ function TechTalkManagementContent(): React.JSX.Element {
   const getModalTitle = (): string => {
     if (selectedAction === TechTalkStatus.published) return 'Publish Tech Talk?';
     if (selectedAction === TechTalkStatus.unpublished) return 'Unpublish Tech Talk?';
+    if (selectedAction === 'delete') return 'Delete Tech Talk?';
     return '';
   };
 
@@ -246,12 +315,15 @@ function TechTalkManagementContent(): React.JSX.Element {
       return 'Are you sure you want to publish this Tech Talk?';
     if (selectedAction === TechTalkStatus.unpublished)
       return 'Are you sure you want to unpublish this Tech Talk?';
+    if (selectedAction === 'delete')
+      return 'Are you sure you want to delete this Tech Talk? This action cannot be undone.';
     return '';
   };
 
   const getModalConfirmText = (): string => {
     if (selectedAction === TechTalkStatus.published) return 'Publish';
     if (selectedAction === TechTalkStatus.unpublished) return 'Unpublish';
+    if (selectedAction === 'delete') return 'Delete';
     return 'Confirm';
   };
 
@@ -354,7 +426,7 @@ function TechTalkManagementContent(): React.JSX.Element {
       )}
 
       {/* Table Card */}
-      <div className="table-card bg-brand-surface border border-brand-border rounded shadow-sm overflow-hidden">
+      <div className="table-card bg-brand-surface border border-brand-border rounded shadow-sm text-left">
         {/* Toolbar */}
         <div className="px-4 py-3 border-b border-brand-border flex flex-col sm:flex-row gap-3 items-start sm:items-center bg-brand-bg/40">
           {/* Search */}
@@ -424,59 +496,145 @@ function TechTalkManagementContent(): React.JSX.Element {
                     <th className="px-4 py-3 font-medium">Status</th>
                     <th className="px-4 py-3 font-medium">Presenters</th>
                     <th className="px-4 py-3 font-medium">Event Date</th>
-                    <th className="px-4 py-3 font-medium text-right">Actions</th>
+                    <th className="px-4 py-3 font-medium text-right w-20">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {techTalks.map((tt) => (
-                    <tr
-                      key={tt.id}
-                      className="techtalk-row border-b border-brand-border last:border-b-0 hover:bg-brand-hover transition-colors"
-                      data-testid={`techtalk-row-${tt.id}`}
-                    >
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/admin/tech-talks/${tt.id}`}
-                          className="font-medium text-brand-text-primary hover:text-brand-red transition-colors"
-                          data-testid={`techtalk-link-${tt.id}`}
-                        >
-                          {tt.title}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3">
-                        <TechTalkStatusBadge status={tt.status} />
-                      </td>
-                      <td className="px-4 py-3 text-brand-text-secondary">
-                        {tt.presenters.join(', ') || '—'}
-                      </td>
-                      <td className="px-4 py-3 text-brand-text-secondary whitespace-nowrap">
-                        {new Date(tt.eventDate).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {tt.status === TechTalkStatus.published ? (
-                          <button
-                            type="button"
-                            data-testid={`unpublish-btn-${tt.id}`}
-                            onClick={() => handleOpenUnpublishModal(tt.id)}
-                            disabled={isMutating}
-                            className="text-xs font-medium px-3 py-1.5 rounded border border-brand-red/20 text-brand-red hover:bg-brand-red/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  {techTalks.map((tt) => {
+                    const isPublished = tt.status === TechTalkStatus.published;
+                    return (
+                      <tr
+                        key={tt.id}
+                        className="techtalk-row border-b border-brand-border last:border-b-0 hover:bg-brand-hover transition-colors"
+                        data-testid={`techtalk-row-${tt.id}`}
+                      >
+                        <td className="px-4 py-3">
+                          <Link
+                            href={`/admin/tech-talks/${tt.id}`}
+                            className="font-medium text-brand-text-primary hover:text-brand-red transition-colors"
+                            data-testid={`techtalk-link-${tt.id}`}
                           >
-                            Unpublish
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            data-testid={`publish-btn-${tt.id}`}
-                            onClick={() => handleOpenPublishModal(tt.id)}
-                            disabled={isMutating}
-                            className="text-xs font-medium px-3 py-1.5 rounded border border-green-200 text-green-700 hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Publish
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                            {tt.title}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3">
+                          <TechTalkStatusBadge status={tt.status} />
+                        </td>
+                        <td className="px-4 py-3 text-brand-text-secondary">
+                          {tt.presenters.join(', ') || '—'}
+                        </td>
+                        <td className="px-4 py-3 text-brand-text-secondary whitespace-nowrap">
+                          {new Date(tt.eventDate).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className={cn("relative inline-block text-left", activeDropdownId === tt.id ? "z-50" : "z-10")}>
+                            {/* Three-dot dropdown trigger */}
+                            <button
+                              id={`dropdown-trigger-${tt.id}`}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveDropdownId(activeDropdownId === tt.id ? null : tt.id);
+                              }}
+                              className={cn(
+                                'flex items-center justify-center w-8 h-8 rounded-full transition-colors hover:bg-brand-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red',
+                                activeDropdownId === tt.id && 'bg-brand-hover'
+                              )}
+                              data-testid={`actions-btn-${tt.id}`}
+                              title="More actions"
+                              aria-label="More actions"
+                              aria-haspopup="true"
+                              aria-expanded={activeDropdownId === tt.id}
+                            >
+                              <MoreVerticalIcon className="w-4 h-4 text-brand-text-secondary" />
+                            </button>
+
+                            {/* Dropdown Menu */}
+                            <div
+                              id={`dropdown-menu-${tt.id}`}
+                              role="menu"
+                              aria-label="Actions"
+                              onClick={(e) => e.stopPropagation()}
+                              className={cn(
+                                'absolute right-0 w-44 rounded-md shadow-lg bg-white border border-brand-border py-1 z-50 origin-top-right focus:outline-none text-left bottom-full mb-1',
+                                activeDropdownId === tt.id ? 'block' : 'hidden'
+                              )}
+                            >
+                              {/* Edit Action */}
+                              <Link
+                                href={`/admin/tech-talks/${tt.id}/edit`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveDropdownId(null);
+                                }}
+                                role="menuitem"
+                                data-testid={`edit-btn-${tt.id}`}
+                                className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium text-brand-text-primary hover:bg-brand-hover transition-colors"
+                              >
+                                <EditIcon className="w-3.5 h-3.5 text-brand-text-secondary" />
+                                Edit
+                              </Link>
+
+                              {/* Publish / Unpublish Actions */}
+                              {isPublished ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveDropdownId(null);
+                                    handleOpenUnpublishModal(tt.id);
+                                  }}
+                                  role="menuitem"
+                                  data-testid={`unpublish-btn-${tt.id}`}
+                                  disabled={isMutating}
+                                  className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium text-brand-text-primary hover:bg-brand-hover transition-colors disabled:opacity-50"
+                                >
+                                  <BanIcon className="w-3.5 h-3.5 text-brand-text-secondary" />
+                                  Unpublish
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveDropdownId(null);
+                                    handleOpenPublishModal(tt.id);
+                                  }}
+                                  role="menuitem"
+                                  data-testid={`publish-btn-${tt.id}`}
+                                  disabled={isMutating}
+                                  className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium text-brand-text-primary hover:bg-brand-hover transition-colors disabled:opacity-50"
+                                >
+                                  <CheckCircleIcon className="w-3.5 h-3.5 text-brand-text-secondary" />
+                                  Publish
+                                </button>
+                              )}
+
+                              {/* Divider */}
+                              <div className="border-t border-brand-border my-1" />
+
+                              {/* Delete Action */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveDropdownId(null);
+                                  handleOpenDeleteModal(tt.id);
+                                }}
+                                role="menuitem"
+                                data-testid={`delete-btn-${tt.id}`}
+                                disabled={isMutating}
+                                className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium text-brand-red hover:bg-brand-red/5 transition-colors disabled:opacity-50"
+                              >
+                                <TrashIcon className="w-3.5 h-3.5 text-brand-red" />
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
