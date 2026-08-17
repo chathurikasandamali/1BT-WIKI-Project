@@ -5,13 +5,18 @@ import Link from 'next/link';
 import { RoleGuard } from '@/components/auth/RoleGuard';
 import {
   listAll,
-  type TechTalkStatus,
+  publishTechTalk,
+  unpublishTechTalk,
   type AdminTechTalkListQuery,
 } from '@/lib/api/techTalks';
 import { useAllTechTalks } from '@/lib/hooks/useTechTalks';
+import { useToast } from '@/lib/hooks/useToast';
+import { Toast } from '@/components/shared/Toast';
+import { ConfirmationModal } from '@/components/shared/ConfirmationModal';
 import { cn } from '@/lib/utils';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
+import { TechTalkStatus } from '@repo/shared';
 
 import { RefreshIcon } from '@/components/shared/icons/RefreshIcon';
 import { SearchIcon } from '@/components/shared/icons/SearchIcon';
@@ -52,9 +57,9 @@ function TechTalkStatusBadge({ status }: { status: TechTalkStatus }): React.JSX.
     unpublished: 'bg-brand-red/10 text-brand-red border-brand-red/20',
   };
   const labelMap: Record<TechTalkStatus, string> = {
-    draft: 'Draft',
-    published: 'Published',
-    unpublished: 'Unpublished',
+    draft: TechTalkStatus.draft,
+    published: TechTalkStatus.published,
+    unpublished: TechTalkStatus.unpublished,
   };
   return (
     <span
@@ -114,9 +119,9 @@ function TechTalkManagementContent(): React.JSX.Element {
       const talks = result.techTalks;
       setStatusCounts({
         all: result.total,
-        published: talks.filter((t) => t.status === 'published').length,
-        draft: talks.filter((t) => t.status === 'draft').length,
-        unpublished: talks.filter((t) => t.status === 'unpublished').length,
+        published: talks.filter((t) => t.status === TechTalkStatus.published).length,
+        draft: talks.filter((t) => t.status === TechTalkStatus.draft).length,
+        unpublished: talks.filter((t) => t.status === TechTalkStatus.unpublished).length,
       });
     } catch {
       // Non-blocking — the table still works without summary tiles.
@@ -174,8 +179,85 @@ function TechTalkManagementContent(): React.JSX.Element {
 
   const showSummaryStats = !loading && !error && !!statusCounts;
 
+  // ── Publish / Unpublish state ────────────────────────────────────────────────
+
+  type PublishAction =
+  | typeof TechTalkStatus.published
+  | typeof TechTalkStatus.unpublished;
+
+  const [selectedTechTalkId, setSelectedTechTalkId] = useState<string | null>(null);
+  const [selectedAction, setSelectedAction] = useState<PublishAction | null>(null);
+  const [isMutating, setIsMutating] = useState(false);
+  const { toast, showToast } = useToast();
+
+  const handleOpenPublishModal = (id: string) => {
+    setSelectedTechTalkId(id);
+    setSelectedAction(TechTalkStatus.published);
+  };
+
+  const handleOpenUnpublishModal = (id: string) => {
+    setSelectedTechTalkId(id);
+    setSelectedAction(TechTalkStatus.unpublished);
+  };
+
+  const handleModalCancel = () => {
+    if (isMutating) return;
+    setSelectedTechTalkId(null);
+    setSelectedAction(null);
+  };
+
+  const handleModalConfirm = async () => {
+    if (!selectedTechTalkId || !selectedAction || isMutating) return;
+
+    setIsMutating(true);
+
+    try {
+      if (selectedAction === TechTalkStatus.published) {
+        await publishTechTalk(selectedTechTalkId);
+        showToast('Tech Talk published successfully', 'success');
+      } else {
+        await unpublishTechTalk(selectedTechTalkId);
+        showToast('Tech Talk unpublished successfully', 'success');
+      }
+
+      setSelectedTechTalkId(null);
+      setSelectedAction(null);
+      await refetch();
+      await loadStatusCounts();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'An unexpected error occurred.';
+      showToast(message, 'error');
+      setSelectedTechTalkId(null);
+      setSelectedAction(null);
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
+  const getModalTitle = (): string => {
+    if (selectedAction === TechTalkStatus.published) return 'Publish Tech Talk?';
+    if (selectedAction === TechTalkStatus.unpublished) return 'Unpublish Tech Talk?';
+    return '';
+  };
+
+  const getModalMessage = (): string => {
+    if (selectedAction === TechTalkStatus.published)
+      return 'Are you sure you want to publish this Tech Talk?';
+    if (selectedAction === TechTalkStatus.unpublished)
+      return 'Are you sure you want to unpublish this Tech Talk?';
+    return '';
+  };
+
+  const getModalConfirmText = (): string => {
+    if (selectedAction === TechTalkStatus.published) return 'Publish';
+    if (selectedAction === TechTalkStatus.unpublished) return 'Unpublish';
+    return 'Confirm';
+  };
+
   // Render
   return (
+    <>
     <div className="p-8 max-w-6xl mx-auto" ref={containerRef}>
       {/* Page Header */}
       <div className="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
@@ -342,6 +424,7 @@ function TechTalkManagementContent(): React.JSX.Element {
                     <th className="px-4 py-3 font-medium">Status</th>
                     <th className="px-4 py-3 font-medium">Presenters</th>
                     <th className="px-4 py-3 font-medium">Event Date</th>
+                    <th className="px-4 py-3 font-medium text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -368,6 +451,29 @@ function TechTalkManagementContent(): React.JSX.Element {
                       </td>
                       <td className="px-4 py-3 text-brand-text-secondary whitespace-nowrap">
                         {new Date(tt.eventDate).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {tt.status === TechTalkStatus.published ? (
+                          <button
+                            type="button"
+                            data-testid={`unpublish-btn-${tt.id}`}
+                            onClick={() => handleOpenUnpublishModal(tt.id)}
+                            disabled={isMutating}
+                            className="text-xs font-medium px-3 py-1.5 rounded border border-brand-red/20 text-brand-red hover:bg-brand-red/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Unpublish
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            data-testid={`publish-btn-${tt.id}`}
+                            onClick={() => handleOpenPublishModal(tt.id)}
+                            disabled={isMutating}
+                            className="text-xs font-medium px-3 py-1.5 rounded border border-green-200 text-green-700 hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Publish
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -409,6 +515,23 @@ function TechTalkManagementContent(): React.JSX.Element {
         )}
       </div>
     </div>
+
+      <ConfirmationModal
+        isOpen={selectedAction !== null}
+        title={getModalTitle()}
+        message={getModalMessage()}
+        confirmText={getModalConfirmText()}
+        onConfirm={handleModalConfirm}
+        onCancel={handleModalCancel}
+        isConfirming={isMutating}
+      />
+
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+      />
+    </>
   );
 }
 
