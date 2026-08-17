@@ -139,14 +139,69 @@ export function ReaderQuizModal({
     setStep('completed');
   };
 
+  let footer: React.ReactNode;
+  if (step === 'answering') {
+    footer = (
+      <>
+        <button
+          type="button"
+          onClick={handlePrevious}
+          disabled={questionIndex === 0}
+          className="rounded-lg px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-brand-border hover:text-brand-text-primary transition-colors disabled:opacity-50"
+        >
+          Previous
+        </button>
+        <button
+          type="button"
+          data-cy="quiz-next-button"
+          onClick={handleNext}
+          disabled={currentAnswer.length === 0}
+          className="rounded-lg bg-brand-red px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-red-hover disabled:bg-brand-red-disabled transition-colors"
+        >
+          {questionIndex + 1 < questions.length ? 'Next' : 'Review answers'}
+        </button>
+      </>
+    );
+  } else if (step === 'preview') {
+    footer = (
+      <>
+        <button
+          type="button"
+          onClick={() => handleEditAnswer(questions.length - 1)}
+          className="rounded-lg px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-brand-border hover:text-brand-text-primary transition-colors"
+        >
+          Back
+        </button>
+        <button
+          type="button"
+          data-cy="quiz-submit-button"
+          onClick={handleSubmit}
+          className="rounded-lg bg-brand-red px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-red-hover transition-colors"
+        >
+          Submit
+        </button>
+      </>
+    );
+  } else {
+    footer = (
+      <button
+        type="button"
+        onClick={handleClose}
+        className="ml-auto rounded-lg px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-brand-border hover:text-brand-text-primary transition-colors"
+      >
+        Close
+      </button>
+    );
+  }
+
   if (!mounted) return null;
 
-  const title =
-    step === 'preview'
-      ? 'Review your answers'
-      : step === 'completed'
-        ? 'Quiz completed'
-        : 'Article Quiz';
+  let title = 'Article Quiz';
+  if (step === 'preview') {
+    title = 'Review your answers';
+  } else if (step === 'completed') {
+    title = 'Quiz completed';
+  }
 
   return createPortal(
     <div
@@ -231,53 +286,7 @@ export function ReaderQuizModal({
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-brand-border bg-gray-50 px-6 py-4">
-          {step === 'answering' ? (
-            <>
-              <button
-                type="button"
-                onClick={handlePrevious}
-                disabled={questionIndex === 0}
-                className="rounded-lg px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-brand-border hover:text-brand-text-primary transition-colors disabled:opacity-50"
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                data-cy="quiz-next-button"
-                onClick={handleNext}
-                disabled={currentAnswer.length === 0}
-                className="rounded-lg bg-brand-red px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-red-hover disabled:bg-brand-red-disabled transition-colors"
-              >
-                {questionIndex + 1 < questions.length ? 'Next' : 'Review answers'}
-              </button>
-            </>
-          ) : step === 'preview' ? (
-            <>
-              <button
-                type="button"
-                onClick={() => handleEditAnswer(questions.length - 1)}
-                className="rounded-lg px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-brand-border hover:text-brand-text-primary transition-colors"
-              >
-                Back
-              </button>
-              <button
-                type="button"
-                data-cy="quiz-submit-button"
-                onClick={handleSubmit}
-                className="rounded-lg bg-brand-red px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-red-hover transition-colors"
-              >
-                Submit
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={handleClose}
-              className="ml-auto rounded-lg px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-brand-border hover:text-brand-text-primary transition-colors"
-            >
-              Close
-            </button>
-          )}
+          {footer}
         </div>
       </div>
     </div>,
