@@ -85,7 +85,8 @@ export function UserHomepageUpcomingEvents({
                         <TechTalkIcon className="h-4 w-4" aria-hidden="true" />
                         <span>Tech Talk</span>
                       </p>
-                      <h3 className="mt-2 line-clamp-2 font-display text-lg font-bold leading-snug tracking-[-0.02em] text-brand-text-primary group-hover:text-brand-red">
+                      <h3 className="mt-2 line-clamp-2 font-display text-lg font-bold leading-snug tracking-[-0.02em] 
+                      text-brand-text-primary group-hover:text-brand-red">
                         {event.title}
                       </h3>
                     </div>
