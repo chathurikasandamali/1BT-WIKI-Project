@@ -1,4 +1,5 @@
 import { render, screen, waitFor, act } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import ArticleDetailPage from '../page';
 import { getArticle } from '@/lib/api/articles';
 import React from 'react';
@@ -6,6 +7,22 @@ import React from 'react';
 // Mock dependencies
 jest.mock('@/lib/api/articles', () => ({
   getArticle: jest.fn(),
+}));
+
+jest.mock('@/components/quiz/ReaderQuizModal', () => ({
+  ReaderQuizModal: ({
+    isOpen,
+    articleId,
+  }: {
+    isOpen: boolean;
+    articleId: string | null;
+    onClose: () => void;
+  }) =>
+    isOpen ? (
+      <div data-testid="reader-quiz-modal" data-article-id={articleId ?? ''}>
+        Reader Quiz Modal
+      </div>
+    ) : null,
 }));
 
 jest.mock('@/components/article-detail/LikeButton', () => ({
@@ -188,5 +205,69 @@ describe('ArticleDetailPage', () => {
     });
 
     expect(screen.queryByText(/https?:\/\//)).not.toBeInTheDocument();
+  });
+
+  describe('Generate Quiz button', () => {
+    it('renders the button for a Published article', async () => {
+      mockGetArticle.mockResolvedValue(mockArticle);
+
+      await act(async () => {
+        render(
+          <React.Suspense fallback={<div>Suspense fallback</div>}>
+            <ArticleDetailPage params={Promise.resolve({ id: mockValidId })} />
+          </React.Suspense>
+        );
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: /generate quiz/i })
+        ).toBeInTheDocument();
+      });
+    });
+
+    it.each(['Draft', 'Pending', 'Unpublished', 'Rejected'])(
+      'does not render the button for a %s article',
+      async (status) => {
+        mockGetArticle.mockResolvedValue({ ...mockArticle, status });
+
+        await act(async () => {
+          render(
+            <React.Suspense fallback={<div>Suspense fallback</div>}>
+              <ArticleDetailPage params={Promise.resolve({ id: mockValidId })} />
+            </React.Suspense>
+          );
+        });
+
+        await waitFor(() => {
+          expect(screen.getByText('Test Article')).toBeInTheDocument();
+        });
+
+        expect(
+          screen.queryByRole('button', { name: /generate quiz/i })
+        ).not.toBeInTheDocument();
+      }
+    );
+
+    it('opens the reader quiz modal for the article when clicked', async () => {
+      mockGetArticle.mockResolvedValue(mockArticle);
+      const user = userEvent.setup();
+
+      await act(async () => {
+        render(
+          <React.Suspense fallback={<div>Suspense fallback</div>}>
+            <ArticleDetailPage params={Promise.resolve({ id: mockValidId })} />
+          </React.Suspense>
+        );
+      });
+
+      const button = await screen.findByRole('button', { name: /generate quiz/i });
+      expect(screen.queryByTestId('reader-quiz-modal')).not.toBeInTheDocument();
+
+      await user.click(button);
+
+      const modal = await screen.findByTestId('reader-quiz-modal');
+      expect(modal).toHaveAttribute('data-article-id', mockValidId);
+    });
   });
 });

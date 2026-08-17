@@ -150,11 +150,20 @@ export async function getArticle(id: string): Promise<ArticleDetail> {
   return result.data;
 }
 
+export type QuestionType = 'mcq' | 'single_choice' | 'multiple_choice';
+
+export interface QuizQuestionPublic {
+  id: string;
+  question: string;
+  type: QuestionType;
+  options: string[];
+}
+
 export interface GenerateQuizResponse {
   quizId: string;
   articleId: string;
   isFallback: boolean;
-  questions: unknown[];
+  questions: QuizQuestionPublic[];
 }
 
 export async function generateQuiz(
@@ -166,6 +175,21 @@ export async function generateQuiz(
   );
   if (!result.success || !result.data) {
     throw new Error(result.error || 'Failed to generate quiz');
+  }
+  return result.data;
+}
+
+/** Author-only: saves a reviewed generated quiz as the article's stored fallback quiz. */
+export async function saveQuizAsFallback(
+  articleId: string,
+  quizId: string
+): Promise<GenerateQuizResponse> {
+  const result = await apiFetch<GenerateQuizResponse>(
+    `/articles/${articleId}/quiz/${quizId}/fallback`,
+    { method: 'POST' }
+  );
+  if (!result.success || !result.data) {
+    throw new Error(result.error || 'Failed to save quiz as fallback');
   }
   return result.data;
 }
