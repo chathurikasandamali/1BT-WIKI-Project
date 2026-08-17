@@ -138,8 +138,16 @@ export default function ArticleDetailPage(props: ArticlePageProps) {
             />
           </div>
         </div>
+        <div className="p-8 md:p-12 bg-white">
+          <ArticleContent body={article.body} />
+        </div>
+        <hr className='w-full text-gray-200' />
         {article.status === 'Published' && (
-          <div className="px-8 md:px-12 pt-6">
+          <div className="px-8 md:px-12 py-8 flex justify-between items-center">
+            <p className='text-lg font-bold'>
+              Ready to take an assessment?
+            </p>
+            {/* <hr className='w-80 text-gray-200' /> */}
             <button
               type="button"
               data-cy="article-generate-quiz-button"
@@ -151,9 +159,6 @@ export default function ArticleDetailPage(props: ArticlePageProps) {
             </button>
           </div>
         )}
-        <div className="p-8 md:p-12 bg-white">
-          <ArticleContent body={article.body} />
-        </div>
       </article>
 
       <CommentsSection articleId={params.id} />
