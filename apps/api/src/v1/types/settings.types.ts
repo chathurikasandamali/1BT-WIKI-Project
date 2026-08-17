@@ -63,8 +63,16 @@ export const quizConfigSchema = z.object({
   optionsPerQuestion: z.number().int().min(2).max(8),
 });
 
-/** LLM providers supported for quiz generation. Extend as new adapters are added. */
-export type QuizLlmProviderName = 'gemini' | 'local';
+/**
+ * Every quiz LLM provider that has an adapter in lib/llm/providers/. Single
+ * source of truth for the allowed provider set — QuizLlmProviderName and
+ * quizLlmConfigSchema's validation both derive from it, so extending providers
+ * never means updating two independent lists that could drift out of sync.
+ */
+export const QUIZ_LLM_PROVIDER_NAMES = ['gemini', 'local'] as const;
+
+/** LLM providers supported for quiz generation. Extend by adding a name to QUIZ_LLM_PROVIDER_NAMES. */
+export type QuizLlmProviderName = (typeof QUIZ_LLM_PROVIDER_NAMES)[number];
 
 /** Runtime-configurable LLM provider settings for quiz generation. */
 export interface QuizLlmConfig {
@@ -86,12 +94,14 @@ export const DEFAULT_QUIZ_LLM_CONFIG: QuizLlmConfig = {
   apiKey: undefined,
 };
 
-export const quizLlmConfigSchema = z.object({
-  provider: z.enum(['gemini', 'local']),
-  model: z.string().min(1),
-  endpoint: z.string().optional(),
-  apiKey: z.string().optional(),
-});
+export const quizLlmConfigSchema = z
+  .object({
+    provider: z.enum(QUIZ_LLM_PROVIDER_NAMES),
+    model: z.string().min(1),
+    endpoint: z.string().optional(),
+    apiKey: z.string().optional(),
+  })
+  .transform((val) => (val.provider === 'local' ? val : { ...val, endpoint: undefined }));
 
 // ---------------------------------------------------------------------------
 // Typed registry

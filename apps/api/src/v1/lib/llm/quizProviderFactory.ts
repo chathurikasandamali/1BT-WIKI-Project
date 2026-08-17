@@ -11,8 +11,9 @@ import { geminiQuizProvider } from '@v1/lib/llm/providers/geminiQuizProvider.js'
 import type { QuizGenerationProvider, QuizLlmAdapter } from '@v1/lib/llm/quizProvider.types.js';
 import localQuizProvider from '@v1/lib/llm/providers/localQuizProvider.js';
 
-// Adding a provider = one new adapter file + one entry here (plus the name in
-// QuizLlmProviderName / quizLlmConfigSchema in settings.types.ts).
+// Adding a provider = one new adapter file + one name in QUIZ_LLM_PROVIDER_NAMES
+// (settings.types.ts) + one entry here. The compiler enforces all three stay in
+// sync (missing/mistyped entries here won't build).
 const PROVIDERS: Record<QuizLlmProviderName, QuizLlmAdapter> = {
   gemini: geminiQuizProvider,
   local: localQuizProvider,
