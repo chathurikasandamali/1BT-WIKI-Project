@@ -304,6 +304,10 @@ importers:
         version: 8.50.0(eslint@9.39.1(jiti@2.7.0))(typescript@5.9.2)
 
   packages/shared:
+    dependencies:
+      '@repo/db':
+        specifier: workspace:*
+        version: link:../db
     devDependencies:
       '@repo/typescript-config':
         specifier: workspace:*

@@ -16,6 +16,9 @@
     "check-types": "tsc --noEmit",
     "prepare": "pnpm run build"
   },
+  "dependencies": {
+    "@repo/db": "workspace:*"
+  },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
     "typescript": "5.9.2"
