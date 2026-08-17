@@ -1,3 +1,21 @@
+// ---------------------------------------------------------------------------
+// TechTalkStatus — mirrors the Prisma enum of the same name.
+// Defined here (not in @repo/db) so that client-side code in apps/web can
+// import it without bundling the Prisma client into the browser.
+// ---------------------------------------------------------------------------
+
+/** Runtime object matching the Prisma TechTalkStatus enum values. */
+export const TechTalkStatus = {
+  draft: 'draft',
+  published: 'published',
+  unpublished: 'unpublished',
+} as const;
+
+/** TypeScript type derived from the TechTalkStatus const. */
+export type TechTalkStatus = (typeof TechTalkStatus)[keyof typeof TechTalkStatus];
+
+// ---------------------------------------------------------------------------
+
 export interface PaginationParams {
   page?: number;
   limit?: number;
