@@ -1,10 +1,8 @@
+import { isValidYoutubeVideoId } from '@/lib/utils/youtube';
+
 interface YoutubeEmbedProps {
   videoId: string | null;
   title: string;
-}
-
-function isValidYoutubeVideoId(value: string | null): value is string {
-  return typeof value === 'string' && /^[a-zA-Z0-9_-]{11}$/.test(value);
 }
 
 export function YoutubeEmbed({ videoId, title }: YoutubeEmbedProps) {

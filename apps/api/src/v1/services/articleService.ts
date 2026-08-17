@@ -34,6 +34,54 @@ type PublishedArticleRow = Article & {
   coverAttachment?: { fileUrl: string } | null;
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const getHttpImageUrl = (value: unknown): string | null => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmedValue = value.trim();
+
+  try {
+    const url = new URL(trimmedValue);
+    return url.protocol === 'http:' || url.protocol === 'https:'
+      ? trimmedValue
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+const getFirstArticleImageUrl = (body: JSONContent): string | null => {
+  const nodes: unknown[] = [body];
+
+  while (nodes.length > 0) {
+    const node = nodes.pop();
+
+    if (!isRecord(node)) {
+      continue;
+    }
+
+    if (node.type === 'image' && isRecord(node.attrs)) {
+      const imageUrl = getHttpImageUrl(node.attrs.src);
+
+      if (imageUrl) {
+        return imageUrl;
+      }
+    }
+
+    if (Array.isArray(node.content)) {
+      for (let index = node.content.length - 1; index >= 0; index -= 1) {
+        nodes.push(node.content[index]);
+      }
+    }
+  }
+
+  return null;
+};
+
 const validateImages = (images: Express.Multer.File[]) => {
   if (images.length > MAX_ARTICLE_IMAGES) {
     throw new AppError('Maximum 10 images per article', 400);
@@ -317,10 +365,10 @@ export class ArticleService {
       limit,
       {
         includeCounts: true,
+        includeCoverImage: true,
         search,
         sort,
         order,
-        includeCoverImage: true,
       }
     );
 

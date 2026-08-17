@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { UserHomepageArticleCard } from '@/components/homepage/UserHomepageArticleCard';
-import { TechTalkCard } from '@/components/tech-talk-listing/TechTalkCard';
+import { UserHomepageTechTalkCard } from '@/components/homepage/UserHomepageTechTalkCard';
 import {
   fetchPublishedArticles,
   type PublishedArticleListItem,
@@ -143,13 +143,9 @@ export function UserHomepage(): React.JSX.Element {
           }
 
           return (
-            <TechTalkCard
+            <UserHomepageTechTalkCard
               key={`${UserHomepageFeedItemType.TechTalk}-${item.id}`}
-              id={item.id}
-              title={item.title}
-              tags={item.tags}
-              presenters={item.presenters}
-              eventDate={item.eventDate}
+              techTalk={item}
             />
           );
         })}

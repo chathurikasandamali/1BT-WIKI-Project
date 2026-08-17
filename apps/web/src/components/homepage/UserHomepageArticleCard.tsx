@@ -1,3 +1,5 @@
+'use client';
+
 import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -19,6 +21,9 @@ interface UserHomepageArticleCardProps {
 
 const MAX_VISIBLE_TAGS = 3;
 
+/**
+ * Renders the media-first Article card used only by the normal-User homepage.
+ */
 export function UserHomepageArticleCard({
   id,
   title,
@@ -29,6 +34,12 @@ export function UserHomepageArticleCard({
   createdAt,
   coverImageUrl,
 }: UserHomepageArticleCardProps): React.JSX.Element {
+  const [thumbnailLoadFailed, setThumbnailLoadFailed] = React.useState(false);
+
+  function handleThumbnailError(): void {
+    setThumbnailLoadFailed(true);
+  }
+
   const formattedDate = new Date(createdAt).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
@@ -48,19 +59,24 @@ export function UserHomepageArticleCard({
         lg:grid-cols-[minmax(18rem,0.85fr)_minmax(0,1.5fr)]"
       >
         <div className="relative aspect-video w-full overflow-hidden bg-brand-dark">
-          {coverImageUrl ? (
+          {coverImageUrl && !thumbnailLoadFailed ? (
             <Image
               src={coverImageUrl}
-              alt={`${title} cover`}
+              alt={`${title} article thumbnail`}
               fill
               unoptimized
+              onError={handleThumbnailError}
               sizes="(min-width: 1024px) 18rem, (min-width: 640px) 36vw, 100vw"
               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center bg-brand-dark px-6 text-white">
-              <div className="flex flex-col items-center gap-3 text-center">
-                <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/15 bg-white/10">
+            <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-brand-dark px-6 text-white">
+              <div
+                className="absolute -right-12 -top-12 h-36 w-36 rounded-full border-[24px] border-brand-red/25"
+                aria-hidden="true"
+              />
+              <div className="relative flex flex-col items-center gap-3 text-center">
+                <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-brand-red">
                   <ArticleIcon className="h-6 w-6" aria-hidden="true" />
                 </span>
                 <div>
