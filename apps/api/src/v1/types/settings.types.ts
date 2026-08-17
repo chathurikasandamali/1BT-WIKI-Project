@@ -64,13 +64,14 @@ export const quizConfigSchema = z.object({
 });
 
 /** LLM providers supported for quiz generation. Extend as new adapters are added. */
-export type QuizLlmProviderName = 'gemini';
+export type QuizLlmProviderName = 'gemini' | 'local';
 
 /** Runtime-configurable LLM provider settings for quiz generation. */
 export interface QuizLlmConfig {
   provider: QuizLlmProviderName;
   model: string;
-  apiKey: string;
+  endpoint?: string;
+  apiKey?: string;
 }
 
 /**
@@ -79,15 +80,17 @@ export interface QuizLlmConfig {
  * one via the settings panel.
  */
 export const DEFAULT_QUIZ_LLM_CONFIG: QuizLlmConfig = {
-  provider: 'gemini',
-  model: 'gemini-3.5-flash',
-  apiKey: process.env.GEMINI_API_KEY ?? '',
+  provider: 'local',
+  model: 'qwen2.5vl',
+  endpoint: 'http://192.168.8.105:11434',
+  apiKey: undefined,
 };
 
 export const quizLlmConfigSchema = z.object({
-  provider: z.enum(['gemini']),
+  provider: z.enum(['gemini', 'local']),
   model: z.string().min(1),
-  apiKey: z.string().min(1),
+  endpoint: z.string().optional(),
+  apiKey: z.string().optional(),
 });
 
 // ---------------------------------------------------------------------------

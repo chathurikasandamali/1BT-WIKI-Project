@@ -41,6 +41,7 @@ Mix the question types across the quiz. Allowed types:
 Rules:
 - Each question has exactly ${optionsPerQuestion} options.
 - "correctIndexes" holds the zero-based indexes of the correct options.
+- "correctIndexes" must be within the range of the options array (0 to ${optionsPerQuestion} - 1).
 - "mcq" and "single_choice" questions must have exactly one entry in "correctIndexes".
 - "multiple_choice" questions must have at least two entries in "correctIndexes".
 - Keep questions clear, self-contained, and free of "according to the article" phrasing.
@@ -75,7 +76,7 @@ Check every question against these rules and fix violations where possible:
 1. Exactly ${questionCount} questions, each with exactly ${optionsPerQuestion} options.
 2. Every question and its correct answer(s) are grounded in the article — discard and replace anything the article does not support.
 3. "type" is one of "mcq", "single_choice", "multiple_choice".
-4. "correctIndexes" contains exactly one index for "mcq"/"single_choice" and at least two for "multiple_choice", all within the options range.
+4. "correctIndexes" contains exactly one index for "mcq"/"single_choice" and at least two for "multiple_choice", all within the options range (0 to ${optionsPerQuestion} - 1)  .
 5. Exactly one unambiguous correct answer set per question; distractors must be plausible but clearly wrong.
 6. Output is valid JSON matching the generator schema — no markdown fences, no commentary.
 
