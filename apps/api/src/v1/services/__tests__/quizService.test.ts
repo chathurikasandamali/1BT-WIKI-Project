@@ -97,21 +97,48 @@ describe('QuizService.generateQuiz', () => {
   it('should throw AppError 404 if article is not found', async () => {
     mockArticleRepo.findById.mockResolvedValue(null);
 
-    await expect(service.generateQuiz(articleId)).rejects.toThrow(
+    await expect(service.generateQuiz(articleId, 'reader-1')).rejects.toThrow(
       new AppError('Article not found', 404)
     );
   });
 
+  it('should throw AppError 503 (not a raw error) when the article lookup fails', async () => {
+    mockArticleRepo.findById.mockRejectedValue(new Error('connection reset'));
+
+    await expect(service.generateQuiz(articleId, 'reader-1')).rejects.toThrow(
+      new AppError('Database is unavailable', 503)
+    );
+  });
+
   it.each(['Draft', 'Pending', 'Unpublished'])(
-    'should throw AppError 400 if article status is %s',
+    'should throw AppError 400 if article status is %s and requester is not the author',
     async (status) => {
       mockArticleRepo.findById.mockResolvedValue({
         ...publishedArticle,
         status,
       });
 
-      await expect(service.generateQuiz(articleId)).rejects.toThrow(
+      await expect(service.generateQuiz(articleId, 'reader-1')).rejects.toThrow(
         new AppError('Quiz can only be generated for Published articles', 400)
+      );
+    }
+  );
+
+  it.each(['Draft', 'Pending', 'Unpublished'])(
+    'should allow the article author to generate a preview quiz when status is %s',
+    async (status) => {
+      mockArticleRepo.findById.mockResolvedValue({
+        ...publishedArticle,
+        status,
+      });
+      mockGemini.generateQuestions.mockResolvedValue(makeGeneratedQuestions());
+      mockQuizRepo.create.mockResolvedValue(makeStoredQuiz(false));
+
+      const result = await service.generateQuiz(articleId, 'author-1');
+
+      expect(result.quizId).toBe('quiz-1');
+      expect(mockQuizRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ articleId, isFallback: false })
       );
     }
   );
@@ -122,7 +149,7 @@ describe('QuizService.generateQuiz', () => {
       body: { type: 'doc', content: [] },
     });
 
-    await expect(service.generateQuiz(articleId)).rejects.toThrow(
+    await expect(service.generateQuiz(articleId, 'reader-1')).rejects.toThrow(
       new AppError('Article has no content to generate a quiz from', 422)
     );
     expect(mockGemini.generateQuestions).not.toHaveBeenCalled();
@@ -134,7 +161,7 @@ describe('QuizService.generateQuiz', () => {
     mockGemini.generateQuestions.mockResolvedValue(makeGeneratedQuestions());
     mockQuizRepo.create.mockResolvedValue(makeStoredQuiz(false));
 
-    const result = await service.generateQuiz(articleId);
+    const result = await service.generateQuiz(articleId, 'reader-1');
 
     expect(mockGemini.generateQuestions).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -162,7 +189,7 @@ describe('QuizService.generateQuiz', () => {
     mockGemini.generateQuestions.mockResolvedValue(makeGeneratedQuestions());
     mockQuizRepo.create.mockResolvedValue(makeStoredQuiz(false));
 
-    await service.generateQuiz(articleId);
+    await service.generateQuiz(articleId, 'reader-1');
 
     expect(mockGemini.generateQuestions).toHaveBeenCalledWith(
       expect.objectContaining({ focusAspects: 'Focus on branching' })
@@ -174,7 +201,7 @@ describe('QuizService.generateQuiz', () => {
     mockGemini.generateQuestions.mockResolvedValue(makeGeneratedQuestions());
     mockQuizRepo.create.mockResolvedValue(makeStoredQuiz(false));
 
-    await service.generateQuiz(articleId);
+    await service.generateQuiz(articleId, 'reader-1');
 
     const [callArgs] = mockGemini.generateQuestions.mock.calls[0] as unknown as [
       Record<string, unknown>
@@ -191,7 +218,7 @@ describe('QuizService.generateQuiz', () => {
       makeStoredQuiz(true)
     );
 
-    const result = await service.generateQuiz(articleId);
+    const result = await service.generateQuiz(articleId, 'reader-1');
 
     expect(result.isFallback).toBe(true);
     expect(result.questions).toHaveLength(quizConfig.questionCount);
@@ -207,7 +234,7 @@ describe('QuizService.generateQuiz', () => {
       makeStoredQuiz(true)
     );
 
-    const result = await service.generateQuiz(articleId);
+    const result = await service.generateQuiz(articleId, 'reader-1');
 
     expect(result.isFallback).toBe(true);
   });
@@ -219,7 +246,7 @@ describe('QuizService.generateQuiz', () => {
     );
     mockQuizRepo.findLatestFallbackByArticleId.mockResolvedValue(null);
 
-    await expect(service.generateQuiz(articleId)).rejects.toThrow(
+    await expect(service.generateQuiz(articleId, 'reader-1')).rejects.toThrow(
       new AppError('Gemini request timed out', 504)
     );
   });

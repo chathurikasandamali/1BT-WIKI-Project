@@ -1,6 +1,7 @@
 // apps/api/src/repositories/__tests__/quizRepository.test.ts
 
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
+import { AppError } from '@errors/AppError.js';
 import type { GeneratedQuizQuestion } from '@models/quiz.types.js';
 
 // ── ESM mock registration — must be before any import of the repository ─────
@@ -55,6 +56,38 @@ const makeDbQuizRow = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+describe('QuizRepository.create', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should persist and return the mapped quiz record', async () => {
+    mockCreate.mockResolvedValue(makeDbQuizRow());
+
+    const result = await quizRepository.create({
+      articleId,
+      isFallback: false,
+      questions: [makeQuestion()],
+      configSnapshot: { promptVersion: '1.0.0' },
+    });
+
+    expect(result.id).toBe(quizId);
+  });
+
+  it('should throw AppError 503 when the database write fails', async () => {
+    mockCreate.mockRejectedValue(new Error('connection reset'));
+
+    await expect(
+      quizRepository.create({
+        articleId,
+        isFallback: false,
+        questions: [makeQuestion()],
+        configSnapshot: {},
+      })
+    ).rejects.toThrow(new AppError('Database is unavailable', 503));
+  });
+});
+
 describe('QuizRepository.findById', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -77,6 +110,14 @@ describe('QuizRepository.findById', () => {
     const result = await quizRepository.findById('nope');
 
     expect(result).toBeNull();
+  });
+
+  it('should throw AppError 503 when the database query fails', async () => {
+    mockFindUnique.mockRejectedValue(new Error('connection reset'));
+
+    await expect(quizRepository.findById(quizId)).rejects.toThrow(
+      new AppError('Database is unavailable', 503)
+    );
   });
 });
 
@@ -101,6 +142,14 @@ describe('QuizRepository.update', () => {
     expect(args.data.configSnapshot).toEqual(configSnapshot);
     expect(args.data.generatedAt).toBeInstanceOf(Date);
     expect(result.isFallback).toBe(true);
+  });
+
+  it('should throw AppError 503 when the database write fails', async () => {
+    mockUpdate.mockRejectedValue(new Error('connection reset'));
+
+    await expect(
+      quizRepository.update(quizId, { questions: [makeQuestion()], configSnapshot: {} })
+    ).rejects.toThrow(new AppError('Database is unavailable', 503));
   });
 });
 
@@ -166,5 +215,13 @@ describe('QuizRepository.findLatestFallbackByArticleId', () => {
     const result = await quizRepository.findLatestFallbackByArticleId(articleId);
 
     expect(result?.configSnapshot).toEqual({ promptVersion: '1.0.0' });
+  });
+
+  it('should throw AppError 503 when the database query fails', async () => {
+    mockFindFirst.mockRejectedValue(new Error('connection reset'));
+
+    await expect(
+      quizRepository.findLatestFallbackByArticleId(articleId)
+    ).rejects.toThrow(new AppError('Database is unavailable', 503));
   });
 });

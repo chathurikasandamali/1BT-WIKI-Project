@@ -24,7 +24,8 @@ export const createQuizController = (
         throw new AppError('Invalid article ID format', 400);
       }
 
-      const quiz = await quizService.generateQuiz(articleId);
+      const userId = req.user!.userId;
+      const quiz = await quizService.generateQuiz(articleId, userId);
 
       res
         .status(201)

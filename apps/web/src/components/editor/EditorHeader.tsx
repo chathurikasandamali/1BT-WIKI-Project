@@ -4,7 +4,7 @@ import React, { useRef } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useEditorDraft } from '@/components/editor/EditorDraftContext';
 import { getStatusDotColor, getStatusText } from '@/lib/utils/saveStatus';
@@ -16,6 +16,7 @@ import {
 } from '@/lib/hooks/useAutoDismissToast';
 import { Toast } from '@/components/shared/Toast';
 import { ConfirmationModal } from '@/components/shared/ConfirmationModal';
+import { GenerateQuizModal } from '@/components/editor/GenerateQuizModal';
 import { EditIcon } from '@/components/shared/icons/EditIcon';
 import { EyeIcon } from '@/components/shared/icons/EyeIcon';
 
@@ -27,8 +28,11 @@ interface EditorHeaderProps {
 export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
   const router = useRouter();
   const {
+    articleId,
     articleStatus,
     initialStatus,
+    title,
+    wordCount,
     saveStatus,
     lastSavedAt,
     lastError,
@@ -47,6 +51,8 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
   const [toastType, setToastType] = React.useState<'success' | 'error'>(
     'success'
   );
+  const [isGenerateQuizModalOpen, setIsGenerateQuizModalOpen] =
+    React.useState(false);
 
   // Animate the status dot based on save state
   useGSAP(() => {
@@ -104,6 +110,10 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
     }
   };
 
+  const handleGenerateQuizClick = () => {
+    setIsGenerateQuizModalOpen(true);
+  };
+
   const handleBack = () => {
     if (window.history.length > 1) {
       router.back();
@@ -119,6 +129,8 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
     articleStatus !== 'Rejected';
   const submitLabel =
     initialStatus === 'Rejected' ? 'Re-submit for Review' : 'Submit for Review';
+  const canGenerateQuiz =
+    articleId !== null && title.trim().length > 0 && wordCount > 0;
 
   return (
     <>
@@ -180,6 +192,7 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
           {/* Mode Toggles */}
           <div className="flex rounded-lg border border-brand-border bg-white p-1 shadow-sm">
             <button
+              type='button'
               onClick={() => setMode('compose')}
               className={cn(
                 'flex items-center gap-2 rounded-md px-4 py-1.5 text-sm font-semibold transition-colors',
@@ -192,6 +205,7 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
               Compose
             </button>
             <button
+              type='button'
               onClick={() => setMode('preview')}
               className={cn(
                 'flex items-center gap-2 rounded-md px-4 py-1.5 text-sm font-semibold transition-colors',
@@ -207,6 +221,8 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
 
           {/* Save Draft button (Correction 3: replaces the removed "Revert to Draft") */}
           <button
+            type="button"
+            data-cy="save-draft-button"
             onClick={handleSaveDraft}
             disabled={saveStatus === 'saving'}
             className="flex items-center gap-2 rounded-lg border border-brand-border bg-white px-4 py-2 text-sm font-semibold text-brand-text-primary hover:bg-brand-hover transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -216,6 +232,23 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
           </button>
 
           <button
+            type="button"
+            data-cy="generate-quiz-button"
+            onClick={handleGenerateQuizClick}
+            disabled={!canGenerateQuiz}
+            title={
+              canGenerateQuiz
+                ? undefined
+                : 'Add a title and some content, then save, before generating a quiz'
+            }
+            className="flex items-center gap-2 rounded-lg border border-brand-border bg-white px-4 py-2 text-sm font-semibold text-brand-text-primary hover:bg-brand-hover transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Sparkles className="h-4 w-4 text-brand-text-secondary" />
+            Generate Quiz
+          </button>
+
+          <button
+            type="button"
             data-cy="submit-for-review-button"
             onClick={() => setIsConfirmModalOpen(true)}
             disabled={isSaving || isPublished}
@@ -234,6 +267,11 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
         onConfirm={handleSubmitForReview}
         onCancel={() => setIsConfirmModalOpen(false)}
         isConfirming={isSubmitting}
+      />
+      <GenerateQuizModal
+        isOpen={isGenerateQuizModalOpen}
+        articleId={articleId}
+        onClose={() => setIsGenerateQuizModalOpen(false)}
       />
     </>
   );

@@ -150,12 +150,51 @@ export async function getArticle(id: string): Promise<ArticleDetail> {
   return result.data;
 }
 
-export async function generateQuiz(articleId: string): Promise<void> {
-  const result = await apiFetch(`/articles/${articleId}/quiz/generate`, {
-    method: 'POST',
-  }); 
-  if (!result.success) {
+export interface GenerateQuizResponse {
+  quizId: string;
+  articleId: string;
+  isFallback: boolean;
+  questions: unknown[];
+}
+
+export async function generateQuiz(
+  articleId: string
+): Promise<GenerateQuizResponse> {
+  const result = await apiFetch<GenerateQuizResponse>(
+    `/articles/${articleId}/quiz/generate`,
+    { method: 'POST' }
+  );
+  if (!result.success || !result.data) {
     throw new Error(result.error || 'Failed to generate quiz');
   }
-    console.log("Result from generateQuiz API call:", result);
+  return result.data;
+}
+
+/** Author-only: reads the saved quiz focus-aspects hint for an article. */
+export async function getFocusAspects(articleId: string): Promise<string | null> {
+  const result = await apiFetch<{ aspects: string | null }>(
+    `/articles/${articleId}/quiz/focus-aspects`
+  );
+  if (!result.success || !result.data) {
+    throw new Error(result.error || 'Failed to fetch quiz focus aspects');
+  }
+  return result.data.aspects;
+}
+
+/** Author-only: sets the reusable quiz focus-aspects hint for an article. */
+export async function setFocusAspects(
+  articleId: string,
+  aspects: string
+): Promise<string> {
+  const result = await apiFetch<{ aspects: string }>(
+    `/articles/${articleId}/quiz/focus-aspects`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ aspects }),
+    }
+  );
+  if (!result.success || !result.data) {
+    throw new Error(result.error || 'Failed to save quiz focus aspects');
+  }
+  return result.data.aspects;
 }
