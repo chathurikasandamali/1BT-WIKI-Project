@@ -7,11 +7,11 @@ import React, {
   useRef,
   useCallback,
   useEffect,
-  useMemo,
   type ReactNode,
 } from 'react';
 import type { Editor } from '@tiptap/react';
 import { apiFetch } from '@/lib/api/client';
+import type { ArticleUpdateInput } from '@/lib/api/articles';
 
 // ── Frontend types matching backend response shape ──────────────────────────
 
@@ -36,6 +36,8 @@ export interface ArticleResponse {
   body: Record<string, unknown>;
   status: string;
   authorId: string;
+  coverAttachmentId?: string | null;
+  coverImageUrl?: string | null;
   tags: string[];
   createdAt: string;
   updatedAt: string;
@@ -56,6 +58,7 @@ interface EditorDraftContextValue {
   saveStatus: SaveStatus;
   lastSavedAt: Date | null;
   lastError: string | null;
+  coverAttachmentId: string | null;
   featuredImageUrl: string | null;
   attachments: ArticleAttachment[];
   wordCount: number;
@@ -66,7 +69,6 @@ interface EditorDraftContextValue {
   // Setters
   setTitle: (title: string) => void;
   setTags: (tags: string[]) => void;
-  setFeaturedImageUrl: (url: string | null) => void;
 
   // Editor registration
   registerEditor: (editor: Editor | null) => void;
@@ -75,6 +77,8 @@ interface EditorDraftContextValue {
   ensureDraftExists: () => Promise<string>;
   saveDraft: () => Promise<void>;
   uploadImage: (file: File) => Promise<string>;
+  uploadCoverImage: (file: File) => Promise<void>;
+  removeCoverImage: () => Promise<void>;
   submitForReview: () => Promise<void>;
 
   // Editor helpers
@@ -120,7 +124,12 @@ export function EditorDraftProvider({
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
-  const [featuredImageUrl, setFeaturedImageUrl] = useState<string | null>(null);
+  const [coverAttachmentId, setCoverAttachmentId] = useState<string | null>(
+    initialArticle?.coverAttachmentId ?? null
+  );
+  const [featuredImageUrl, setFeaturedImageUrl] = useState<string | null>(
+    initialArticle?.coverImageUrl ?? null
+  );
   const [attachments, setAttachmentsState] = useState<ArticleAttachment[]>(
     initialArticle?.attachments ?? []
   );
@@ -364,8 +373,8 @@ export function EditorDraftProvider({
   // response's attachment IDs against a pre-call snapshot — never by
   // filename, which can collide.
 
-  const uploadImage = useCallback(
-    async (file: File): Promise<string> => {
+  const uploadImageAttachment = useCallback(
+    async (file: File): Promise<ArticleAttachment> => {
       // Trigger (b): ensure a draft exists so we have an articleId
       await ensureDraftExists();
 
@@ -437,7 +446,7 @@ export function EditorDraftProvider({
 
           // Take the last new attachment (safest if multiple unexpectedly appear)
           const newAttachment = newAttachments[newAttachments.length - 1]!;
-          return newAttachment.fileUrl;
+          return newAttachment;
         } catch (error) {
           setSaveStatus('error');
           const msg = error instanceof Error ? error.message : String(error);
@@ -448,6 +457,74 @@ export function EditorDraftProvider({
     },
     [ensureDraftExists, withRequestLock]
   );
+
+  const uploadImage = useCallback(
+    async (file: File): Promise<string> => {
+      const attachment = await uploadImageAttachment(file);
+      return attachment.fileUrl;
+    },
+    [uploadImageAttachment]
+  );
+
+  const persistCoverAttachment = useCallback(
+    async (
+      nextCoverAttachmentId: string | null,
+      nextCoverImageUrl: string | null
+    ): Promise<void> => {
+      await ensureDraftExists();
+
+      const id = articleIdRef.current;
+      if (!id) throw new Error('Failed to create draft for cover update');
+
+      await withRequestLock(async () => {
+        setSaveStatus('saving');
+
+        const updateInput: ArticleUpdateInput = {
+          title: titleRef.current.trim() || 'Untitled Draft',
+          body: editorRef.current?.getJSON() ?? {},
+          tags: tagsRef.current,
+          coverAttachmentId: nextCoverAttachmentId,
+        };
+        const formData = new FormData();
+        formData.append('data', JSON.stringify(updateInput));
+
+        try {
+          const result = await apiFetch<ArticleResponse>(`/articles/${id}`, {
+            method: 'PATCH',
+            body: formData,
+          });
+
+          if (result.data?.status) {
+            setArticleStatus(result.data.status);
+          }
+
+          setCoverAttachmentId(nextCoverAttachmentId);
+          setFeaturedImageUrl(nextCoverImageUrl);
+          setLastSavedAt(new Date());
+          setSaveStatus('saved');
+          setLastError(null);
+        } catch (error) {
+          setSaveStatus('error');
+          const msg = error instanceof Error ? error.message : String(error);
+          setLastError(msg);
+          throw error;
+        }
+      });
+    },
+    [ensureDraftExists, withRequestLock]
+  );
+
+  const uploadCoverImage = useCallback(
+    async (file: File): Promise<void> => {
+      const attachment = await uploadImageAttachment(file);
+      await persistCoverAttachment(attachment.id, attachment.fileUrl);
+    },
+    [persistCoverAttachment, uploadImageAttachment]
+  );
+
+  const removeCoverImage = useCallback(async (): Promise<void> => {
+    await persistCoverAttachment(null, null);
+  }, [persistCoverAttachment]);
 
   // ── submitForReview ───────────────────────────────────────────────────
   //
@@ -537,60 +614,36 @@ export function EditorDraftProvider({
     };
   }, []);
 
-  // ── Context value (memoised to avoid needless consumer re-renders) ────
+  // ── Context value ────────────────────────────────────────────────────────
 
-  const value: EditorDraftContextValue = useMemo(
-    () => ({
-      articleId,
-      articleStatus,
-      title,
-      tags,
-      saveStatus,
-      lastSavedAt,
-      lastError,
-      featuredImageUrl,
-      attachments,
-      wordCount,
-      charCount,
-      setTitle,
-      setTags,
-      setFeaturedImageUrl,
-      registerEditor,
-      ensureDraftExists,
-      saveDraft,
-      uploadImage,
-      submitForReview,
-      insertEditorImage,
-      handleTitleBlur,
-      notifyContentChanged,
-      initialBody: initialBodyRef.current,
-      initialStatus: initialStatusRef.current,
-    }),
-    [
-      articleId,
-      articleStatus,
-      title,
-      tags,
-      saveStatus,
-      lastSavedAt,
-      lastError,
-      featuredImageUrl,
-      attachments,
-      wordCount,
-      charCount,
-      setTitle,
-      setTags,
-      setFeaturedImageUrl,
-      registerEditor,
-      ensureDraftExists,
-      saveDraft,
-      uploadImage,
-      submitForReview,
-      insertEditorImage,
-      handleTitleBlur,
-      notifyContentChanged,
-    ]
-  );
+  const value: EditorDraftContextValue = {
+    articleId,
+    articleStatus,
+    title,
+    tags,
+    saveStatus,
+    lastSavedAt,
+    lastError,
+    coverAttachmentId,
+    featuredImageUrl,
+    attachments,
+    wordCount,
+    charCount,
+    setTitle,
+    setTags,
+    registerEditor,
+    ensureDraftExists,
+    saveDraft,
+    uploadImage,
+    uploadCoverImage,
+    removeCoverImage,
+    submitForReview,
+    insertEditorImage,
+    handleTitleBlur,
+    notifyContentChanged,
+    initialBody: initialBodyRef.current,
+    initialStatus: initialStatusRef.current,
+  };
 
   return (
     <EditorDraftContext.Provider value={value}>

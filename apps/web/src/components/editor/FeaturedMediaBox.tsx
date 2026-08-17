@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { PlusIcon } from '@/components/shared/icons/PlusIcon';
 
 export function FeaturedMediaBox() {
-  const { uploadImage, featuredImageUrl, setFeaturedImageUrl } =
+  const { uploadCoverImage, removeCoverImage, featuredImageUrl } =
     useEditorDraft();
   const [displayInFeed, setDisplayInFeed] = useState(true);
   const [pinToTop, setPinToTop] = useState(false);
@@ -55,13 +55,7 @@ export function FeaturedMediaBox() {
     setUploadError(null);
 
     try {
-      const fileUrl = await uploadImage(file);
-      setFeaturedImageUrl(fileUrl);
-      // TODO: Backend persistence needed once Prisma migration + featured-image
-      // schema field lands. Currently the backend has no way to persist "this
-      // attachment is the featured image" — it's just a regular attachment row.
-      // Track which attachment URL is the featured one in FRONTEND state only
-      // for now.
+      await uploadCoverImage(file);
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : 'Upload failed');
     } finally {
@@ -71,10 +65,18 @@ export function FeaturedMediaBox() {
     }
   };
 
-  const removeImage = (e: React.MouseEvent) => {
+  const removeImage = async (e: React.MouseEvent) => {
     e.preventDefault();
-    setFeaturedImageUrl(null);
+    setIsUploading(true);
     setUploadError(null);
+
+    try {
+      await removeCoverImage();
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Update failed');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (

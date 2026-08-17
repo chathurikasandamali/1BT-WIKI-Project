@@ -16,6 +16,7 @@ import type {
   ArticleAttachment,
   JSONContent,
   ArticleListItem,
+  PublishedArticleListItem,
   AdminArticleListItem,
 } from '@models/article.types.js';
 import { ArticleStatusValue, ARTICLE_SORT_FIELDS } from '@models/article.types.js';
@@ -24,11 +25,12 @@ import { assertValidSort } from '../utils/queryHelpers.js';
 // Derives update-field shapes from the app-level Article interface — no Prisma types cross into the service layer.
 type ArticleUpdateFields = Partial<
   Pick<Article, 'title' | 'tags' | 'status'>
-> & { body?: JSONContent };
+> & { body?: JSONContent; coverAttachmentId?: string | null };
 
 type PublishedArticleRow = Article & {
   _count?: { likes: number; comments: number };
   reviews?: { feedback: string | null }[];
+  coverAttachment?: { fileUrl: string } | null;
 };
 
 const validateImages = (images: Express.Multer.File[]) => {
@@ -212,28 +214,46 @@ export class ArticleService {
 
     const article = await this.findOwned(id, userId);
 
-    let isEditable = false;
     let resetToDraft = false;
 
-    if (article.status === ArticleStatusValue.Draft) {
-      isEditable = true;
-    } else {
+    if (article.status !== ArticleStatusValue.Draft) {
       const latestReview =
         await this.reviewRepository.findLatestByArticleId(id);
-      if (latestReview && latestReview.reviewStatus === 'Rejected') {
-        isEditable = true;
-        resetToDraft = true;
+      if (!latestReview || latestReview.reviewStatus !== 'Rejected') {
+        throw new AppError('Only Draft or Rejected articles can be edited', 400);
       }
+      resetToDraft = true;
     }
 
-    if (!isEditable) {
-      throw new AppError('Only Draft or Rejected articles can be edited', 400);
+    if (
+      input.coverAttachmentId !== undefined &&
+      input.coverAttachmentId !== null
+    ) {
+      const coverAttachment = await this.attachmentRepository.findActiveById(
+        input.coverAttachmentId
+      );
+
+      if (!coverAttachment) {
+        throw new AppError('Cover attachment not found', 400);
+      }
+
+      if (coverAttachment.articleId !== id) {
+        throw new AppError(
+          'Cover attachment does not belong to this article',
+          400
+        );
+      }
+
+      if (!coverAttachment.mimeType.startsWith('image/')) {
+        throw new AppError('Cover attachment must be an image', 400);
+      }
     }
 
     const hasUpdates =
       input.title !== undefined ||
       input.body !== undefined ||
-      input.tags !== undefined;
+      input.tags !== undefined ||
+      input.coverAttachmentId !== undefined;
     let updatedArticle = article;
 
     if (hasUpdates || resetToDraft) {
@@ -244,6 +264,8 @@ export class ArticleService {
       if (input.body !== undefined)
         updateFields.body = validateBody(input.body);
       if (input.tags !== undefined) updateFields.tags = input.tags;
+      if (input.coverAttachmentId !== undefined)
+        updateFields.coverAttachmentId = input.coverAttachmentId;
       if (resetToDraft) updateFields.status = ArticleStatusValue.Draft;
 
       updatedArticle = await this.repository.update(id, updateFields);
@@ -282,7 +304,7 @@ export class ArticleService {
     search?: string,
     sort?: string,
     order?: string
-  ): Promise<{ articles: ArticleListItem[]; total: number; page: number; limit: number }> {
+  ): Promise<{ articles: PublishedArticleListItem[]; total: number; page: number; limit: number }> {
     assertValidSort(ARTICLE_SORT_FIELDS, sort);
     if (order !== undefined && order !== 'asc' && order !== 'desc') {
       throw new AppError('Invalid sort order. Allowed: asc, desc', 400);
@@ -297,10 +319,11 @@ export class ArticleService {
         search,
         sort,
         order,
+        includeCoverImage: true,
       }
     );
 
-    const mappedArticles: ArticleListItem[] = articles.map((article: PublishedArticleRow) => ({
+    const mappedArticles: PublishedArticleListItem[] = articles.map((article: PublishedArticleRow) => ({
       id: article.id,
       title: article.title,
       authorId: article.authorId,
@@ -312,6 +335,7 @@ export class ArticleService {
       likeCount: article._count?.likes ?? 0,
       commentCount: article._count?.comments ?? 0,
       rejectionFeedback: null,
+      coverImageUrl: article.coverAttachment?.fileUrl ?? null,
     }));
 
     return { articles: mappedArticles, total, page, limit };
@@ -430,7 +454,7 @@ export class ArticleService {
       throw new AppError('Article not available', 403);
     }
 
-    const { _count, likes, ...baseArticle } = articleRecord;
+    const { _count, likes, coverAttachment, ...baseArticle } = articleRecord;
 
     const [author] = await this.userRepository.findManyByIds([
       articleRecord.authorId,
@@ -438,6 +462,8 @@ export class ArticleService {
 
     return {
       ...baseArticle,
+      coverAttachmentId: baseArticle.coverAttachmentId ?? null,
+      coverImageUrl: coverAttachment?.fileUrl ?? null,
       likeCount: _count?.likes ?? 0,
       commentCount: _count?.comments ?? 0,
       likedByMe: likes ? likes.length > 0 : false,
