@@ -3,9 +3,11 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 const mockGenerateQuiz = jest.fn();
+const mockSubmitQuiz = jest.fn();
 
 jest.mock('@/lib/api/articles', () => ({
   generateQuiz: (...args: unknown[]) => mockGenerateQuiz(...args),
+  submitQuiz: (...args: unknown[]) => mockSubmitQuiz(...args),
 }));
 
 jest.mock('gsap', () => ({
@@ -57,8 +59,36 @@ describe('ReaderQuizModal', () => {
     expect(screen.getByText('Pick primes')).toBeInTheDocument();
   });
 
-  it('shows a completion state after submitting from the preview step', async () => {
+  it('asks for confirmation before submitting, then shows graded results', async () => {
     const user = userEvent.setup();
+    mockSubmitQuiz.mockResolvedValue({
+      quizId: 'quiz-1',
+      articleId,
+      totalQuestions: 2,
+      correctCount: 1,
+      incorrectCount: 1,
+      scorePercent: 50,
+      results: [
+        {
+          id: 'q1',
+          question: 'What is 1 + 1?',
+          type: 'single_choice',
+          options: ['1', '2'],
+          selected: [1],
+          correctIndexes: [1],
+          isCorrect: true,
+        },
+        {
+          id: 'q2',
+          question: 'Pick primes',
+          type: 'multiple_choice',
+          options: ['2', '3', '4'],
+          selected: [2],
+          correctIndexes: [0, 1],
+          isCorrect: false,
+        },
+      ],
+    });
 
     render(<ReaderQuizModal isOpen articleId={articleId} onClose={jest.fn()} />);
 
@@ -73,9 +103,14 @@ describe('ReaderQuizModal', () => {
     await screen.findByText('Review your answers');
     await user.click(screen.getByRole('button', { name: /^submit$/i }));
 
-    expect(
-      await screen.findByText(/thanks for taking it/i)
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Submit your answers?')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /confirm submit/i }));
+
+    expect(mockSubmitQuiz).toHaveBeenCalledWith(articleId, 'quiz-1', {
+      q1: [1],
+      q2: [1],
+    });
+    expect(await screen.findByText('50%')).toBeInTheDocument();
   });
 
   it('shows an error message if quiz generation fails', async () => {

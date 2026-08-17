@@ -10,6 +10,8 @@ import {
   toPublicQuestions,
   type GenerateQuizResponse,
   type QuizRecord,
+  type QuizQuestionResult,
+  type QuizSubmitResponse,
 } from '@models/quiz.types.js';
 import settingsService, { type SettingsService } from '@services/settingsService.js';
 
@@ -105,6 +107,10 @@ export const createQuizService = (deps: QuizServiceDeps) => {
       throw new AppError('Article has no content to generate a quiz from', 422);
     }
 
+    if (articleText.length <= 100) {
+      throw new AppError('Article content is not enough to generate a quiz from', 422);
+    }
+
     // Effective quiz config comes from the admin app_settings store; the
     // snapshot records exactly which config produced this quiz.
     const quizConfig = await settings.getQuizConfig();
@@ -150,6 +156,7 @@ export const createQuizService = (deps: QuizServiceDeps) => {
       const quiz = await generateAndStore(article, false);
       return toResponse(quiz);
     } catch (error) {
+      console.log(`Quiz Generattion Failure: ${error}`)
       // Domain errors (empty article) are the caller's problem; only infra/LLM
       // failures are eligible for the stored fallback quiz.
       if (error instanceof AppError && error.statusCode < 500) {
@@ -275,12 +282,65 @@ export const createQuizService = (deps: QuizServiceDeps) => {
     return toResponse(savedQuiz);
   };
 
+  /** Set-equality check ignoring order and duplicates. */
+  const sameIndexSet = (a: number[], b: number[]): boolean => {
+    const setA = [...new Set(a)].sort((x, y) => x - y);
+    const setB = [...new Set(b)].sort((x, y) => x - y);
+    return (
+      setA.length === setB.length && setA.every((value, index) => value === setB[index])
+    );
+  };
+
+  /**
+   * Grades a reader's submitted answers against the quiz's stored correct
+   * answers and returns the graded result. Stateless — nothing is persisted,
+   * matching the local-only scope for reader quiz attempts.
+   */
+  const submitQuiz = async (
+    articleId: string,
+    quizId: string,
+    answers: Record<string, number[]>
+  ): Promise<QuizSubmitResponse> => {
+    const quiz = await quizRepository.findById(quizId);
+    if (!quiz || quiz.articleId !== articleId) {
+      throw new AppError('Quiz not found for this article', 404);
+    }
+
+    const results: QuizQuestionResult[] = quiz.questions.map((question) => {
+      const selected = answers[question.id] ?? [];
+      return {
+        id: question.id,
+        question: question.question,
+        type: question.type,
+        options: question.options,
+        selected,
+        correctIndexes: question.correctIndexes,
+        isCorrect: sameIndexSet(selected, question.correctIndexes),
+      };
+    });
+
+    const totalQuestions = results.length;
+    const correctCount = results.filter((result) => result.isCorrect).length;
+
+    return {
+      quizId: quiz.id,
+      articleId: quiz.articleId,
+      totalQuestions,
+      correctCount,
+      incorrectCount: totalQuestions - correctCount,
+      scorePercent:
+        totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0,
+      results,
+    };
+  };
+
   return {
     generateQuiz,
     pregenerateFallbackQuiz,
     setFocusAspects,
     getFocusAspects,
     saveAsFallback,
+    submitQuiz,
   };
 };
 

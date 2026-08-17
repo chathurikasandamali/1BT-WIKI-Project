@@ -4,11 +4,17 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { X, CheckCircle2 } from 'lucide-react';
-import { generateQuiz, type QuizQuestionPublic } from '@/lib/api/articles';
+import { X } from 'lucide-react';
+import {
+  generateQuiz,
+  submitQuiz,
+  type QuizQuestionPublic,
+  type QuizSubmitResponse,
+} from '@/lib/api/articles';
 import { SpinnerIcon } from '@/components/shared/icons/SpinnerIcon';
 import { QuizProgressBar } from '@/components/quiz/QuizProgressBar';
 import { QuizQuestionCard } from '@/components/quiz/QuizQuestionCard';
+import { QuizResultScreen } from '@/components/quiz/QuizResultScreen';
 
 interface ReaderQuizModalProps {
   isOpen: boolean;
@@ -16,7 +22,14 @@ interface ReaderQuizModalProps {
   onClose: () => void;
 }
 
-type Step = 'loading' | 'error' | 'answering' | 'preview' | 'completed';
+type Step =
+  | 'loading'
+  | 'error'
+  | 'answering'
+  | 'preview'
+  | 'confirm'
+  | 'submitting'
+  | 'result';
 
 export function ReaderQuizModal({
   isOpen,
@@ -29,9 +42,11 @@ export function ReaderQuizModal({
 
   const [step, setStep] = useState<Step>('loading');
   const [error, setError] = useState<string | null>(null);
+  const [quizId, setQuizId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<QuizQuestionPublic[]>([]);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number[]>>({});
+  const [submitResult, setSubmitResult] = useState<QuizSubmitResponse | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -43,9 +58,11 @@ export function ReaderQuizModal({
     let cancelled = false;
     setStep('loading');
     setError(null);
+    setQuizId(null);
     setQuestions([]);
     setQuestionIndex(0);
     setAnswers({});
+    setSubmitResult(null);
 
     generateQuiz(articleId)
       .then((quiz) => {
@@ -55,6 +72,7 @@ export function ReaderQuizModal({
           setStep('error');
           return;
         }
+        setQuizId(quiz.quizId);
         setQuestions(quiz.questions);
         setStep('answering');
       })
@@ -104,9 +122,11 @@ export function ReaderQuizModal({
     setTimeout(() => {
       setStep('loading');
       setError(null);
+      setQuizId(null);
       setQuestions([]);
       setQuestionIndex(0);
       setAnswers({});
+      setSubmitResult(null);
     }, 300);
   };
 
@@ -135,8 +155,18 @@ export function ReaderQuizModal({
     setStep('answering');
   };
 
-  const handleSubmit = () => {
-    setStep('completed');
+  const handleConfirmSubmit = () => {
+    if (!articleId || !quizId) return;
+    setStep('submitting');
+    submitQuiz(articleId, quizId, answers)
+      .then((result) => {
+        setSubmitResult(result);
+        setStep('result');
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : 'Failed to submit quiz');
+        setStep('error');
+      });
   };
 
   let footer: React.ReactNode;
@@ -175,10 +205,30 @@ export function ReaderQuizModal({
         <button
           type="button"
           data-cy="quiz-submit-button"
-          onClick={handleSubmit}
+          onClick={() => setStep('confirm')}
           className="rounded-lg bg-brand-red px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-red-hover transition-colors"
         >
           Submit
+        </button>
+      </>
+    );
+  } else if (step === 'confirm') {
+    footer = (
+      <>
+        <button
+          type="button"
+          onClick={() => setStep('preview')}
+          className="rounded-lg px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-brand-border hover:text-brand-text-primary transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          data-cy="quiz-confirm-submit-button"
+          onClick={handleConfirmSubmit}
+          className="rounded-lg bg-brand-red px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-red-hover transition-colors"
+        >
+          Confirm submit
         </button>
       </>
     );
@@ -199,8 +249,12 @@ export function ReaderQuizModal({
   let title = 'Article Quiz';
   if (step === 'preview') {
     title = 'Review your answers';
-  } else if (step === 'completed') {
-    title = 'Quiz completed';
+  } else if (step === 'confirm') {
+    title = 'Confirm submission';
+  } else if (step === 'submitting') {
+    title = 'Submitting quiz';
+  } else if (step === 'result') {
+    title = 'Your results';
   }
 
   return createPortal(
@@ -275,13 +329,26 @@ export function ReaderQuizModal({
             </div>
           )}
 
-          {step === 'completed' && (
-            <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
-              <CheckCircle2 className="h-10 w-10 text-brand-red" />
+          {step === 'confirm' && (
+            <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
               <p className="text-sm font-semibold text-brand-text-primary">
-                Quiz completed — thanks for taking it!
+                Submit your answers?
+              </p>
+              <p className="text-sm text-brand-text-secondary">
+                You won&apos;t be able to change your answers after this.
               </p>
             </div>
+          )}
+
+          {step === 'submitting' && (
+            <div className="flex flex-col items-center justify-center gap-3 py-10 text-brand-text-secondary">
+              <SpinnerIcon className="h-6 w-6 animate-spin text-brand-red" />
+              <p className="text-sm">Grading your quiz...</p>
+            </div>
+          )}
+
+          {step === 'result' && submitResult && (
+            <QuizResultScreen result={submitResult} />
           )}
         </div>
 

@@ -526,3 +526,89 @@ describe('QuizService.saveAsFallback', () => {
     expect(result.quizId).toBe('existing-fallback');
   });
 });
+
+describe('QuizService.submitQuiz', () => {
+  let mockArticleRepo: ReturnType<typeof makeMockArticleRepo>;
+  let mockQuizRepo: ReturnType<typeof makeMockQuizRepo>;
+  let mockGemini: ReturnType<typeof makeMockGemini>;
+  let mockSettingsService: ReturnType<typeof makeMockSettingsService>;
+  let service: QuizService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockArticleRepo = makeMockArticleRepo();
+    mockQuizRepo = makeMockQuizRepo();
+    mockGemini = makeMockGemini();
+    mockSettingsService = makeMockSettingsService();
+    service = createQuizService({
+      articleRepository: mockArticleRepo as unknown as QuizServiceDeps['articleRepository'],
+      quizRepository: mockQuizRepo as unknown as QuizServiceDeps['quizRepository'],
+      llmProvider: mockGemini as unknown as QuizServiceDeps['llmProvider'],
+      settingsService: mockSettingsService as unknown as QuizServiceDeps['settingsService'],
+    });
+  });
+
+  it('should throw AppError 404 when the quiz does not exist', async () => {
+    mockQuizRepo.findById.mockResolvedValue(null);
+
+    await expect(service.submitQuiz(articleId, 'quiz-1', {})).rejects.toThrow(
+      new AppError('Quiz not found for this article', 404)
+    );
+  });
+
+  it('should throw AppError 404 when the quiz belongs to a different article', async () => {
+    mockQuizRepo.findById.mockResolvedValue(
+      makeStoredQuiz(false, { articleId: 'other-article' })
+    );
+
+    await expect(service.submitQuiz(articleId, 'quiz-1', {})).rejects.toThrow(
+      new AppError('Quiz not found for this article', 404)
+    );
+  });
+
+  it('should grade single-answer questions and treat a missing answer as incorrect', async () => {
+    const quiz = makeStoredQuiz(false, {
+      questions: [
+        { id: 'q1', question: 'Q1?', type: 'mcq', options: ['A', 'B'], correctIndexes: [1], explanation: '', quizId: 'quiz-1' },
+        { id: 'q2', question: 'Q2?', type: 'mcq', options: ['A', 'B'], correctIndexes: [0], explanation: '', quizId: 'quiz-1' },
+      ],
+    });
+    mockQuizRepo.findById.mockResolvedValue(quiz);
+
+    const result = await service.submitQuiz(articleId, 'quiz-1', { q1: [1] });
+
+    expect(result.totalQuestions).toBe(2);
+    expect(result.correctCount).toBe(1);
+    expect(result.incorrectCount).toBe(1);
+    expect(result.scorePercent).toBe(50);
+    expect(result.results).toEqual([
+      expect.objectContaining({ id: 'q1', selected: [1], correctIndexes: [1], isCorrect: true }),
+      expect.objectContaining({ id: 'q2', selected: [], correctIndexes: [0], isCorrect: false }),
+    ]);
+  });
+
+  it('should grade multi-answer questions by set equality regardless of order or duplicates', async () => {
+    const quiz = makeStoredQuiz(false, {
+      questions: [
+        {
+          id: 'q1',
+          question: 'Pick primes',
+          type: 'multiple_choice',
+          options: ['2', '3', '4'],
+          correctIndexes: [0, 1],
+          explanation: '',
+          quizId: 'quiz-1',
+        },
+      ],
+    });
+    mockQuizRepo.findById.mockResolvedValue(quiz);
+
+    const result = await service.submitQuiz(articleId, 'quiz-1', { q1: [1, 0, 1] });
+
+    expect(result.correctCount).toBe(1);
+    expect(result.scorePercent).toBe(100);
+    expect(result.results[0]).toEqual(
+      expect.objectContaining({ isCorrect: true })
+    );
+  });
+});
