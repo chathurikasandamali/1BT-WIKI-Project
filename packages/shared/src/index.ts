@@ -10,12 +10,7 @@ export const MAX_TECH_TALK_SLIDES_SIZE_BYTES = 20 * 1024 * 1024;
 
 export type TechTalkFixtureStatus = 'draft' | 'published' | 'unpublished';
 
-export const TechTalkStatus = {
-  draft: 'draft',
-  published: 'published',
-  unpublished: 'unpublished',
-} as const;
-export type TechTalkStatus = (typeof TechTalkStatus)[keyof typeof TechTalkStatus];
+export { TechTalkStatus } from '@repo/db';
 
 
 /**
