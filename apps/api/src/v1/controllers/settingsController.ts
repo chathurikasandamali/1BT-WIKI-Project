@@ -40,7 +40,7 @@ const maskSensitiveFields = (
   value: unknown
 ): unknown => {
   const sensitiveFields = SENSITIVE_SETTING_FIELDS[category as SettingCategory]?.[key];
-  if (!sensitiveFields || typeof value !== 'object' || value === null) {
+  if (!sensitiveFields || typeof value !== 'object' || value === null || value === undefined) {
     return value;
   }
 

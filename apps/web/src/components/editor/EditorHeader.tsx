@@ -53,6 +53,25 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
   );
   const [isGenerateQuizModalOpen, setIsGenerateQuizModalOpen] =
     React.useState(false);
+  const [canGenerateQuiz, setCanGenerateQuiz] =
+    React.useState(false);
+
+  // React.useEffect(() => {
+  //   if(articleId && title && wordCount > 100) {
+  //     setCanGenerateQuiz(true);
+  //   } else {
+  //     setCanGenerateQuiz(false);
+  //   }
+  // }, []);
+
+  React.useMemo(() => {
+    console.log('articleId:', articleId, 'title:', title, 'wordCount:', wordCount);
+    if(articleId && title && wordCount > 100) {
+      setCanGenerateQuiz(true);
+    } else {
+      setCanGenerateQuiz(false);
+    }
+  }, [articleId, title, wordCount]);
 
   // Animate the status dot based on save state
   useGSAP(() => {
@@ -129,8 +148,6 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
     articleStatus !== 'Rejected';
   const submitLabel =
     initialStatus === 'Rejected' ? 'Re-submit for Review' : 'Submit for Review';
-  const canGenerateQuiz =
-    articleId !== null && title.trim().length > 0 && wordCount > 0;
 
   return (
     <>

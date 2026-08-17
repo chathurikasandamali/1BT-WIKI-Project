@@ -9,7 +9,8 @@ import type { GeneratedQuizQuestion } from '@v1/types/quiz.types.js';
 /** Per-call model/credentials, resolved from the admin quiz_llm_config setting. */
 export interface QuizProviderCallConfig {
   model: string;
-  apiKey: string;
+  endpoint: string | undefined;
+  apiKey: string | undefined;
 }
 
 /**
