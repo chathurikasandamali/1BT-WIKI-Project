@@ -77,7 +77,7 @@ export class QuizRepository {
         },
       });
 
-      return toQuizRecord(result as unknown as PrismaQuiz);
+      return toQuizRecord(result);
     } catch (error) {
       console.error('Error creating quiz:', error);
       throw new AppError('Database is unavailable', 503);
@@ -97,7 +97,7 @@ export class QuizRepository {
         orderBy: { generatedAt: 'desc' },
       });
 
-      return result ? toQuizRecord(result as unknown as PrismaQuiz) : null;
+      return result ? toQuizRecord(result) : null;
     } catch (error) {
       console.error('Error fetching latest fallback quiz:', error);
       throw new AppError('Database is unavailable', 503);
@@ -114,7 +114,7 @@ export class QuizRepository {
     try {
       const result = await prisma.quiz.findUnique({ where: { id: quizId } });
 
-      return result ? toQuizRecord(result as unknown as PrismaQuiz) : null;
+      return result ? toQuizRecord(result) : null;
     } catch (error) {
       console.error('Error fetching quiz by id:', error);
       throw new AppError('Database is unavailable', 503);
@@ -139,7 +139,7 @@ export class QuizRepository {
         },
       });
 
-      return toQuizRecord(result as unknown as PrismaQuiz);
+      return toQuizRecord(result);
     } catch (error) {
       console.error('Error updating quiz:', error);
       throw new AppError('Database is unavailable', 503);
