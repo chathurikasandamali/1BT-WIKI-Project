@@ -109,4 +109,19 @@ describe('TechTalkDetailPage', () => {
 
     expect(screen.queryByTestId('techtalk-slides-link')).not.toBeInTheDocument();
   });
+
+  it('renders details correctly for a draft or unpublished tech talk (admin bypass view)', async () => {
+    mockGetTechTalkById.mockResolvedValue({
+      ...mockTechTalk,
+      status: 'draft',
+    });
+
+    render(<TechTalkDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('techtalk-detail-page')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(mockTechTalk.title)).toBeInTheDocument();
+  });
 });

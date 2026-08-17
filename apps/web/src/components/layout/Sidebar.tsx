@@ -291,6 +291,22 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
               {!isCollapsed && <span className="relative z-10">Article Management</span>}
               <Tooltip text="Article Management" />
             </Link>
+            <Link
+              href="/admin/tech-talks"
+              className={cn(
+                itemClasses('/admin/tech-talks'),
+                isCollapsed ? 'pl-[31px] gap-0' : 'pl-[20px] gap-[16px]'
+              )}
+              data-testid="nav-admin-tech-talks"
+              aria-label={isCollapsed ? "Tech Talk Management" : undefined}
+            >
+              {isActive('/admin/tech-talks') && (
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-3/4 bg-brand-red active-indicator rounded-r-full" />
+              )}
+              <TechTalkIcon className="w-4 h-4 relative z-10" />
+              {!isCollapsed && <span className="relative z-10">Tech Talk Management</span>}
+              <Tooltip text="Tech Talk Management" />
+            </Link>
           </nav>
         </>
       )}

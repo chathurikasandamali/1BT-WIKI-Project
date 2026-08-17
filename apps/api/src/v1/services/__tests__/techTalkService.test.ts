@@ -6,7 +6,7 @@ import type {
   UpdateTechTalkInput,
 } from '@models/techTalk.types.js';
 import { HttpStatusCode } from '@v1/utils/httpStatus.js';
-import { createTechTalk } from '@v1/__tests__/helpers/techTalk.fixtures.js';
+import { createTechTalk } from '@repo/shared';
 
 jest.unstable_mockModule('@repositories/techTalkRepository.js', () => {
   const mockCreate = jest.fn();

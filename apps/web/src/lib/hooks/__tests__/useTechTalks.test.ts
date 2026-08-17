@@ -1,12 +1,14 @@
 import { renderHook, waitFor, act } from '@testing-library/react';
-import { usePublishedTechTalks } from '../useTechTalks';
-import { fetchPublishedTechTalks } from '@/lib/api/techTalks';
+import { usePublishedTechTalks, useAllTechTalks } from '../useTechTalks';
+import { fetchPublishedTechTalks, listAll } from '@/lib/api/techTalks';
 
 jest.mock('@/lib/api/techTalks', () => ({
   fetchPublishedTechTalks: jest.fn(),
+  listAll: jest.fn(),
 }));
 
 const mockFetchPublishedTechTalks = fetchPublishedTechTalks as jest.Mock;
+const mockListAll = listAll as jest.Mock;
 
 const MOCK_TALK = {
   id: 'talk-1',
@@ -204,5 +206,98 @@ describe('usePublishedTechTalks', () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(mockFetchPublishedTechTalks).toHaveBeenCalledWith({ page: 1, limit: 20, search: undefined, sort: 'eventDate', order: 'asc' });
+  });
+});
+
+// ── useAllTechTalks ───────────────────────────────────────────────────────────
+
+const MOCK_ALL_TALK = {
+  id: 'tt-admin-1',
+  title: 'Admin Talk',
+  description: null,
+  presenters: ['Admin User'],
+  tags: [],
+  eventDate: '2026-09-01T10:00:00.000Z',
+  slidesUrl: null,
+  youtubeVideoId: null,
+  status: 'draft' as const,
+  createdAt: '2026-08-01T00:00:00.000Z',
+  updatedAt: '2026-08-01T00:00:00.000Z',
+};
+
+const MOCK_ALL_PAGE = {
+  techTalks: [MOCK_ALL_TALK],
+  total: 1,
+  page: 1,
+  limit: 12,
+};
+
+describe('useAllTechTalks', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('calls listAll and populates techTalks + total on mount', async () => {
+    mockListAll.mockResolvedValue(MOCK_ALL_PAGE);
+
+    const { result } = renderHook(() => useAllTechTalks({ page: 1, limit: 12 }));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.techTalks).toEqual([MOCK_ALL_TALK]);
+    expect(result.current.total).toBe(1);
+    expect(result.current.error).toBeNull();
+  });
+
+  it('starts in loading state and clears it after fetch resolves', async () => {
+    mockListAll.mockResolvedValue(MOCK_ALL_PAGE);
+
+    const { result } = renderHook(() => useAllTechTalks());
+
+    expect(result.current.loading).toBe(true);
+    await waitFor(() => expect(result.current.loading).toBe(false));
+  });
+
+  it('stores API errors in the error field', async () => {
+    mockListAll.mockRejectedValue(new Error('Admin fetch failed'));
+
+    const { result } = renderHook(() => useAllTechTalks());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.error).toBe('Admin fetch failed');
+    expect(result.current.techTalks).toEqual([]);
+    expect(result.current.total).toBe(0);
+  });
+
+  it('passes query params to listAll', async () => {
+    mockListAll.mockResolvedValue(MOCK_ALL_PAGE);
+
+    const { result } = renderHook(() =>
+      useAllTechTalks({ page: 2, limit: 12, search: 'react' })
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(mockListAll).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 2, limit: 12, search: 'react' })
+    );
+  });
+
+  it('refetch() re-calls listAll and refreshes data', async () => {
+    mockListAll.mockResolvedValue({ techTalks: [], total: 0, page: 1, limit: 12 });
+
+    const { result } = renderHook(() => useAllTechTalks({ page: 1, limit: 12 }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    mockListAll.mockResolvedValue(MOCK_ALL_PAGE);
+
+    await act(async () => {
+      await result.current.refetch();
+    });
+
+    expect(result.current.techTalks).toEqual([MOCK_ALL_TALK]);
+    expect(result.current.total).toBe(1);
+    expect(mockListAll.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 });

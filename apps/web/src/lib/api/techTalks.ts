@@ -40,6 +40,24 @@ export interface PublishedTechTalkListResult {
     limit: number;
 }
 
+// ── Admin list types ───────────────────────────────────────────────────────────
+
+export interface AdminTechTalkListQuery {
+    page?: number;
+    limit?: number;
+    search?: string;
+    sort?: string;
+    order?: string;
+    status?: TechTalkStatus;
+}
+
+export interface AdminTechTalkListResult {
+    techTalks: TechTalkListItem[];
+    total: number;
+    page: number;
+    limit: number;
+}
+
 export interface CreateTechTalkData {
     title: string;
     description?: string;
@@ -108,6 +126,36 @@ export async function updateTechTalk(
     return result.data;
 }
 
+/**
+ * Admin-only: list all Tech Talks across every status with optional
+ * status/search/sort/paginate filters (`GET /techTalks/listAll`).
+ *
+ * NOTE: the backend route is `/techTalks/listAll`, not `/admin/tech-talks`.
+ */
+export async function listAll(
+    query: AdminTechTalkListQuery = {}
+): Promise<AdminTechTalkListResult> {
+    const params = new URLSearchParams();
+
+    if (query.page !== undefined) params.set('page', String(query.page));
+    if (query.limit !== undefined) params.set('limit', String(query.limit));
+    if (query.status !== undefined) params.set('status', query.status);
+    if (query.search) params.set('search', query.search);
+    if (query.sort !== undefined) params.set('sort', query.sort);
+    if (query.order !== undefined) params.set('order', query.order);
+
+    const qs = params.toString();
+    const result = await apiFetch<AdminTechTalkListResult>(
+        `/techTalks/listAll${qs ? `?${qs}` : ''}`
+    );
+
+    if (!result.success || !result.data) {
+        throw new Error(result.error || 'Failed to load Tech Talks');
+    }
+
+    return result.data;
+}
+
 export async function publishTechTalk(
     id: string
 ): Promise<TechTalkDetail> {
@@ -123,6 +171,38 @@ export async function publishTechTalk(
     }
 
     return result.data;
+}
+
+/**
+ * Admin-only: unpublish a Tech Talk (`POST /techTalks/:id/unpublish`).
+ * Transitions: published → unpublished.
+ */
+export async function unpublishTechTalk(
+    id: string
+): Promise<TechTalkDetail> {
+    const result = await apiFetch<TechTalkDetail>(
+        `/techTalks/${id}/unpublish`,
+        {
+            method: 'POST',
+        }
+    );
+
+    if (!result.success || !result.data) {
+        throw new Error(result.error || 'Failed to unpublish Tech Talk');
+    }
+
+    return result.data;
+}
+
+/**
+ * Admin-only: soft-delete a Tech Talk (`DELETE /techTalks/:id`).
+ */
+export async function deleteTechTalk(id: string): Promise<void> {
+    const result = await apiFetch(`/techTalks/${id}`, { method: 'DELETE' });
+
+    if (!result.success) {
+        throw new Error(result.error || 'Failed to delete Tech Talk');
+    }
 }
 
 export async function getTechTalkById(

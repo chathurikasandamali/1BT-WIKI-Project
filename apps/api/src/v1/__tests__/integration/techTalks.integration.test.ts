@@ -1,7 +1,7 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import request from 'supertest';
 import { HttpStatusCode } from '@/v1/utils/httpStatus.js';
-import { createTechTalk } from '@v1/__tests__/helpers/techTalk.fixtures.js';
+import { createTechTalk } from '@repo/shared';
 
 await jest.unstable_mockModule('@repo/db', () => ({
   TechTalkStatus: {

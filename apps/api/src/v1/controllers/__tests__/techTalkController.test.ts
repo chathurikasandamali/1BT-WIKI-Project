@@ -3,7 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import type { TechTalkService } from '@services/techTalkService.js';
 import { AppError } from '@errors/AppError.js';
 import { makeMockReqResNext } from '@v1/__tests__/helpers/mockExpress.helpers.js';
-import { createTechTalk } from '@v1/__tests__/helpers/techTalk.fixtures.js';
+import { createTechTalk } from '@repo/shared';
 import { HttpStatusCode } from '@/v1/utils/httpStatus.js';
 
 jest.unstable_mockModule('@services/techTalkService.js', () => ({
