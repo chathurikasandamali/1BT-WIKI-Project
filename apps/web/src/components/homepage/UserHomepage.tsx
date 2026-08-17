@@ -2,7 +2,9 @@
 
 import React, { useState } from 'react';
 import { UserHomepageArticleCard } from '@/components/homepage/UserHomepageArticleCard';
+import { UserHomepagePopularTags } from '@/components/homepage/UserHomepagePopularTags';
 import { UserHomepageTechTalkCard } from '@/components/homepage/UserHomepageTechTalkCard';
+import { UserHomepageUpcomingEvents } from '@/components/homepage/UserHomepageUpcomingEvents';
 import {
   fetchPublishedArticles,
   type PublishedArticleListItem,
@@ -58,15 +60,17 @@ export function UserHomepage(): React.JSX.Element {
   const { data, loading, error } = useAsync(fetchUserHomepageContent, [], {
     useAbortSignal: true,
   });
+  const articles = data?.articles ?? [];
+  const techTalks = data?.techTalks ?? [];
 
   const feedItems: UserHomepageFeedItem[] = [
-    ...(data?.articles ?? []).map(
+    ...articles.map(
       (article): UserHomepageFeedItem => ({
         ...article,
         contentType: UserHomepageFeedItemType.Article,
       })
     ),
-    ...(data?.techTalks ?? []).map(
+    ...techTalks.map(
       (techTalk): UserHomepageFeedItem => ({
         ...techTalk,
         contentType: UserHomepageFeedItemType.TechTalk,
@@ -222,6 +226,16 @@ export function UserHomepage(): React.JSX.Element {
 
         {feedContent}
       </section>
+
+      {!loading && !error && data && (
+        <div className="grid gap-6 pb-10 sm:pb-12 lg:grid-cols-2 lg:items-start">
+          <UserHomepageUpcomingEvents techTalks={techTalks} />
+          <UserHomepagePopularTags
+            articles={articles}
+            techTalks={techTalks}
+          />
+        </div>
+      )}
     </div>
   );
 }
