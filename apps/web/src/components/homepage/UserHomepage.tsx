@@ -12,6 +12,7 @@ import {
   type TechTalkListItem,
 } from '@/lib/api/techTalks';
 import { useAsync } from '@/lib/hooks/useAsync';
+import { cn } from '@/lib/utils';
 
 enum UserHomepageFeedItemType {
   Article = 'article',
@@ -199,11 +200,13 @@ export function UserHomepage(): React.JSX.Element {
                     type="button"
                     aria-pressed={isActive}
                     onClick={() => setActiveFilter(filter.value)}
-                    className={`rounded-full border px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-2 
-                      focus-visible:outline-offset-2 focus-visible:outline-brand-red ${isActive
+                    className={cn(
+                      'rounded-full border px-4 py-2 text-sm font-semibold transition-colors',
+                      'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-red',
+                      isActive
                         ? 'border-brand-red bg-brand-red text-white'
                         : 'border-brand-border bg-brand-surface text-brand-text-primary hover:border-brand-dark hover:bg-brand-hover'
-                      }`}
+                    )}
                   >
                     {filter.label}
                   </button>
