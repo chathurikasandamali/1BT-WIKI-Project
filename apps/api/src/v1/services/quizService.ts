@@ -34,13 +34,58 @@ const toResponse = (quiz: QuizRecord): GenerateQuizResponse => ({
 export const createQuizService = (deps: QuizServiceDeps) => {
   const { articleRepository, quizRepository, llmProvider, settingsService: settings } = deps;
 
-  const loadPublishedArticle = async (articleId: string): Promise<Article> => {
-    const article = await articleRepository.findById(articleId);
+  /**
+   * Loads an article by id, translating any lookup failure into a clean
+   * AppError instead of letting a raw Prisma/infra exception escape (which
+   * the global error handler would otherwise turn into an opaque 500).
+   */
+  const findArticleOrThrow = async (articleId: string): Promise<Article> => {
+    let article: Article | null;
+    try {
+      article = await articleRepository.findById(articleId);
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      console.error(`[QuizService] Failed to load article ${articleId}:`, error);
+      throw new AppError('Database is unavailable', 503);
+    }
 
     if (!article) {
       throw new AppError('Article not found', 404);
     }
+    return article;
+  };
+
+  const loadPublishedArticle = async (articleId: string): Promise<Article> => {
+    const article = await findArticleOrThrow(articleId);
+
     if (article.status !== ArticleStatusValue.Published) {
+      throw new AppError(
+        'Quiz can only be generated for Published articles',
+        400
+      );
+    }
+
+    return article;
+  };
+
+  /**
+   * Same as `loadPublishedArticle`, but also allows the article's own author
+   * to generate/preview a quiz while it is still Draft/Pending — so authors
+   * can review fallback questions before publishing. Any other requester
+   * still needs the article to be Published.
+   */
+  const loadGeneratableArticle = async (
+    articleId: string,
+    requesterId: string
+  ): Promise<Article> => {
+    const article = await findArticleOrThrow(articleId);
+
+    if (
+      article.status !== ArticleStatusValue.Published &&
+      article.authorId !== requesterId
+    ) {
       throw new AppError(
         'Quiz can only be generated for Published articles',
         400
@@ -89,14 +134,17 @@ export const createQuizService = (deps: QuizServiceDeps) => {
   };
 
   /**
-   * Generates a quiz for a Published article via the gemini API,
-   * persists it, and returns the questions with correct answers stripped.
-   * Falls back to the article's pre-generated quiz when the Gemini API fails.
+   * Generates a quiz via the gemini API, persists it, and returns the
+   * questions with correct answers stripped. Allowed for any authenticated
+   * user on a Published article, or for the article's own author previewing
+   * a Draft/Pending article. Falls back to the article's pre-generated quiz
+   * when the Gemini API fails.
    */
   const generateQuiz = async (
-    articleId: string
+    articleId: string,
+    requesterId: string
   ): Promise<GenerateQuizResponse> => {
-    const article = await loadPublishedArticle(articleId);
+    const article = await loadGeneratableArticle(articleId, requesterId);
 
     try {
       const quiz = await generateAndStore(article, false);
@@ -152,10 +200,7 @@ export const createQuizService = (deps: QuizServiceDeps) => {
     requesterId: string,
     aspects: string
   ): Promise<string> => {
-    const article = await articleRepository.findById(articleId);
-    if (!article) {
-      throw new AppError('Article not found', 404);
-    }
+    const article = await findArticleOrThrow(articleId);
     if (article.authorId !== requesterId) {
       throw new AppError(
         'Only the author can set quiz focus aspects for this article',
@@ -182,10 +227,7 @@ export const createQuizService = (deps: QuizServiceDeps) => {
     articleId: string,
     requesterId: string
   ): Promise<string | null> => {
-    const article = await articleRepository.findById(articleId);
-    if (!article) {
-      throw new AppError('Article not found', 404);
-    }
+    const article = await findArticleOrThrow(articleId);
     if (article.authorId !== requesterId) {
       throw new AppError(
         'Only the author can view quiz focus aspects for this article',
@@ -212,10 +254,7 @@ export const createQuizService = (deps: QuizServiceDeps) => {
       throw new AppError('Quiz not found for this article', 404);
     }
 
-    const article = await articleRepository.findById(articleId);
-    if (!article) {
-      throw new AppError('Article not found', 404);
-    }
+    const article = await findArticleOrThrow(articleId);
     if (article.authorId !== requesterId) {
       throw new AppError(
         'Only the author can save a fallback quiz for this article',

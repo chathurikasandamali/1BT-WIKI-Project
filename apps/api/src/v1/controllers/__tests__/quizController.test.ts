@@ -49,11 +49,12 @@ describe('quizController.generate', () => {
 
     const { req, res, next } = makeMockReqResNext({
       params: { id: validArticleId },
+      user: { userId: 'reader-1' } as any,
     } as any);
 
     await controller.generate(req as any, res as any, next);
 
-    expect(mockQuizService.generateQuiz).toHaveBeenCalledWith(validArticleId);
+    expect(mockQuizService.generateQuiz).toHaveBeenCalledWith(validArticleId, 'reader-1');
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({ success: true, data: quiz })
@@ -67,6 +68,7 @@ describe('quizController.generate', () => {
 
     const { req, res, next } = makeMockReqResNext({
       params: { id: validArticleId },
+      user: { userId: 'reader-1' } as any,
     } as any);
 
     await controller.generate(req as any, res as any, next);

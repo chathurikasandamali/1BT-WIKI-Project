@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { prisma } from '@repo/db';
+import { AppError } from '@errors/AppError.js';
 import type {
   GeneratedQuizQuestion,
   QuizRecord,
@@ -66,16 +67,21 @@ export class QuizRepository {
    * @returns The newly created quiz row.
    */
   async create(input: CreateQuizInput): Promise<QuizRecord> {
-    const result = await prisma.quiz.create({
-      data: {
-        articleId: input.articleId,
-        isFallback: input.isFallback,
-        configSnapshot: input.configSnapshot as Prisma.InputJsonValue,
-        questions: input.questions as unknown as Prisma.InputJsonValue,
-      },
-    });
+    try {
+      const result = await prisma.quiz.create({
+        data: {
+          articleId: input.articleId,
+          isFallback: input.isFallback,
+          configSnapshot: input.configSnapshot as Prisma.InputJsonValue,
+          questions: input.questions as unknown as Prisma.InputJsonValue,
+        },
+      });
 
-    return toQuizRecord(result as unknown as PrismaQuiz);
+      return toQuizRecord(result as unknown as PrismaQuiz);
+    } catch (error) {
+      console.error('Error creating quiz:', error);
+      throw new AppError('Database is unavailable', 503);
+    }
   }
 
   /**
@@ -85,12 +91,17 @@ export class QuizRepository {
    * @returns The latest fallback quiz, or `null` if none has been generated.
    */
   async findLatestFallbackByArticleId(articleId: string): Promise<QuizRecord | null> {
-    const result = await prisma.quiz.findFirst({
-      where: { articleId, isFallback: true },
-      orderBy: { generatedAt: 'desc' },
-    });
+    try {
+      const result = await prisma.quiz.findFirst({
+        where: { articleId, isFallback: true },
+        orderBy: { generatedAt: 'desc' },
+      });
 
-    return result ? toQuizRecord(result as unknown as PrismaQuiz) : null;
+      return result ? toQuizRecord(result as unknown as PrismaQuiz) : null;
+    } catch (error) {
+      console.error('Error fetching latest fallback quiz:', error);
+      throw new AppError('Database is unavailable', 503);
+    }
   }
 
   /**
@@ -100,9 +111,14 @@ export class QuizRepository {
    * @returns The quiz, or `null` if it doesn't exist.
    */
   async findById(quizId: string): Promise<QuizRecord | null> {
-    const result = await prisma.quiz.findUnique({ where: { id: quizId } });
+    try {
+      const result = await prisma.quiz.findUnique({ where: { id: quizId } });
 
-    return result ? toQuizRecord(result as unknown as PrismaQuiz) : null;
+      return result ? toQuizRecord(result as unknown as PrismaQuiz) : null;
+    } catch (error) {
+      console.error('Error fetching quiz by id:', error);
+      throw new AppError('Database is unavailable', 503);
+    }
   }
 
   /**
@@ -113,16 +129,21 @@ export class QuizRepository {
    * @returns The updated quiz row.
    */
   async update(quizId: string, input: UpdateQuizInput): Promise<QuizRecord> {
-    const result = await prisma.quiz.update({
-      where: { id: quizId },
-      data: {
-        questions: input.questions as unknown as Prisma.InputJsonValue,
-        configSnapshot: input.configSnapshot as Prisma.InputJsonValue,
-        generatedAt: new Date(),
-      },
-    });
+    try {
+      const result = await prisma.quiz.update({
+        where: { id: quizId },
+        data: {
+          questions: input.questions as unknown as Prisma.InputJsonValue,
+          configSnapshot: input.configSnapshot as Prisma.InputJsonValue,
+          generatedAt: new Date(),
+        },
+      });
 
-    return toQuizRecord(result as unknown as PrismaQuiz);
+      return toQuizRecord(result as unknown as PrismaQuiz);
+    } catch (error) {
+      console.error('Error updating quiz:', error);
+      throw new AppError('Database is unavailable', 503);
+    }
   }
 
   /**
@@ -132,9 +153,14 @@ export class QuizRepository {
    * @returns The saved aspects string, or `null` if none has been set.
    */
   async findFocusAspectsByArticleId(articleId: string): Promise<string | null> {
-    const result = await prisma.quizFocusAspects.findUnique({ where: { articleId } });
+    try {
+      const result = await prisma.quizFocusAspects.findUnique({ where: { articleId } });
 
-    return result?.aspects ?? null;
+      return result?.aspects ?? null;
+    } catch (error) {
+      console.error('Error fetching quiz focus aspects:', error);
+      throw new AppError('Database is unavailable', 503);
+    }
   }
 
   /**
@@ -150,13 +176,18 @@ export class QuizRepository {
     aspects: string,
     updatedBy: string
   ): Promise<string> {
-    const result = await prisma.quizFocusAspects.upsert({
-      where: { articleId },
-      create: { articleId, aspects, updatedBy },
-      update: { aspects, updatedBy },
-    });
+    try {
+      const result = await prisma.quizFocusAspects.upsert({
+        where: { articleId },
+        create: { articleId, aspects, updatedBy },
+        update: { aspects, updatedBy },
+      });
 
-    return result.aspects;
+      return result.aspects;
+    } catch (error) {
+      console.error('Error upserting quiz focus aspects:', error);
+      throw new AppError('Database is unavailable', 503);
+    }
   }
 }
 

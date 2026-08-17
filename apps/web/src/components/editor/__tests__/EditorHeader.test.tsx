@@ -15,17 +15,26 @@ jest.mock('next/navigation', () => ({
 
 const mockSaveDraft = jest.fn();
 const mockSubmitForReview = jest.fn();
+const mockEnsureDraftExists = jest.fn();
 
 jest.mock('@/components/editor/EditorDraftContext', () => ({
   useEditorDraft: () => ({
+    articleId: 'article-1',
     articleStatus: 'Draft',
     initialStatus: 'Draft',
+    title: 'A test title',
+    wordCount: 10,
     saveStatus: 'idle',
     lastSavedAt: null,
     lastError: null,
     saveDraft: mockSaveDraft,
     submitForReview: mockSubmitForReview,
+    ensureDraftExists: mockEnsureDraftExists,
   }),
+}));
+
+jest.mock('@/components/editor/GenerateQuizModal', () => ({
+  GenerateQuizModal: () => null,
 }));
 
 jest.mock('@/lib/hooks/useAutoDismissToast', () => ({
