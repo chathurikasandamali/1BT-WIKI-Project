@@ -9,6 +9,22 @@ jest.mock('@/lib/api/articles', () => ({
   getArticle: jest.fn(),
 }));
 
+jest.mock('@/components/quiz/ReaderQuizModal', () => ({
+  ReaderQuizModal: ({
+    isOpen,
+    articleId,
+  }: {
+    isOpen: boolean;
+    articleId: string | null;
+    onClose: () => void;
+  }) =>
+    isOpen ? (
+      <div data-testid="reader-quiz-modal" data-article-id={articleId ?? ''}>
+        Reader Quiz Modal
+      </div>
+    ) : null,
+}));
+
 jest.mock('@/components/article-detail/LikeButton', () => ({
   LikeButton: ({ articleId, initialLikeCount, initialLikedByMe }: { articleId: string; initialLikeCount: number; initialLikedByMe: boolean }) => (
     <div data-testid="like-button">
@@ -251,7 +267,7 @@ describe('ArticleDetailPage', () => {
       }
     );
 
-    it('opens the auto-generating quiz modal for the article when clicked', async () => {
+    it('opens the reader quiz modal for the article when clicked', async () => {
       mockGetArticle.mockResolvedValue(mockArticle);
       const user = userEvent.setup();
 
@@ -264,13 +280,12 @@ describe('ArticleDetailPage', () => {
       });
 
       const button = await screen.findByRole('button', { name: /generate quiz/i });
-      expect(screen.queryByTestId('generate-quiz-modal')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('reader-quiz-modal')).not.toBeInTheDocument();
 
       await user.click(button);
 
-      const modal = await screen.findByTestId('generate-quiz-modal');
+      const modal = await screen.findByTestId('reader-quiz-modal');
       expect(modal).toHaveAttribute('data-article-id', mockValidId);
-      expect(modal).toHaveAttribute('data-auto-generate', 'true');
     });
   });
 });

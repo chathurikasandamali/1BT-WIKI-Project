@@ -5,11 +5,13 @@ import userEvent from '@testing-library/user-event';
 const mockGenerateQuiz = jest.fn();
 const mockGetFocusAspects = jest.fn();
 const mockSetFocusAspects = jest.fn();
+const mockSaveQuizAsFallback = jest.fn();
 
 jest.mock('@/lib/api/articles', () => ({
   generateQuiz: (...args: unknown[]) => mockGenerateQuiz(...args),
   getFocusAspects: (...args: unknown[]) => mockGetFocusAspects(...args),
   setFocusAspects: (...args: unknown[]) => mockSetFocusAspects(...args),
+  saveQuizAsFallback: (...args: unknown[]) => mockSaveQuizAsFallback(...args),
 }));
 
 jest.mock('gsap', () => ({
@@ -29,190 +31,75 @@ const mockQuizResponse = {
   quizId: 'quiz-1',
   articleId,
   isFallback: false,
-  questions: [{ question: 'What is 1 + 1?', options: ['1', '2'], correctIndex: 1 }],
+  questions: [
+    { id: 'q1', question: 'What is 1 + 1?', type: 'single_choice' as const, options: ['1', '2'] },
+  ],
 };
 
-describe('GenerateQuizModal', () => {
+describe('GenerateQuizModal (author review)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetFocusAspects.mockResolvedValue(null);
   });
 
-  describe('author mode (autoGenerate=false)', () => {
-    it('loads the saved focus-aspects hint and shows the input step when opened', async () => {
-      mockGetFocusAspects.mockResolvedValue('prioritize security section');
+  it('generates a quiz and shows the question review list', async () => {
+    const user = userEvent.setup();
+    mockGenerateQuiz.mockResolvedValue(mockQuizResponse);
 
-      render(
-        <GenerateQuizModal isOpen articleId={articleId} onClose={jest.fn()} />
-      );
+    render(<GenerateQuizModal isOpen articleId={articleId} onClose={jest.fn()} />);
 
-      await waitFor(() => {
-        expect(mockGetFocusAspects).toHaveBeenCalledWith(articleId);
-      });
+    await waitFor(() => expect(mockGetFocusAspects).toHaveBeenCalled());
+    await user.click(screen.getByRole('button', { name: /^generate$/i }));
 
-      const textarea = await screen.findByDisplayValue(
-        'prioritize security section'
-      );
-      expect(textarea).toBeInTheDocument();
-      expect(mockGenerateQuiz).not.toHaveBeenCalled();
-    });
-
-    it('saves focus aspects then generates the quiz and shows the result on Generate', async () => {
-      const user = userEvent.setup();
-      mockSetFocusAspects.mockResolvedValue('emphasize auth flow');
-      mockGenerateQuiz.mockResolvedValue(mockQuizResponse);
-
-      render(
-        <GenerateQuizModal isOpen articleId={articleId} onClose={jest.fn()} />
-      );
-
-      await waitFor(() => expect(mockGetFocusAspects).toHaveBeenCalled());
-
-      const textarea = screen.getByLabelText(/focus aspects/i);
-      await user.type(textarea, 'emphasize auth flow');
-
-      await user.click(screen.getByRole('button', { name: /^generate$/i }));
-
-      await waitFor(() => {
-        expect(mockSetFocusAspects).toHaveBeenCalledWith(
-          articleId,
-          'emphasize auth flow'
-        );
-      });
-      expect(mockGenerateQuiz).toHaveBeenCalledWith(articleId);
-
-      expect(
-        await screen.findByText(/raw response \(for verification only\)/i)
-      ).toBeInTheDocument();
-      expect(screen.getByText(/"quizId": "quiz-1"/)).toBeInTheDocument();
-    });
-
-    it('shows an error message if generation fails', async () => {
-      const user = userEvent.setup();
-      mockGenerateQuiz.mockRejectedValue(new Error('LLM unavailable'));
-
-      render(
-        <GenerateQuizModal isOpen articleId={articleId} onClose={jest.fn()} />
-      );
-
-      await waitFor(() => expect(mockGetFocusAspects).toHaveBeenCalled());
-      await user.click(screen.getByRole('button', { name: /^generate$/i }));
-
-      expect(await screen.findByText('LLM unavailable')).toBeInTheDocument();
-    });
-
-    it('calls onClose when Cancel is clicked', async () => {
-      const user = userEvent.setup();
-      const onClose = jest.fn();
-
-      render(
-        <GenerateQuizModal isOpen articleId={articleId} onClose={onClose} />
-      );
-
-      await waitFor(() => expect(mockGetFocusAspects).toHaveBeenCalled());
-      await user.click(screen.getByRole('button', { name: /cancel/i }));
-
-      expect(onClose).toHaveBeenCalled();
-    });
+    expect(await screen.findByText('What is 1 + 1?')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /regenerate/i })).toBeInTheDocument();
   });
 
-  describe('reader mode (autoGenerate=true)', () => {
-    it('generates the quiz automatically without loading or saving focus aspects', async () => {
-      mockGenerateQuiz.mockResolvedValue(mockQuizResponse);
+  it('saves the reviewed quiz as the fallback quiz', async () => {
+    const user = userEvent.setup();
+    mockGenerateQuiz.mockResolvedValue(mockQuizResponse);
+    mockSaveQuizAsFallback.mockResolvedValue(mockQuizResponse);
 
-      render(
-        <GenerateQuizModal
-          isOpen
-          articleId={articleId}
-          onClose={jest.fn()}
-          autoGenerate
-        />
-      );
+    render(<GenerateQuizModal isOpen articleId={articleId} onClose={jest.fn()} />);
 
-      await waitFor(() => expect(mockGenerateQuiz).toHaveBeenCalledWith(articleId));
+    await waitFor(() => expect(mockGetFocusAspects).toHaveBeenCalled());
+    await user.click(screen.getByRole('button', { name: /^generate$/i }));
+    await screen.findByText('What is 1 + 1?');
 
-      expect(mockGetFocusAspects).not.toHaveBeenCalled();
-      expect(mockSetFocusAspects).not.toHaveBeenCalled();
-      expect(
-        await screen.findByText(/raw response \(for verification only\)/i)
-      ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
 
-      // No focus-aspects input and no manual Generate button in reader mode
-      expect(screen.queryByLabelText(/focus aspects/i)).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole('button', { name: /^generate$/i })
-      ).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockSaveQuizAsFallback).toHaveBeenCalledWith(articleId, 'quiz-1');
     });
-
-    it('only triggers generation once even if the component re-renders while open', async () => {
-      mockGenerateQuiz.mockResolvedValue(mockQuizResponse);
-      const onClose = jest.fn();
-
-      const { rerender } = render(
-        <GenerateQuizModal
-          isOpen
-          articleId={articleId}
-          onClose={onClose}
-          autoGenerate
-        />
-      );
-
-      await waitFor(() => expect(mockGenerateQuiz).toHaveBeenCalledTimes(1));
-
-      rerender(
-        <GenerateQuizModal
-          isOpen
-          articleId={articleId}
-          onClose={onClose}
-          autoGenerate
-        />
-      );
-
-      expect(mockGenerateQuiz).toHaveBeenCalledTimes(1);
-    });
-
-    it('shows an error message if automatic generation fails', async () => {
-      mockGenerateQuiz.mockRejectedValue(new Error('Failed to reach Local LLM'));
-
-      render(
-        <GenerateQuizModal
-          isOpen
-          articleId={articleId}
-          onClose={jest.fn()}
-          autoGenerate
-        />
-      );
-
-      expect(
-        await screen.findByText('Failed to reach Local LLM')
-      ).toBeInTheDocument();
-    });
-
-    it('only shows a Close button in the footer', async () => {
-      mockGenerateQuiz.mockResolvedValue(mockQuizResponse);
-
-      render(
-        <GenerateQuizModal
-          isOpen
-          articleId={articleId}
-          onClose={jest.fn()}
-          autoGenerate
-        />
-      );
-
-      await waitFor(() =>
-        expect(
-          screen.getByRole('button', { name: /^close$/i })
-        ).toBeInTheDocument()
-      );
-      expect(screen.queryByRole('button', { name: /cancel/i })).not.toBeInTheDocument();
-    });
+    expect(await screen.findByText(/saved as the article's fallback quiz/i)).toBeInTheDocument();
   });
 
-  it('does not render anything when isOpen is false and articleId is null', () => {
-    render(<GenerateQuizModal isOpen={false} articleId={null} onClose={jest.fn()} />);
+  it('returns to the editable focus-aspects step on Regenerate', async () => {
+    const user = userEvent.setup();
+    mockGenerateQuiz.mockResolvedValue(mockQuizResponse);
 
-    expect(mockGenerateQuiz).not.toHaveBeenCalled();
-    expect(mockGetFocusAspects).not.toHaveBeenCalled();
+    render(<GenerateQuizModal isOpen articleId={articleId} onClose={jest.fn()} />);
+
+    await waitFor(() => expect(mockGetFocusAspects).toHaveBeenCalled());
+    await user.click(screen.getByRole('button', { name: /^generate$/i }));
+    await screen.findByText('What is 1 + 1?');
+
+    await user.click(screen.getByRole('button', { name: /regenerate/i }));
+
+    expect(screen.getByLabelText(/focus aspects/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^generate$/i })).toBeInTheDocument();
+  });
+
+  it('shows an error message if generation fails', async () => {
+    const user = userEvent.setup();
+    mockGenerateQuiz.mockRejectedValue(new Error('LLM unavailable'));
+
+    render(<GenerateQuizModal isOpen articleId={articleId} onClose={jest.fn()} />);
+
+    await waitFor(() => expect(mockGetFocusAspects).toHaveBeenCalled());
+    await user.click(screen.getByRole('button', { name: /^generate$/i }));
+
+    expect(await screen.findByText('LLM unavailable')).toBeInTheDocument();
   });
 });

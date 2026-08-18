@@ -181,6 +181,28 @@ export const parseGeneratedQuestions = (
   return result.data;
 };
 
+/** A single graded question, returned only after the quiz has been submitted. */
+export interface QuizQuestionResult {
+  id: string;
+  question: string;
+  type: QuestionType;
+  options: string[];
+  selected: number[];
+  correctIndexes: number[];
+  isCorrect: boolean;
+}
+
+/** The graded outcome of a submitted quiz. */
+export interface QuizSubmitResponse {
+  quizId: string;
+  articleId: string;
+  totalQuestions: number;
+  correctCount: number;
+  incorrectCount: number;
+  scorePercent: number;
+  results: QuizQuestionResult[];
+}
+
 /** Strips correct answers before a quiz leaves the API. */
 export const toPublicQuestions = (
   questions: QuizQuestionRecord[]

@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { prisma } from '@repo/db';
 import { AppError } from '@errors/AppError.js';
 import type {
@@ -31,7 +30,11 @@ const toQuestionRecord = (
   quizId: string,
   index: number
 ): QuizQuestionRecord => ({
-  id: randomUUID(),
+  // Deterministic, not randomUUID() — questions have no persisted per-row id
+  // (stored as a single JSONB array), so this must stay stable across reads
+  // or a quiz fetched again (e.g. by submitQuiz) won't match the question
+  // ids the reader was originally served.
+  id: `${quizId}-${index}`,
   quizId,
   question: question.question,
   type: question.type,

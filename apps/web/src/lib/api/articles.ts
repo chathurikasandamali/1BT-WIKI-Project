@@ -168,11 +168,20 @@ export async function getArticle(id: string): Promise<ArticleDetail> {
   return result.data;
 }
 
+export type QuestionType = 'mcq' | 'single_choice' | 'multiple_choice';
+
+export interface QuizQuestionPublic {
+  id: string;
+  question: string;
+  type: QuestionType;
+  options: string[];
+}
+
 export interface GenerateQuizResponse {
   quizId: string;
   articleId: string;
   isFallback: boolean;
-  questions: unknown[];
+  questions: QuizQuestionPublic[];
 }
 
 export async function generateQuiz(
@@ -184,6 +193,57 @@ export async function generateQuiz(
   );
   if (!result.success || !result.data) {
     throw new Error(result.error || 'Failed to generate quiz');
+  }
+  return result.data;
+}
+
+/** Author-only: saves a reviewed generated quiz as the article's stored fallback quiz. */
+export async function saveQuizAsFallback(
+  articleId: string,
+  quizId: string
+): Promise<GenerateQuizResponse> {
+  const result = await apiFetch<GenerateQuizResponse>(
+    `/articles/${articleId}/quiz/${quizId}/fallback`,
+    { method: 'POST' }
+  );
+  if (!result.success || !result.data) {
+    throw new Error(result.error || 'Failed to save quiz as fallback');
+  }
+  return result.data;
+}
+
+export interface QuizQuestionResult {
+  id: string;
+  question: string;
+  type: QuestionType;
+  options: string[];
+  selected: number[];
+  correctIndexes: number[];
+  isCorrect: boolean;
+}
+
+export interface QuizSubmitResponse {
+  quizId: string;
+  articleId: string;
+  totalQuestions: number;
+  correctCount: number;
+  incorrectCount: number;
+  scorePercent: number;
+  results: QuizQuestionResult[];
+}
+
+/** Submits a reader's answers and returns the graded result. */
+export async function submitQuiz(
+  articleId: string,
+  quizId: string,
+  answers: Record<string, number[]>
+): Promise<QuizSubmitResponse> {
+  const result = await apiFetch<QuizSubmitResponse>(
+    `/articles/${articleId}/quiz/${quizId}/submit`,
+    { method: 'POST', body: JSON.stringify({ answers }) }
+  );
+  if (!result.success || !result.data) {
+    throw new Error(result.error || 'Failed to submit quiz');
   }
   return result.data;
 }

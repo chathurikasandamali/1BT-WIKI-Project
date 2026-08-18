@@ -109,7 +109,43 @@ export const createQuizController = (
     }
   };
 
-  return { generate, setFocusAspects, getFocusAspects, saveAsFallback };
+  const submit = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const { id: articleId, quizId } = req.params;
+
+      if (!UUID_REGEX.test(articleId) || !UUID_REGEX.test(quizId)) {
+        throw new AppError('Invalid article or quiz ID format', 400);
+      }
+
+      const { answers } = req.body as { answers?: unknown };
+      if (
+        typeof answers !== 'object' ||
+        answers === null ||
+        Array.isArray(answers) ||
+        !Object.values(answers).every(
+          (value) => Array.isArray(value) && value.every((index) => typeof index === 'number')
+        )
+      ) {
+        throw new AppError('answers must be a map of question ID to selected option indexes', 400);
+      }
+
+      const result = await quizService.submitQuiz(
+        articleId,
+        quizId,
+        answers as Record<string, number[]>
+      );
+
+      res.status(200).json(successResponse(result, 'Quiz submitted'));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  return { generate, setFocusAspects, getFocusAspects, saveAsFallback, submit };
 };
 
 export default createQuizController();

@@ -14,6 +14,7 @@ const makeMockQuizService = (): QuizService =>
     setFocusAspects: jest.fn(),
     getFocusAspects: jest.fn(),
     saveAsFallback: jest.fn(),
+    submitQuiz: jest.fn(),
   }) as unknown as QuizService;
 
 describe('quizController.generate', () => {
@@ -292,6 +293,106 @@ describe('quizController.saveAsFallback', () => {
     } as any);
 
     await controller.saveAsFallback(req as any, res as any, next);
+
+    expect(next).toHaveBeenCalledWith(error);
+  });
+});
+
+describe('quizController.submit', () => {
+  let mockQuizService: QuizService;
+  let controller: ReturnType<typeof createQuizController>;
+  const validQuizId = randomUUID();
+
+  beforeEach(() => {
+    mockQuizService = makeMockQuizService();
+    controller = createQuizController(mockQuizService);
+  });
+
+  it('should reject an invalid article id with AppError 400', async () => {
+    const { req, res, next } = makeMockReqResNext({
+      params: { id: 'not-a-uuid', quizId: validQuizId },
+      body: { answers: {} },
+      user: { userId: 'reader-1' } as any,
+    } as any);
+
+    await controller.submit(req as any, res as any, next);
+
+    expect(mockQuizService.submitQuiz).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 400 }));
+  });
+
+  it('should reject an invalid quiz id with AppError 400', async () => {
+    const { req, res, next } = makeMockReqResNext({
+      params: { id: validArticleId, quizId: 'not-a-uuid' },
+      body: { answers: {} },
+      user: { userId: 'reader-1' } as any,
+    } as any);
+
+    await controller.submit(req as any, res as any, next);
+
+    expect(mockQuizService.submitQuiz).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 400 }));
+  });
+
+  it.each([
+    ['not an object', 'not-an-object'],
+    ['an array', []],
+    ['null', null],
+    ['values that are not number arrays', { q1: ['not-a-number'] }],
+  ])('should reject %s answers body with AppError 400', async (_label, answers) => {
+    const { req, res, next } = makeMockReqResNext({
+      params: { id: validArticleId, quizId: validQuizId },
+      body: { answers },
+      user: { userId: 'reader-1' } as any,
+    } as any);
+
+    await controller.submit(req as any, res as any, next);
+
+    expect(mockQuizService.submitQuiz).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 400 }));
+  });
+
+  it('should respond 200 with the graded result', async () => {
+    const result = {
+      quizId: validQuizId,
+      articleId: validArticleId,
+      totalQuestions: 1,
+      correctCount: 1,
+      incorrectCount: 0,
+      scorePercent: 100,
+      results: [],
+    };
+    (mockQuizService.submitQuiz as jest.Mock<any>).mockResolvedValue(result);
+
+    const { req, res, next } = makeMockReqResNext({
+      params: { id: validArticleId, quizId: validQuizId },
+      body: { answers: { q1: [0] } },
+      user: { userId: 'reader-1' } as any,
+    } as any);
+
+    await controller.submit(req as any, res as any, next);
+
+    expect(mockQuizService.submitQuiz).toHaveBeenCalledWith(validArticleId, validQuizId, {
+      q1: [0],
+    });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: true, data: result })
+    );
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('should forward service errors to next', async () => {
+    const error = new AppError('Quiz not found for this article', 404);
+    (mockQuizService.submitQuiz as jest.Mock<any>).mockRejectedValue(error);
+
+    const { req, res, next } = makeMockReqResNext({
+      params: { id: validArticleId, quizId: validQuizId },
+      body: { answers: {} },
+      user: { userId: 'reader-1' } as any,
+    } as any);
+
+    await controller.submit(req as any, res as any, next);
 
     expect(next).toHaveBeenCalledWith(error);
   });
