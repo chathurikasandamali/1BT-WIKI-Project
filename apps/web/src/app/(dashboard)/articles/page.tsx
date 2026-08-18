@@ -17,6 +17,7 @@ interface ArticleItem {
   likeCount: number;
   commentCount: number;
   views: number;
+  coverImageUrl: string | null;
 }
 
 interface ArticlesResponse {
@@ -191,15 +192,18 @@ export default function ArticlesPage(): React.JSX.Element {
           {[...Array(limit)].map((_, i) => (
             <div
               key={i}
-              className="flex flex-col gap-4 p-6 bg-white border border-brand-border rounded-lg animate-pulse"
+              className="flex flex-col gap-4 bg-white border border-brand-border rounded-lg overflow-hidden animate-pulse"
             >
-              <div className="h-6 bg-brand-border rounded w-3/4"></div>
-              <div className="h-4 bg-brand-border rounded w-1/2"></div>
-              <div className="flex gap-2 mt-4">
-                <div className="h-6 w-16 bg-gray-100 rounded-full"></div>
-                <div className="h-6 w-16 bg-gray-100 rounded-full"></div>
+              <div className="aspect-video w-full bg-brand-border"></div>
+              <div className="flex flex-col gap-4 px-6">
+                <div className="h-6 bg-brand-border rounded w-3/4"></div>
+                <div className="h-4 bg-brand-border rounded w-1/2"></div>
+                <div className="flex gap-2 mt-4">
+                  <div className="h-6 w-16 bg-gray-100 rounded-full"></div>
+                  <div className="h-6 w-16 bg-gray-100 rounded-full"></div>
+                </div>
               </div>
-              <div className="flex justify-between items-center mt-6">
+              <div className="flex justify-between items-center px-6 pb-6">
                 <div className="flex gap-4">
                   <div className="h-4 w-8 bg-brand-border rounded"></div>
                   <div className="h-4 w-8 bg-brand-border rounded"></div>
@@ -239,6 +243,7 @@ export default function ArticlesPage(): React.JSX.Element {
                 commentCount={article.commentCount}
                 views={article.views}
                 createdAt={article.createdAt}
+                coverImageUrl={article.coverImageUrl}
               />
             ))}
           </div>
