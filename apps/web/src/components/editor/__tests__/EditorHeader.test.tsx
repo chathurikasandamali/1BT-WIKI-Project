@@ -36,7 +36,7 @@ jest.mock('@/components/editor/EditorDraftContext', () => ({
   }),
 }));
 
-jest.mock('@/components/editor/GenerateQuizModal', () => ({
+jest.mock('@/components/quiz/GenerateQuizModal', () => ({
   GenerateQuizModal: () => null,
 }));
 
