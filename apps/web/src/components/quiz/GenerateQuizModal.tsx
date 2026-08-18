@@ -20,6 +20,11 @@ interface GenerateQuizModalProps {
   isOpen: boolean;
   articleId: string | null;
   onClose: () => void;
+  /**
+   * Reader-view mode: skips the focus-aspects input step and starts
+   * generation as soon as the modal opens, showing only the result.
+   */
+  autoGenerate?: boolean;
 }
 
 type Step = 'input' | 'review' | 'saved';
@@ -28,6 +33,7 @@ export function GenerateQuizModal({
   isOpen,
   articleId,
   onClose,
+  autoGenerate = false,
 }: GenerateQuizModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -40,6 +46,7 @@ export function GenerateQuizModal({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<GenerateQuizResponse | null>(null);
+  const autoStartedRef = useRef(false);
 
   useEffect(() => {
     setMounted(true);
@@ -47,7 +54,7 @@ export function GenerateQuizModal({
 
   // Load the saved focus-aspects hint (if any) whenever the modal opens.
   useEffect(() => {
-    if (!isOpen || !articleId) return;
+    if (!isOpen || !articleId || autoGenerate) return;
 
     let cancelled = false;
     setIsLoadingAspects(true);
@@ -75,7 +82,7 @@ export function GenerateQuizModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, articleId]);
+  }, [isOpen, articleId, autoGenerate]);
 
   useGSAP(() => {
     if (!mounted || !overlayRef.current || !modalRef.current) return;
@@ -115,6 +122,7 @@ export function GenerateQuizModal({
       setStep('input');
       setResult(null);
       setError(null);
+      autoStartedRef.current = false;
     }, 300);
   };
 
@@ -126,7 +134,7 @@ export function GenerateQuizModal({
 
     try {
       const trimmed = focusAspects.trim();
-      if (trimmed.length > 0) {
+      if (!autoGenerate && trimmed.length > 0) {
         await setFocusAspects(articleId, trimmed);
       }
 

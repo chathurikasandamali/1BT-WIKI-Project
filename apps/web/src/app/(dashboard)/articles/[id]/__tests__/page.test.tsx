@@ -41,6 +41,24 @@ jest.mock('@/components/article-detail/CommentsSection', () => ({
   CommentsSection: () => <div data-testid="comments-section">Comments</div>,
 }));
 
+jest.mock('@/components/quiz/GenerateQuizModal', () => ({
+  GenerateQuizModal: ({
+    isOpen,
+    articleId,
+    autoGenerate,
+  }: {
+    isOpen: boolean;
+    articleId: string | null;
+    onClose: () => void;
+    autoGenerate?: boolean;
+  }) =>
+    isOpen ? (
+      <div data-testid="generate-quiz-modal" data-article-id={articleId ?? ''} data-auto-generate={String(!!autoGenerate)}>
+        Generate Quiz Modal
+      </div>
+    ) : null,
+}));
+
 jest.mock('@/components/UserAvatar', () => ({
   UserAvatar: ({ name, avatarUrl, format }: { name?: string; avatarUrl?: string | null; format?: string }) => (
     <div data-testid="user-avatar" data-name={name} data-avatarurl={avatarUrl ?? ''} data-format={format}>

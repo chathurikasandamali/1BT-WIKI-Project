@@ -13,16 +13,16 @@ import type {
   CreateTechTalkInput,
   UpdateTechTalkInput,
   TechTalkListQuery,
-  PaginationMeta
+  PaginationMeta,
 } from '@models/techTalk.types.js';
 import { UserRoleValue } from '@/types/userTypes.js';
 import { HttpStatusCode } from '@utils/httpStatus.js';
-import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT } from '@repo/shared';
+import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT, MAX_TECH_TALK_SLIDES_SIZE_BYTES } from '@repo/shared';
 
 export class TechTalkService {
   constructor(
     private readonly techTalkRepository: TechTalkRepository = techTalkRepositoryInstance
-  ) {}
+  ) { }
 
   async getTechTalkById(id: string, requesterRole?: string): Promise<TechTalk> {
     const techTalk = await this.techTalkRepository.findById(id);
@@ -30,7 +30,10 @@ export class TechTalkService {
       throw new AppError('Tech Talk not found', HttpStatusCode.NOT_FOUND);
     }
 
-    if (requesterRole === UserRoleValue.Admin || techTalk.status === TechTalkStatus.published) {
+    if (
+      requesterRole === UserRoleValue.Admin ||
+      techTalk.status === TechTalkStatus.published
+    ) {
       return techTalk;
     }
 
@@ -59,6 +62,25 @@ export class TechTalkService {
     return { techTalks, total, page, limit };
   }
 
+  /**
+   * Lists all non-deleted Tech Talks across every status (draft, published,
+   * unpublished) with optional search, sort, and pagination. Admin-facing.
+   */
+  async listAll(
+    query: TechTalkListQuery
+  ): Promise<{ techTalks: TechTalkListItem[] } & PaginationMeta> {
+    const page = query.page ?? DEFAULT_PAGE;
+    const limit = query.limit ?? DEFAULT_PAGE_LIMIT;
+
+    const { techTalks, total } = await this.techTalkRepository.listAll({
+      ...query,
+      page,
+      limit,
+    });
+
+    return { techTalks, total, page, limit };
+  }
+
   async createTechTalk(
     input: CreateTechTalkInput,
     adminId: string,
@@ -68,7 +90,10 @@ export class TechTalkService {
       throw new AppError('Title is required', HttpStatusCode.BAD_REQUEST);
     }
     if (!input.presenters || input.presenters.length === 0) {
-      throw new AppError('At least one presenter is required', HttpStatusCode.BAD_REQUEST);
+      throw new AppError(
+        'At least one presenter is required',
+        HttpStatusCode.BAD_REQUEST
+      );
     }
     if (!input.eventDate) {
       throw new AppError('Event date is required', HttpStatusCode.BAD_REQUEST);
@@ -81,7 +106,10 @@ export class TechTalkService {
       input.youtubeVideoId &&
       !this.isValidYoutubeVideoId(input.youtubeVideoId)
     ) {
-      throw new AppError('Invalid YouTube video ID', HttpStatusCode.BAD_REQUEST);
+      throw new AppError(
+        'Invalid YouTube video ID',
+        HttpStatusCode.BAD_REQUEST
+      );
     }
 
     let slidesUrl: string | null = null;
@@ -111,13 +139,30 @@ export class TechTalkService {
     if (!techTalk) {
       throw new AppError('Tech Talk not found', HttpStatusCode.NOT_FOUND);
     }
-    if (techTalk.status !== TechTalkStatus.draft) {
+    if (
+      techTalk.status !== TechTalkStatus.draft &&
+      techTalk.status !== TechTalkStatus.unpublished
+    ) {
       throw new AppError(
-        `Cannot publish a Tech Talk with status "${techTalk.status}". Only Draft Tech Talks can be published.`,
+        `Cannot publish a Tech Talk with status "${techTalk.status}". Only Draft or Unpublished Tech Talks can be published.`,
         HttpStatusCode.BAD_REQUEST
       );
     }
     return this.techTalkRepository.updateStatus(id, TechTalkStatus.published);
+  }
+
+  async unpublishTechTalk(id: string): Promise<TechTalk> {
+    try {
+      return await this.techTalkRepository.unpublish(id);
+    } catch (error) {
+      if (isPrismaNotFoundError(error)) {
+        throw new AppError(
+          'Tech Talk not found or is not published',
+          HttpStatusCode.NOT_FOUND
+        );
+      }
+      throw error;
+    }
   }
 
   async deleteTechTalk(id: string): Promise<void> {
@@ -131,7 +176,7 @@ export class TechTalkService {
     }
   }
 
-    async updateTechTalk(
+  async updateTechTalk(
     id: string,
     input: UpdateTechTalkInput,
     slidesFile?: Express.Multer.File
@@ -153,7 +198,8 @@ export class TechTalkService {
     }> = {};
 
     if (input.title !== undefined) {
-      if (input.title.trim() === '') throw new AppError('Title is required', HttpStatusCode.BAD_REQUEST);
+      if (input.title.trim() === '')
+        throw new AppError('Title is required', HttpStatusCode.BAD_REQUEST);
       updateFields.title = input.title.trim();
     }
     if (input.description !== undefined) {
@@ -161,7 +207,10 @@ export class TechTalkService {
     }
     if (input.presenters !== undefined) {
       if (input.presenters.length === 0) {
-        throw new AppError('At least one presenter is required', HttpStatusCode.BAD_REQUEST);
+        throw new AppError(
+          'At least one presenter is required',
+          HttpStatusCode.BAD_REQUEST
+        );
       }
       updateFields.presenters = input.presenters;
     }
@@ -170,12 +219,16 @@ export class TechTalkService {
     }
     if (input.eventDate !== undefined) {
       const eventDate = new Date(input.eventDate);
-      if (isNaN(eventDate.getTime())) throw new AppError('Invalid event date', HttpStatusCode.BAD_REQUEST);
+      if (isNaN(eventDate.getTime()))
+        throw new AppError('Invalid event date', HttpStatusCode.BAD_REQUEST);
       updateFields.eventDate = eventDate;
     }
     if (input.youtubeVideoId !== undefined) {
       if (!this.isValidYoutubeVideoId(input.youtubeVideoId)) {
-        throw new AppError('Invalid YouTube video ID', HttpStatusCode.BAD_REQUEST);
+        throw new AppError(
+          'Invalid YouTube video ID',
+          HttpStatusCode.BAD_REQUEST
+        );
       }
       updateFields.youtubeVideoId = input.youtubeVideoId;
     }
@@ -208,14 +261,19 @@ export class TechTalkService {
       if (error instanceof AppError) {
         throw error;
       }
-      throw new AppError('Failed to upload slides file', HttpStatusCode.INTERNAL_SERVER_ERROR);
+      throw new AppError(
+        'Failed to upload slides file',
+        HttpStatusCode.INTERNAL_SERVER_ERROR
+      );
     }
   }
 
   private validateSlidesFile(file: Express.Multer.File): void {
-    const maxSizeBytes = 20 * 1024 * 1024; // 20MB
-    if (file.size > maxSizeBytes) {
-      throw new AppError('Slides file size cannot exceed 20MB', HttpStatusCode.BAD_REQUEST);
+    if (file.size > MAX_TECH_TALK_SLIDES_SIZE_BYTES) {
+      throw new AppError(
+        'Slides file size cannot exceed 20MB',
+        HttpStatusCode.BAD_REQUEST
+      );
     }
 
     const allowedMimeTypes = [

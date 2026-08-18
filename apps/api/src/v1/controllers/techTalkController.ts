@@ -38,6 +38,30 @@ export class TechTalkController {
     }
   };
 
+  listAll = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const query: TechTalkListQuery = {
+        page: Number(req.query.page) || DEFAULT_PAGE,
+        limit: Number(req.query.limit) || DEFAULT_PAGE_LIMIT,
+        search: req.query.search as string | undefined,
+        sort: req.query.sort as string | undefined,
+        order: req.query.order as string | undefined,
+      };
+      const result = await this.techTalkService.listAll(query);
+      res.status(HttpStatusCode.OK).json({
+        success: true,
+        data: result,
+        message: 'Tech Talks retrieved successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
   getById = async (
     req: Request,
     res: Response,
@@ -101,6 +125,24 @@ export class TechTalkController {
         success: true,
         data: techTalk,
         message: 'Tech Talk published successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  unpublish = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const techTalk = await this.techTalkService.unpublishTechTalk(id);
+      res.status(HttpStatusCode.OK).json({
+        success: true,
+        data: techTalk,
+        message: 'Tech Talk unpublished successfully',
       });
     } catch (error) {
       next(error);
