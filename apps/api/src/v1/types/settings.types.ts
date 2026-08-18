@@ -88,10 +88,10 @@ export interface QuizLlmConfig {
  * one via the settings panel.
  */
 export const DEFAULT_QUIZ_LLM_CONFIG: QuizLlmConfig = {
-  provider: 'local',
-  model: 'qwen2.5vl',
-  endpoint: 'http://192.168.8.105:11434',
-  apiKey: undefined,
+  provider: 'gemini',
+  model: 'gemini-3.6-flash',
+  endpoint: undefined,
+  apiKey: process.env.GEMINI_API_KEY ?? undefined,
 };
 
 export const quizLlmConfigSchema = z
