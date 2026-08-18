@@ -13,6 +13,7 @@ const mockPrisma = {
 };
 
 jest.unstable_mockModule('@repo/db', () => ({
+  TechTalkStatus: { draft: 'draft', published: 'published', unpublished: 'unpublished' },
   prisma: mockPrisma,
 }));
 

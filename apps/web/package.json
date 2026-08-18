@@ -18,6 +18,7 @@
   "dependencies": {
     "@gsap/react": "^2.1.2",
     "@neondatabase/auth": "0.4.2-beta",
+    "@repo/shared": "workspace:*",
     "@repo/ui": "workspace:*",
     "@tailwindcss/postcss": "^4.3.1",
     "@tiptap/extension-image": "^3.27.4",

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import {
@@ -174,6 +174,13 @@ export function RichTextEditor({ onOpenImageEmbed }: RichTextEditorProps) {
     initialBody,
   } = useEditorDraft();
 
+  const reportCounts = (ed: Editor) => {
+    const text = ed.state.doc.textContent;
+    const words = text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
+    const chars = text.length;
+    notifyContentChanged(words, chars);
+  };
+
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -190,11 +197,11 @@ export function RichTextEditor({ onOpenImageEmbed }: RichTextEditorProps) {
         'data-cy': 'article-content-editor',
       },
     },
+    onCreate: ({ editor: ed }) => {
+      reportCounts(ed);
+    },
     onUpdate: ({ editor: ed }) => {
-      const text = ed.state.doc.textContent;
-      const words = text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
-      const chars = text.length;
-      notifyContentChanged(words, chars);
+      reportCounts(ed);
     },
   });
 

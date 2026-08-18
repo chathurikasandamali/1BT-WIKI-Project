@@ -176,6 +176,7 @@ function ArticleManagementContent(): React.JSX.Element {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   // ── Render ──────────────────────────────────────────────────────────────────
+  const showSummaryStats = !loading && !error && !!statusCounts;
 
   return (
     <div className="p-8 max-w-6xl mx-auto" ref={containerRef}>
@@ -205,7 +206,7 @@ function ArticleManagementContent(): React.JSX.Element {
       </div>
 
       {/* Summary */}
-      {!loading && !error && statusCounts && (
+      {showSummaryStats && (
         <div className="page-header grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
           {[
             {

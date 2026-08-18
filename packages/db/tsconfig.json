@@ -4,6 +4,7 @@
     "outDir": "dist",
     "rootDir": "src",
     "strictNullChecks": true,
+    "sourceMap": true,
     "types": ["node"]
   },
   "include": ["src/index.ts", "src/client.ts"],

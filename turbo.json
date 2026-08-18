@@ -4,7 +4,10 @@
   "tasks": {
     "generate": {
       "cache": false,
-      "outputs": ["src/generated/prisma/**"]
+      "outputs": ["src/generated/prisma/**"],
+      "env": [
+        "DATABASE_URL"
+      ]
     },
     "build": {
       "dependsOn": ["^generate", "^build", "generate"],
@@ -26,10 +29,10 @@
       "cache": false
     },
     "lint": {
-      "dependsOn": ["^lint"]
+      "dependsOn": ["^lint", "^build"]
     },
     "check-types": {
-      "dependsOn": ["^check-types"]
+      "dependsOn": ["^check-types", "^build"]
     },
     "dev": {
       "cache": false,

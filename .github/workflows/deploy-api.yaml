@@ -29,9 +29,9 @@ jobs:
           cache: pnpm
 
       - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
-      - name: Build DB Package
+      - name: Build DB Package       
         run: pnpm --filter db build
 
       - name: Lint API
@@ -42,3 +42,5 @@ jobs:
 
       - name: Build API
         run: pnpm --filter api build
+    env:
+      DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}   

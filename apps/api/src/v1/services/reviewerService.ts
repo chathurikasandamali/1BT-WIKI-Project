@@ -6,13 +6,15 @@ import type { Article } from '@models/article.types.js';
 import { ArticleStatusValue } from '@models/article.types.js';
 import { ReviewStatus } from '@repo/db/generated/prisma/index.js';
 import notificationService from '@services/notificationService.js';
+import defaultQuizService, { type QuizService } from '@services/quizService.js';
 import { NotificationBuilder } from '@v1/lib/NotificationBuilder.js';
 
 export class ReviewerService {
   constructor(
-    private articleRepository: ArticleRepository = new ArticleRepository(),
-    private reviewRepository: ArticleReviewRepository = new ArticleReviewRepository(),
-    private userRepository: typeof UserRepository = UserRepository,
+    private readonly articleRepository: ArticleRepository = new ArticleRepository(),
+    private readonly reviewRepository: ArticleReviewRepository = new ArticleReviewRepository(),
+    private readonly userRepository: typeof UserRepository = UserRepository,
+    private readonly quizService: QuizService = defaultQuizService,
   ) {}
 
   async listPending(
@@ -77,6 +79,15 @@ export class ReviewerService {
     notificationService.send(notificationPayload).catch((err: unknown) => {
       console.error(
         '[NotificationService] Failed to send approval notification:',
+        err
+      );
+    });
+
+    // Pre-generate a fallback quiz for the newly published article.
+    // Fire-and-forget — quiz generation must not block or roll back the approval.
+    this.quizService.pregenerateFallbackQuiz(articleId).catch((err: unknown) => {
+      console.error(
+        '[QuizService] Failed to pre-generate fallback quiz:',
         err
       );
     });

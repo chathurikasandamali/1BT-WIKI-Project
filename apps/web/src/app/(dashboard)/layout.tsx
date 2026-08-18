@@ -234,7 +234,7 @@ function DashboardLayoutInner({
           )}
           data-testid="main-content"
         >
-          {children}
+          <div className="min-h-full">{children}</div>
         </main>
       </div>
     </div>

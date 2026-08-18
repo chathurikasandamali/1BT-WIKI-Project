@@ -6,6 +6,7 @@ import notificationsRoutes from './notificationsRoutes.js';
 import reviewerRoutes from './reviewerRoutes.js';
 import pusherRoutes from './pusherRoutes.js';
 import e2eRoutes from './e2eRoutes.js';
+import techTalksRoutes from './techTalksRoutes.js';
 
 const router = Router();
 router.use('/users', userRoutes);
@@ -22,5 +23,6 @@ if (
 ) {
   router.use('/e2e', e2eRoutes);
 }
+router.use('/techTalks', techTalksRoutes);
 
 export default router;

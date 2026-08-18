@@ -6,7 +6,8 @@ describe('Auth flow: login -> session -> protected route -> logout', () => {
 
     cy.visitPage('/signin');
     stubOAuthPopup();
-    cy.contains('button', /sign in with google/i).click();
+    cy.get('button[aria-label="Open navigation menu"]').click();
+    cy.get('#mobile-landing-navigation').contains('button', /^Log in$/).click();
 
     cy.wait('@signInSocial');
     cy.url().should('eq', `${Cypress.config('baseUrl')}/`);
@@ -36,9 +37,11 @@ describe('Auth flow: login -> session -> protected route -> logout', () => {
     // No session cookies -> proxy.ts middleware redirects server-side before
     // the page (and any client-side fetch) ever loads.
     cy.visit('/');
-    cy.url().should('include', '/signin');
+    cy.location('pathname').should('eq', '/signin');
 
-    cy.contains('h1', 'Sign in to continue').should('be.visible');
+    cy.get('button[aria-label="1BT Wiki home"]').should('be.visible');
+    cy.get('button[aria-label="Open navigation menu"]').click();
+    cy.get('#mobile-landing-navigation').contains('button', /^Log in$/).should('be.visible');
     cy.contains('h1', 'Admin Dashboard').should('not.exist');
   });
 

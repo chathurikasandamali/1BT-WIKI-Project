@@ -167,7 +167,10 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
       )}
       
       <nav className={`flex flex-col gap-1 ${isCollapsed ? 'px-2 pt-4' : 'px-4'}`}>
-        {mainNavItems.map((item) => (
+        {mainNavItems.map((item) => {
+          const showCompactLiveBadge = isCollapsed && item.showLiveBadge;
+          
+          return (
           <Link
             key={item.href}
             href={item.href}
@@ -183,7 +186,7 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
             )}
             <div className="relative">
               {item.icon}
-              {isCollapsed && item.showLiveBadge && (
+              {showCompactLiveBadge && (
                 <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-green-500" />
               )}
             </div>
@@ -199,7 +202,8 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
             )}
             <Tooltip text={item.label} />
           </Link>
-        ))}
+          );
+        })}
       </nav>
       
       <div className={`border-t border-white/10 my-2 ${isCollapsed ? 'mx-2' : 'mx-4'} sidebar-item`} />
@@ -286,6 +290,22 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
               <ArticleIcon className="w-4 h-4 relative z-10" />
               {!isCollapsed && <span className="relative z-10">Article Management</span>}
               <Tooltip text="Article Management" />
+            </Link>
+            <Link
+              href="/admin/tech-talks"
+              className={cn(
+                itemClasses('/admin/tech-talks'),
+                isCollapsed ? 'pl-[31px] gap-0' : 'pl-[20px] gap-[16px]'
+              )}
+              data-testid="nav-admin-tech-talks"
+              aria-label={isCollapsed ? "Tech Talk Management" : undefined}
+            >
+              {isActive('/admin/tech-talks') && (
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-3/4 bg-brand-red active-indicator rounded-r-full" />
+              )}
+              <TechTalkIcon className="w-4 h-4 relative z-10" />
+              {!isCollapsed && <span className="relative z-10">Tech Talk Management</span>}
+              <Tooltip text="Tech Talk Management" />
             </Link>
           </nav>
         </>

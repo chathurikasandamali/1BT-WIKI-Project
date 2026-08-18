@@ -45,6 +45,7 @@ export function CommentItem({
 
   const isMine = comment.createdBy === currentUserId;
   const isEdited = comment.updatedAt !== comment.createdAt;
+  const canEditComment = isMine && !isEditing;
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -112,7 +113,7 @@ export function CommentItem({
               </span>
             )}
           </div>
-          {isMine && !isEditing && (
+          {canEditComment && (
             <div className="flex items-center gap-1">
               <button
                 onClick={startEditing}

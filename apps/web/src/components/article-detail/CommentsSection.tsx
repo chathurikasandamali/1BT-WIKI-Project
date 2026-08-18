@@ -115,6 +115,9 @@ export function CommentsSection({ articleId }: CommentsSectionProps) {
     );
   };
 
+  const showError = !loading && !!error;
+  const showComments = !loading && !error;
+
   return (
     <div className="mt-12 bg-brand-surface rounded-xl shadow-sm border border-brand-border p-6 md:p-8">
       <h3 className="text-xl font-display font-bold text-brand-dark mb-6">
@@ -165,7 +168,7 @@ export function CommentsSection({ articleId }: CommentsSectionProps) {
         </p>
       )}
 
-      {!loading && error && (
+      {showError && (
         <p
           data-testid="comments-error"
           className="text-brand-red text-center py-8"
@@ -174,7 +177,7 @@ export function CommentsSection({ articleId }: CommentsSectionProps) {
         </p>
       )}
 
-      {!loading && !error && (
+      {showComments && (
         <div data-testid="comments-list" className="flex flex-col">
           {comments.map((comment) => (
             <CommentItem

@@ -16,6 +16,8 @@
     "generate": "prisma generate",
     "db:pull": "prisma db pull",
     "db:push": "prisma db push",
+    "migrate:deploy": "prisma migrate deploy",
+    "migrate:status": "prisma migrate status",
     "build": "prisma generate && tsc -p tsconfig.json",
     "test": "echo \"Error: no test specified\""
   },

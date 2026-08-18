@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 
 jest.unstable_mockModule('@repo/db', () => ({
+  TechTalkStatus: { draft: 'draft', published: 'published', unpublished: 'unpublished' },
   prisma: {
     like: {
       create: jest.fn(),
