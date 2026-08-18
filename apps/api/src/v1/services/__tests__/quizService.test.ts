@@ -21,7 +21,7 @@ const publishedArticle = {
     content: [
       {
         type: 'paragraph',
-        content: [{ type: 'text', text: 'Neon PostgreSQL supports branching.' }],
+        content: [{ type: 'text', text: 'Neon PostgreSQL supports branching, which lets every developer get an isolated copy of production data for testing and development without duplicating storage.' }],
       },
     ],
   },
