@@ -62,6 +62,7 @@ export function UserHomepage(): React.JSX.Element {
   });
   const articles = data?.articles ?? [];
   const techTalks = data?.techTalks ?? [];
+  const showHomepageRail = !loading && !error && data !== null;
 
   const feedItems: UserHomepageFeedItem[] = [
     ...articles.map(
@@ -128,7 +129,7 @@ export function UserHomepage(): React.JSX.Element {
     );
   } else {
     feedContent = (
-      <div className="mt-6 flex flex-col gap-4">
+      <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
         {visibleFeedItems.map((item) => {
           if (item.contentType === UserHomepageFeedItemType.Article) {
             return (
@@ -158,84 +159,84 @@ export function UserHomepage(): React.JSX.Element {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-12">
-      <section className="overflow-hidden rounded-3xl border border-white/10 bg-brand-dark px-6 py-10 shadow-xl 
-      shadow-black/5 sm:px-10 sm:py-14 lg:px-14 lg:py-16">
-        <div className="max-w-3xl">
+    <div className="mx-auto w-full max-w-[1440px] px-4 pb-10 pt-10 sm:px-6 sm:pb-12 sm:pt-14 lg:px-8 lg:pt-16">
+      <section className="max-w-4xl pb-10 sm:pb-12 lg:pb-14">
+        <div>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-red">
             Built by the 1BT community
           </p>
-          <h1 className="mt-5 font-display text-4xl font-bold tracking-[-0.04em] text-white sm:text-5xl lg:text-6xl">
-            Latest from the team.
+          <h1 className="mt-4 font-display text-4xl font-bold tracking-[-0.04em] text-brand-text-primary sm:text-5xl lg:text-6xl">
+            Latest from the team
           </h1>
-          <p className="mt-5 max-w-2xl text-base leading-7 text-white/70 sm:text-lg">
+          <p className="mt-4 max-w-2xl text-base leading-7 text-brand-text-secondary sm:text-lg">
             Ideas, lessons and conversations worth sharing.
           </p>
         </div>
       </section>
 
-      <section
-        className="py-10 sm:py-12"
-        aria-labelledby="latest-updates-heading"
+      <div
+        className={cn(
+          'grid gap-8 xl:gap-10',
+          showHomepageRail &&
+            'xl:grid-cols-[minmax(0,3fr)_minmax(18rem,1fr)] xl:items-start'
+        )}
       >
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h2
-              id="latest-updates-heading"
-              className="font-display text-2xl font-bold tracking-[-0.03em] text-brand-text-primary sm:text-3xl"
-            >
-              Latest updates
-            </h2>
-            <div
-              className="mt-4 flex flex-wrap gap-2"
-              role="group"
-              aria-label="Filter latest updates"
-            >
-              {FILTERS.map((filter) => {
-                const isActive = activeFilter === filter.value;
+        <section aria-labelledby="latest-updates-heading">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2
+                id="latest-updates-heading"
+                className="font-display text-2xl font-bold tracking-[-0.03em] text-brand-text-primary sm:text-3xl"
+              >
+                Latest updates
+              </h2>
+              <div
+                className="mt-4 flex flex-wrap gap-2"
+                role="group"
+                aria-label="Filter latest updates"
+              >
+                {FILTERS.map((filter) => {
+                  const isActive = activeFilter === filter.value;
 
-                return (
-                  <button
-                    key={filter.value}
-                    type="button"
-                    aria-pressed={isActive}
-                    onClick={() => setActiveFilter(filter.value)}
-                    className={cn(
-                      'rounded-full border px-4 py-2 text-sm font-semibold transition-colors',
-                      'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-red',
-                      isActive
-                        ? 'border-brand-red bg-brand-red text-white'
-                        : 'border-brand-border bg-brand-surface text-brand-text-primary hover:border-brand-dark hover:bg-brand-hover'
-                    )}
-                  >
-                    {filter.label}
-                  </button>
-                );
-              })}
+                  return (
+                    <button
+                      key={filter.value}
+                      type="button"
+                      aria-pressed={isActive}
+                      onClick={() => setActiveFilter(filter.value)}
+                      className={cn(
+                        'rounded-full border px-4 py-2 text-sm font-semibold transition-colors',
+                        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-red',
+                        isActive
+                          ? 'border-brand-red bg-brand-red text-white'
+                          : 'border-brand-border bg-brand-surface text-brand-text-primary hover:border-brand-dark hover:bg-brand-hover'
+                      )}
+                    >
+                      {filter.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+
+            <p className="shrink-0 text-sm font-medium text-brand-text-secondary">
+              Newest first
+            </p>
           </div>
 
-          <div
-            className="w-fit shrink-0 rounded-full border border-brand-border bg-brand-surface px-4 py-2 text-sm font-medium 
-            text-brand-text-secondary"
-            aria-label="Sort order: Newest first"
-          >
-            Newest first
-          </div>
-        </div>
+          {feedContent}
+        </section>
 
-        {feedContent}
-      </section>
-
-      {!loading && !error && data && (
-        <div className="grid gap-6 pb-10 sm:pb-12 lg:grid-cols-2 lg:items-start">
-          <UserHomepageUpcomingEvents techTalks={techTalks} />
-          <UserHomepagePopularTags
-            articles={articles}
-            techTalks={techTalks}
-          />
-        </div>
-      )}
+        {showHomepageRail && (
+          <aside className="grid gap-6">
+            <UserHomepageUpcomingEvents techTalks={techTalks} />
+            <UserHomepagePopularTags
+              articles={articles}
+              techTalks={techTalks}
+            />
+          </aside>
+        )}
+      </div>
     </div>
   );
 }
