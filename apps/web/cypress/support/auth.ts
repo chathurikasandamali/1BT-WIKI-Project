@@ -134,6 +134,32 @@ export function stubAuthSession(initialRole: StubRole): void {
     }
   }).as('usersMe');
 
+  // Notifications are outside the scope of the UI-focused specs that use
+  // this helper. Keep the global notification provider deterministic instead
+  // of allowing its background requests to reach an unrelated API process.
+  cy.intercept('OPTIONS', '**/api/v1/notifications*', {
+    statusCode: 204,
+    headers: CORS_HEADERS,
+  });
+
+  cy.intercept(
+    { method: 'GET', pathname: '**/api/v1/notifications' },
+    {
+      statusCode: 200,
+      headers: CORS_HEADERS,
+      body: { success: true, data: [] },
+    }
+  );
+
+  cy.intercept(
+    { method: 'GET', pathname: '**/api/v1/notifications/unread-count' },
+    {
+      statusCode: 200,
+      headers: CORS_HEADERS,
+      body: { success: true, data: { count: 0 } },
+    }
+  );
+
   cy.intercept('POST', '**/api/auth/sign-out', (req) => {
     role = null;
     req.reply({ statusCode: 200, body: { success: true } });

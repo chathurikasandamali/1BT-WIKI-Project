@@ -48,23 +48,18 @@ export function UserHomepagePopularTags({
 
   return (
     <section
-      className="rounded-3xl border border-brand-border bg-brand-surface p-6 shadow-sm sm:p-8"
+      className="rounded-2xl border border-brand-border bg-brand-surface p-5 shadow-sm sm:p-6"
       aria-labelledby="popular-tags-heading"
     >
       <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-red">
-            Across Articles &amp; Tech Talks
-          </p>
-          <h2
-            id="popular-tags-heading"
-            className="mt-2 font-display text-2xl font-bold tracking-[-0.03em] text-brand-text-primary"
-          >
-            Popular Tags
-          </h2>
-        </div>
+        <h2
+          id="popular-tags-heading"
+          className="font-display text-xl font-bold tracking-[-0.03em] text-brand-text-primary"
+        >
+          Popular tags
+        </h2>
         <span
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-dark font-display text-xl font-bold text-white"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-hover font-display text-lg font-bold text-brand-red"
           aria-hidden="true"
         >
           #
@@ -72,7 +67,7 @@ export function UserHomepagePopularTags({
       </div>
 
       {popularTags.length === 0 ? (
-        <div className="mt-6 rounded-2xl border border-dashed border-brand-border bg-brand-hover px-5 py-8 text-center">
+        <div className="mt-4 rounded-xl border border-dashed border-brand-border bg-brand-hover px-4 py-6 text-center">
           <p className="font-semibold text-brand-text-primary">
             No tags to show yet.
           </p>
@@ -81,21 +76,18 @@ export function UserHomepagePopularTags({
           </p>
         </div>
       ) : (
-        <ul className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <ul className="mt-4 flex flex-wrap gap-2">
           {popularTags.map(
             ([tag, count]: [string, number]): React.JSX.Element => (
               <li
                 key={tag}
-                className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-brand-border bg-brand-hover px-4 py-3"
+                className="inline-flex max-w-full min-w-0 items-center gap-2 rounded-full border border-brand-border bg-brand-hover px-3 py-1.5"
               >
-                <span
-                  className="min-w-0 truncate text-sm font-semibold text-brand-text-primary"
-                  title={tag}
-                >
+                <span className="min-w-0 break-words text-sm font-semibold leading-5 text-brand-text-primary">
                   {tag}
                 </span>
                 <span
-                  className="flex h-7 min-w-7 shrink-0 items-center justify-center rounded-full bg-brand-red px-2 text-xs font-bold text-white"
+                  className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-brand-surface px-1.5 text-[0.7rem] font-bold text-brand-red"
                   aria-label={`${count} ${count === 1 ? 'occurrence' : 'occurrences'}`}
                 >
                   {count}

@@ -6,7 +6,7 @@
 // Not exported for use in arbitrary components; access state through
 // NotificationContext (useNotificationContext) instead.
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getPusherClient } from '@/lib/pusher';
 import {
   getNotifications,
@@ -38,6 +38,7 @@ export function useNotifications({
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const notificationIdsRef = useRef<Set<string>>(new Set());
 
   // ---------------------------------------------------------------------------
   // Initial data load
@@ -55,6 +56,7 @@ export function useNotifications({
           getUnreadCount(),
         ]);
         if (!cancelled) {
+          notificationIdsRef.current = new Set(notifs.map(({ id }) => id));
           setNotifications(notifs);
           setUnreadCount(count);
         }
@@ -84,32 +86,30 @@ export function useNotifications({
 
     // Handle incoming real-time notifications
     channel.bind(NOTIFICATION_EVENT, (payload: PusherNotificationPayload) => {
-      setNotifications((prev) => {
-        // Deduplication guard: skip if this id is already in state
-        const alreadyExists = prev.some((n) => n.id === payload.id);
-        if (alreadyExists) return prev;
+      if (notificationIdsRef.current.has(payload.id)) return;
+      notificationIdsRef.current.add(payload.id);
 
-        // Construct a Notification shape from the Pusher payload.
-        // The full Notification object will be fetched on next page load;
-        // this is the optimistic representation for immediate UI update.
-        const newNotification: Notification = {
-          id: payload.id,
-          recipientId: payload.recipientId,
-          notificationTitle: payload.title,
-          notificationReferenceType: 'article',
-          referenceId: '',
-          notificationType: 'info',
-          message: payload.message,
-          isRead: payload.isRead,
-          readAt: null,
-          deletedAt: null,
-          createdAt: payload.createdAt,
-        };
+      // Construct a Notification shape from the Pusher payload.
+      // The full Notification object will be fetched on next page load;
+      // this is the optimistic representation for immediate UI update.
+      const newNotification: Notification = {
+        id: payload.id,
+        recipientId: payload.recipientId,
+        notificationTitle: payload.title,
+        notificationReferenceType: 'article',
+        referenceId: '',
+        notificationType: 'info',
+        message: payload.message,
+        isRead: payload.isRead,
+        readAt: null,
+        deletedAt: null,
+        createdAt: payload.createdAt,
+      };
 
-        return [newNotification, ...prev];
-      });
-
-      setUnreadCount((prev) => prev + 1);
+      setNotifications((prev) => [newNotification, ...prev]);
+      if (!payload.isRead) {
+        setUnreadCount((prev) => prev + 1);
+      }
     });
 
     // On reconnect, reconcile the unread count to cover events missed offline

@@ -3,6 +3,7 @@
 // natively support tsconfig paths without additional preprocessor dependencies, so
 // adding a custom @e2e alias merely to hide this cross-workspace dependency is unwarranted.
 import { E2E_AUTHOR, E2E_REVIEWER } from '../../../api/scripts/e2e-identities.js';
+import type { Interception } from 'cypress/types/net-stubbing';
 import {
   setE2EIdentity,
   registerE2EApiAuth,
@@ -10,6 +11,36 @@ import {
   mintE2EFrontendSession,
   SESSION_TOKEN_COOKIE,
 } from '../support/e2e-auth';
+
+interface PendingArticle {
+  id: string;
+}
+
+interface PendingArticlesResponse {
+  success: boolean;
+  data: {
+    articles: PendingArticle[];
+  };
+}
+
+interface PublishedArticleResponse {
+  success: boolean;
+  data: {
+    id: string;
+    status: string;
+    body: unknown;
+  };
+}
+
+type PendingArticlesInterception = Interception<
+  unknown,
+  PendingArticlesResponse
+>;
+
+type PublishedArticleInterception = Interception<
+  unknown,
+  PublishedArticleResponse
+>;
 
 describe('Article lifecycle', () => {
   let createdArticleId: string | null = null;
@@ -77,10 +108,14 @@ describe('Article lifecycle', () => {
       expect(interception.response?.body.data.role).to.eq(E2E_AUTHOR.role);
     });
 
-    // 9. Assert the authenticated UI
-    cy.get('[data-cy="user-avatar-name"]')
+    // 9. Assert the authenticated UI through the compact user account menu
+    cy.get('[data-testid="user-account-trigger"]')
       .should('be.visible')
-      .and('contain.text', 'E2E Author');
+      .click();
+    cy.get('[data-testid="user-account-dropdown"]')
+      .should('be.visible')
+      .and('contain.text', 'E2E Author')
+      .and('contain.text', E2E_AUTHOR.email);
 
     // 10. Open new editor
     cy.visit('/editor');
@@ -392,21 +427,27 @@ describe('Article lifecycle', () => {
 
       // Now wait for the background revalidation request to complete before inspecting it
       cy.get('@getPendingArticles.all').should((interceptions) => {
-        const completedInterceptions = (interceptions as import('cypress/types/net-stubbing').Interception[]).filter(i => i.response);
-        expect(completedInterceptions.length).to.be.greaterThan(0, 'No completed getPendingArticles requests found');
-        
-        const lastInterception = completedInterceptions[completedInterceptions.length - 1];
-        expect(lastInterception.response?.statusCode).to.eq(200);
-        
-        const responseBody = lastInterception.response?.body;
+        const completedInterceptions = (
+          interceptions as PendingArticlesInterception[]
+        ).filter(
+          (interception: PendingArticlesInterception): boolean =>
+            interception.response !== undefined
+        );
+        const lastInterception = completedInterceptions.at(-1);
+
+        if (!lastInterception?.response) {
+          throw new Error('No completed getPendingArticles requests found');
+        }
+
+        expect(lastInterception.response.statusCode).to.eq(200);
+
+        const responseBody = lastInterception.response.body;
         expect(responseBody.success).to.eq(true);
         expect(responseBody.data.articles).to.be.an('array');
 
-        interface PendingArticle {
-          id: string;
-        }
-
-        const hasApprovedArticle = responseBody.data.articles.some((a: PendingArticle) => a.id === articleId);
+        const hasApprovedArticle = responseBody.data.articles.some(
+          (article: PendingArticle): boolean => article.id === articleId
+        );
         expect(hasApprovedArticle).to.eq(false, 'The approved article should no longer be in the pending list');
       });
 
@@ -524,22 +565,26 @@ describe('Article lifecycle', () => {
       cy.get('[data-testid="article-content"]').should('contain.text', articleContent);
 
       cy.get('@getPublishedArticleDetail.all').then((interceptions) => {
-        expect(interceptions.length).to.be.greaterThan(0);
+        const publishedArticleInterceptions =
+          interceptions as PublishedArticleInterception[];
+        expect(publishedArticleInterceptions.length).to.be.greaterThan(0);
 
-        const successfulRequest = interceptions.find((interception) => {
-          const response = interception.response;
+        const successfulRequest = publishedArticleInterceptions.find(
+          (interception: PublishedArticleInterception): boolean => {
+            const response = interception.response;
 
-          if (
-            response?.statusCode === 200 &&
-            response.body?.success === true &&
-            response.body?.data?.id === articleId &&
-            response.body?.data?.status === 'Published'
-          ) {
-            const bodyStr = JSON.stringify(response.body?.data?.body);
-            return bodyStr.includes(articleContent);
+            if (
+              response?.statusCode === 200 &&
+              response.body.success &&
+              response.body.data.id === articleId &&
+              response.body.data.status === 'Published'
+            ) {
+              const bodyStr = JSON.stringify(response.body.data.body);
+              return bodyStr.includes(articleContent);
+            }
+            return false;
           }
-          return false;
-        });
+        );
 
         expect(successfulRequest).to.not.equal(undefined);
       });

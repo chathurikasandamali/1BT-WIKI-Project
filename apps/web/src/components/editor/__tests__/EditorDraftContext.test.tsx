@@ -27,6 +27,8 @@ const defaultInitialArticle = {
     },
     status: 'Draft',
     authorId: 'user-123',
+    coverAttachmentId: 'cover-123',
+    coverImageUrl: 'https://example.com/cover.png',
     tags: ['React', 'TypeScript'],
     createdAt: '2026-08-12T10:00:00.000Z',
     updatedAt: '2026-08-12T10:00:00.000Z',
@@ -80,6 +82,8 @@ describe('EditorDraftContext', () => {
             expect(result.current.articleStatus).toBe('Draft');
             expect(result.current.title).toBe('My Existing Article');
             expect(result.current.tags).toEqual(['React', 'TypeScript']);
+            expect(result.current.coverAttachmentId).toBe('cover-123');
+            expect(result.current.featuredImageUrl).toBe('https://example.com/cover.png');
             expect(result.current.attachments).toEqual([]);
             expect(result.current.initialBody).toEqual({
                 type: 'doc',
@@ -117,14 +121,6 @@ describe('EditorDraftContext', () => {
                 result.current.setTags(['Tag1', 'Tag2']);
             });
             expect(result.current.tags).toEqual(['Tag1', 'Tag2']);
-        });
-
-        it('setFeaturedImageUrl updates the featured image', () => {
-            const { result } = renderHook(() => useEditorDraft(), { wrapper });
-            act(() => {
-                result.current.setFeaturedImageUrl('https://example.com/image.png');
-            });
-            expect(result.current.featuredImageUrl).toBe('https://example.com/image.png');
         });
 
         it('notifyContentChanged updates word and character counts', () => {
