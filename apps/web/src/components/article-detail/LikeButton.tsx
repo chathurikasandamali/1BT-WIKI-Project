@@ -10,7 +10,7 @@ interface LikeButtonProps {
   initialLikeCount: number;
   initialLikedByMe: boolean;
   articleId: string;
-  handleLikeToggle: (value: boolean) => void; // Optional prop to trigger re-render for like count
+  handleLikeToggle?: (value: boolean) => void;
 }
 
 export function LikeButton({ initialLikeCount, initialLikedByMe, articleId, handleLikeToggle }: LikeButtonProps) {
@@ -40,7 +40,7 @@ export function LikeButton({ initialLikeCount, initialLikedByMe, articleId, hand
       } else {
         await unlikeArticle(articleId);
       }
-      handleLikeToggle(nextLiked); // Trigger re-render for like count in parent component
+      handleLikeToggle?.(nextLiked);
     } catch (err) {
       setLiked(prevLiked);
       setCount(prevCount);

@@ -7,7 +7,7 @@ import { UserAvatar } from '@/components/UserAvatar';
 interface LikedByAvatarsProps {
   articleId: string;
   likeCount: number;
-  likeToggle: boolean; // New prop to trigger re-fetching of likers 
+  likeToggle?: boolean;
 }
 
 const MAX_STACK_AVATARS = 3;

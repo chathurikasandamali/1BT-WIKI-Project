@@ -123,7 +123,7 @@ describe('LikeRepository', () => {
           createdAt: new Date('2026-01-01'),
           user: { name: 'Alice', image: 'https://img.com/alice.png' },
         },
-      ]);
+      ] as any);
 
       const result = await LikeRepository.findByArticleId(articleId);
 
