@@ -2,6 +2,15 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RejectModal } from '@/components/reviewer/RejectModal';
 
+jest.mock('gsap', () => ({
+  __esModule: true,
+  default: { registerPlugin: jest.fn(), to: jest.fn(), fromTo: jest.fn() },
+}));
+
+jest.mock('@gsap/react', () => ({
+  useGSAP: jest.fn(),
+}));
+
 describe('RejectModal', () => {
   const defaultProps = {
     isOpen: true,
