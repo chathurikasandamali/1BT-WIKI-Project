@@ -10,9 +10,10 @@ interface LikeButtonProps {
   initialLikeCount: number;
   initialLikedByMe: boolean;
   articleId: string;
+  handleLikeToggle: (value: boolean) => void; // Optional prop to trigger re-render for like count
 }
 
-export function LikeButton({ initialLikeCount, initialLikedByMe, articleId }: LikeButtonProps) {
+export function LikeButton({ initialLikeCount, initialLikedByMe, articleId, handleLikeToggle }: LikeButtonProps) {
   const [liked, setLiked] = useState(initialLikedByMe);
   const [count, setCount] = useState(initialLikeCount);
   const [pending, setPending] = useState(false);
@@ -33,13 +34,13 @@ export function LikeButton({ initialLikeCount, initialLikedByMe, articleId }: Li
     setLiked(nextLiked);
     setCount(prev => (nextLiked ? prev + 1 : prev - 1));
     setPending(true);
-
     try {
       if (nextLiked) {
         await likeArticle(articleId);
       } else {
         await unlikeArticle(articleId);
       }
+      handleLikeToggle(nextLiked); // Trigger re-render for like count in parent component
     } catch (err) {
       setLiked(prevLiked);
       setCount(prevCount);

@@ -33,6 +33,14 @@ jest.mock('@/components/article-detail/LikeButton', () => ({
   ),
 }));
 
+jest.mock('@/components/article-detail/LikedByAvatars', () => ({
+  LikedByAvatars: ({ articleId, likeCount }: { articleId: string; likeCount: number }) => (
+    <div data-testid="liked-by-avatars">
+      Liked By Avatars - ID: {articleId} - Count: {likeCount}
+    </div>
+  ),
+}));
+
 jest.mock('@/components/article-detail/ArticleContent', () => ({
   ArticleContent: () => <div data-testid="article-content">Content</div>,
 }));

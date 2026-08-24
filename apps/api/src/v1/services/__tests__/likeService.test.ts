@@ -11,6 +11,7 @@ jest.unstable_mockModule('@repositories/likeRepository.js', () => ({
   default: {
     upsert: jest.fn(),
     remove: jest.fn(),
+    findByArticleId: jest.fn(),
   },
 }));
 
@@ -198,5 +199,49 @@ describe('LikeService.unlikeArticle', () => {
     expect(LikeRepository.remove).toHaveBeenCalledTimes(2);
     expect(LikeRepository.remove).toHaveBeenNthCalledWith(1, articleId, userId);
     expect(LikeRepository.remove).toHaveBeenNthCalledWith(2, articleId, userId);
+  });
+});
+
+describe('LikeService.getLikers', () => {
+  const articleId = 'article-123';
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should throw AppError if article is not found', async () => {
+    (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(null);
+
+    await expect(LikeService.getLikers(articleId)).rejects.toThrow(
+      new AppError('Article not found', 404)
+    );
+    expect(LikeRepository.findByArticleId).not.toHaveBeenCalled();
+  });
+
+  it('should return likers from the repository when the article exists', async () => {
+    const article = {
+      id: articleId,
+      authorId: 'other-user',
+      title: 'Test Article',
+      status: 'Published',
+    };
+    const likers = [
+      {
+        id: 'like-1',
+        articleId,
+        userId: 'user-1',
+        createdAt: new Date(),
+        userName: 'Alice',
+        userImage: null,
+      },
+    ];
+
+    (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(article);
+    (LikeRepository.findByArticleId as jest.Mock<any>).mockResolvedValue(likers);
+
+    const result = await LikeService.getLikers(articleId);
+
+    expect(LikeRepository.findByArticleId).toHaveBeenCalledWith(articleId);
+    expect(result).toEqual(likers);
   });
 });

@@ -1,5 +1,5 @@
 import { prisma } from '@repo/db';
-import type { Like } from '@models/like.types.js';
+import type { Like, LikeWithUser } from '@models/like.types.js';
 
 const upsert = async (articleId: string, userId: string): Promise<{ like: Like; created: boolean }> => {
   try {
@@ -42,4 +42,24 @@ const remove = async (articleId: string, userId: string): Promise<void> => {
   });
 };
 
-export default { upsert, remove };
+const findByArticleId = async (articleId: string): Promise<LikeWithUser[]> => {
+  const results = await prisma.like.findMany({
+    where: { articleId },
+    select: {
+      id: true,
+      articleId: true,
+      userId: true,
+      createdAt: true,
+      user: { select: { name: true, image: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return results.map(({ user, ...rest }) => ({
+    ...rest,
+    userName: user.name,
+    userImage: user.image,
+  })) as unknown as LikeWithUser[];
+};
+
+export default { upsert, remove, findByArticleId };
