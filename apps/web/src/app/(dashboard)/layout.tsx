@@ -4,7 +4,8 @@ import React, { useState, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { Navbar } from '@/components/layout/Navbar';
 import { Sidebar } from '@/components/layout/Sidebar';
-import { UserProvider } from '@/lib/hooks/useUser';
+import { UserNavbar } from '@/components/layout/UserNavbar';
+import { UserProvider, useUser } from '@/lib/hooks/useUser';
 import {
   NotificationProvider,
   useNotificationContext,
@@ -28,6 +29,14 @@ function DashboardLayoutInner({
 }: DashboardLayoutProps): React.JSX.Element {
   const pathname = usePathname();
   const isEditorRoute = pathname?.startsWith('/editor');
+  const { user, loading: isUserLoading } = useUser();
+  const isNormalUser = user?.role === 'User';
+  const usesUserDashboardShell =
+    !isEditorRoute && !isUserLoading && isNormalUser;
+  const usesLegacyDashboardShell =
+    !isEditorRoute &&
+    !isUserLoading &&
+    (user?.role === 'Reviewer' || user?.role === 'Admin');
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isAppLoading, setIsAppLoading] = useState(true);
@@ -39,6 +48,8 @@ function DashboardLayoutInner({
   // Initial App Preloader Animation
   useGSAP(
     () => {
+      if ((!isEditorRoute && isUserLoading) || !isAppLoading) return;
+
       if (isE2E()) {
         setIsAppLoading(false);
         return;
@@ -112,7 +123,7 @@ function DashboardLayoutInner({
         );
       }
     },
-    { scope: containerRef }
+    { scope: containerRef, dependencies: [isEditorRoute, isUserLoading] }
   );
 
   // Sidebar Open/Close Toggle Animation
@@ -127,6 +138,8 @@ function DashboardLayoutInner({
         gsap.set(mainWrapper, { clearProps: 'marginLeft' });
         return;
       }
+
+      if (!usesLegacyDashboardShell) return;
 
       const sidebar = document.querySelector('[data-testid="sidebar"]');
       const navbar = document.querySelector('[data-testid="navbar"]');
@@ -187,7 +200,14 @@ function DashboardLayoutInner({
         });
       }
     },
-    { dependencies: [isSidebarOpen, isAppLoading, isEditorRoute] }
+    {
+      dependencies: [
+        isSidebarOpen,
+        isAppLoading,
+        isEditorRoute,
+        usesLegacyDashboardShell,
+      ],
+    }
   );
 
   const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
@@ -214,12 +234,16 @@ function DashboardLayoutInner({
         </div>
       )}
 
-      {!isEditorRoute && <Sidebar isOpen={isSidebarOpen} />}
+      {usesLegacyDashboardShell && <Sidebar isOpen={isSidebarOpen} />}
       <div
         ref={mainWrapperRef}
-        className={cn('flex flex-col flex-1', !isEditorRoute && 'ml-60')}
+        className={cn(
+          'flex flex-col flex-1',
+          usesLegacyDashboardShell && 'ml-60'
+        )}
       >
-        {!isEditorRoute && (
+        {usesUserDashboardShell && <UserNavbar />}
+        {usesLegacyDashboardShell && (
           <Navbar
             notificationCount={unreadCount}
             isSidebarOpen={isSidebarOpen}
@@ -230,7 +254,8 @@ function DashboardLayoutInner({
           id="main-scroll-container"
           className={cn(
             'flex-1 overflow-y-auto bg-brand-bg',
-            !isEditorRoute && 'pt-16'
+            usesUserDashboardShell && 'pt-20',
+            usesLegacyDashboardShell && 'pt-16'
           )}
           data-testid="main-content"
         >

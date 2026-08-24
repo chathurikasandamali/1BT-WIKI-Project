@@ -33,6 +33,7 @@ describe('Auth flow: login -> session -> protected route -> logout', () => {
 
   it('redirects the protected route to /signin when there is no session', () => {
     stubAuthSession(null);
+    cy.viewport(1280, 720);
 
     // No session cookies -> proxy.ts middleware redirects server-side before
     // the page (and any client-side fetch) ever loads.
@@ -40,8 +41,7 @@ describe('Auth flow: login -> session -> protected route -> logout', () => {
     cy.location('pathname').should('eq', '/signin');
 
     cy.get('button[aria-label="1BT Wiki home"]').should('be.visible');
-    cy.get('button[aria-label="Open navigation menu"]').click();
-    cy.get('#mobile-landing-navigation').contains('button', /^Log in$/).should('be.visible');
+    cy.get('button[aria-label="Log in with Google"]').should('be.visible');
     cy.contains('h1', 'Admin Dashboard').should('not.exist');
   });
 

@@ -33,25 +33,25 @@ export function UserHomepageTechTalkCard({
   }
 
   return (
-    <article className="group overflow-hidden rounded-2xl border border-brand-border bg-brand-surface shadow-sm transition-all duration-200 hover:border-brand-dark/20 hover:shadow-lg">
+    <article className="group h-full rounded-2xl border border-brand-border bg-brand-surface shadow-sm transition-[border-color,box-shadow] duration-200 hover:border-brand-dark/20 hover:shadow-lg">
       <Link
         href={`/tech-talks/${techTalk.id}`}
         data-testid={`tech-talk-card-${techTalk.id}`}
-        className="grid min-w-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-red sm:grid-cols-[minmax(14rem,0.85fr)_minmax(0,1.4fr)] lg:grid-cols-[minmax(18rem,0.85fr)_minmax(0,1.5fr)]"
+        className="flex h-full min-w-0 flex-col rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-red"
       >
-        <div className="relative aspect-video w-full overflow-hidden bg-brand-dark">
+        <div className="relative aspect-video w-full overflow-hidden rounded-t-2xl bg-brand-dark">
           {thumbnailUrl && !thumbnailLoadFailed ? (
             <Image
               src={thumbnailUrl}
-              alt={`${techTalk.title} Tech Talk video thumbnail`}
+              alt=""
               fill
               unoptimized
               onError={handleThumbnailError}
-              sizes="(min-width: 1024px) 18rem, (min-width: 640px) 36vw, 100vw"
-              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+              sizes="(min-width: 1280px) 36vw, (min-width: 1024px) 50vw, 100vw"
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02] motion-reduce:transform-none motion-reduce:transition-none"
             />
           ) : (
-            <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-brand-dark px-6 text-white">
+            <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-brand-dark px-6 text-white" aria-hidden="true">
               <div
                 className="absolute -bottom-14 -left-10 h-40 w-40 rounded-full border-[26px] border-brand-red/25"
                 aria-hidden="true"
@@ -71,15 +71,13 @@ export function UserHomepageTechTalkCard({
               </div>
             </div>
           )}
+          <span className="absolute left-3 top-3 rounded-full bg-brand-red px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-white shadow-sm" aria-hidden="true">
+            Tech Talk
+          </span>
         </div>
 
-        <div className="flex min-w-0 flex-col p-5 sm:p-6">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-brand-red">
-            <TechTalkIcon className="h-4 w-4" aria-hidden="true" />
-            <span>Tech Talk</span>
-          </div>
-
-          <h3 className="mt-3 line-clamp-2 font-display text-xl font-bold leading-snug tracking-[-0.025em] text-brand-text-primary sm:text-2xl">
+        <div className="flex min-w-0 flex-1 flex-col p-5 sm:p-6">
+          <h3 className="line-clamp-2 font-display text-xl font-bold leading-snug tracking-[-0.025em] text-brand-text-primary">
             {techTalk.title}
           </h3>
 
@@ -89,19 +87,21 @@ export function UserHomepageTechTalkCard({
             </p>
           )}
 
-          <p className="mt-3 text-sm text-brand-text-secondary">
-            Presented by{' '}
-            <span className="font-semibold text-brand-text-primary">
-              {presenterLabel}
-            </span>
-          </p>
+          {techTalk.presenters.length > 0 && (
+            <p className="mt-3 min-w-0 break-words text-sm text-brand-text-secondary">
+              Presented by{' '}
+              <span className="font-semibold text-brand-text-primary">
+                {presenterLabel}
+              </span>
+            </p>
+          )}
 
           {visibleTags.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-2">
               {visibleTags.map((tag) => (
                 <span
                   key={tag}
-                  className="max-w-40 truncate rounded-full border border-brand-border bg-brand-hover px-2.5 py-1 text-xs font-medium text-brand-text-secondary"
+                  className="max-w-full truncate rounded-full border border-brand-border bg-brand-hover px-2.5 py-1 text-xs font-medium text-brand-text-secondary"
                 >
                   {tag}
                 </span>
@@ -114,7 +114,7 @@ export function UserHomepageTechTalkCard({
             </div>
           )}
 
-          <div className="mt-5 border-t border-brand-border pt-4 text-sm text-brand-text-secondary sm:mt-auto">
+          <div className="mt-5 border-t border-brand-border pt-4 text-sm text-brand-text-secondary lg:mt-auto">
             <time dateTime={techTalk.eventDate}>
               Event date: {formatDate(techTalk.eventDate)}
             </time>

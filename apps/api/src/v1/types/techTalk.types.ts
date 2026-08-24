@@ -56,6 +56,7 @@ export interface TechTalkListQuery extends PaginationParams {
   search?: string;
   sort?: string;
   order?: string;
+  status?: TechTalkStatus;
 }
 
 export interface PaginationMeta extends Required<PaginationParams> {

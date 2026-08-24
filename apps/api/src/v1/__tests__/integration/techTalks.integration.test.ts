@@ -665,6 +665,7 @@ describe('GET /api/v1/techTalks/listAll - Integration', () => {
       search: 'Talk',
       sort: 'eventDate',
       order: 'desc',
+      status: undefined,
     });
     expect(res.body).toEqual({
       success: true,
@@ -719,6 +720,74 @@ describe('GET /api/v1/techTalks/listAll - Integration', () => {
     expect(mockTechTalkRepository.listAll).toHaveBeenCalledWith(
       expect.objectContaining({ sort: 'invalidField' })
     );
+  });
+
+  it('filters by draft status — only forwards status:draft to the repository', async () => {
+    const draftTalks = [
+      createTechTalk({
+        id: 'tt-draft-filter-1',
+        title: 'Draft Only',
+        status: 'draft',
+        eventDate: '2026-10-01T10:00:00.000Z',
+        createdAt: '2026-08-01T00:00:00.000Z',
+        updatedAt: '2026-08-01T00:00:00.000Z',
+      }),
+    ];
+
+    mockTechTalkRepository.listAll.mockResolvedValue({
+      techTalks: draftTalks,
+      total: 1,
+    });
+
+    const res = await request(app)
+      .get(`${adminListPath}?status=draft`)
+      .set('x-test-user-id', 'admin-1')
+      .set('x-test-user-email', 'admin@test.com')
+      .set('x-test-user-role', 'Admin');
+
+    expect(res.status).toBe(HttpStatusCode.OK);
+    // Controller must forward the parsed status to the repository
+    expect(mockTechTalkRepository.listAll).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'draft' })
+    );
+    // Response should only contain draft entries
+    const statuses = res.body.data.techTalks.map(
+      (talk: { status: string }) => talk.status
+    );
+    expect(statuses).toEqual(['draft']);
+  });
+
+  it('filters by published status — only forwards status:published to the repository', async () => {
+    const publishedTalks = [
+      createTechTalk({
+        id: 'tt-pub-filter-1',
+        title: 'Published Only',
+        status: 'published',
+        eventDate: '2026-09-01T10:00:00.000Z',
+        createdAt: '2026-08-01T00:00:00.000Z',
+        updatedAt: '2026-08-01T00:00:00.000Z',
+      }),
+    ];
+
+    mockTechTalkRepository.listAll.mockResolvedValue({
+      techTalks: publishedTalks,
+      total: 1,
+    });
+
+    const res = await request(app)
+      .get(`${adminListPath}?status=published`)
+      .set('x-test-user-id', 'admin-1')
+      .set('x-test-user-email', 'admin@test.com')
+      .set('x-test-user-role', 'Admin');
+
+    expect(res.status).toBe(HttpStatusCode.OK);
+    expect(mockTechTalkRepository.listAll).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'published' })
+    );
+    const statuses = res.body.data.techTalks.map(
+      (talk: { status: string }) => talk.status
+    );
+    expect(statuses).toEqual(['published']);
   });
 });
 

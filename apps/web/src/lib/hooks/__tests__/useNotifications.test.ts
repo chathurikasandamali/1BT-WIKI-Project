@@ -121,11 +121,9 @@ describe('useNotifications', () => {
       });
     });
 
-    // Notification list stays at 1 because of the id dedup guard, but
-    // unreadCount still increments — setUnreadCount runs unconditionally,
-    // outside the setNotifications updater that does the dedup check.
+    // Both the list and unread count should ignore duplicate events.
     expect(result.current.notifications).toHaveLength(1);
-    expect(result.current.unreadCount).toBe(2);
+    expect(result.current.unreadCount).toBe(1);
   });
 
   it('reconciles unread count on pusher reconnect', async () => {

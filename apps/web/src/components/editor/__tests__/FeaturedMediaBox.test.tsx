@@ -14,6 +14,8 @@ describe('FeaturedMediaBox', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUploadCoverImage.mockResolvedValue(undefined);
+    mockRemoveCoverImage.mockResolvedValue(undefined);
     (useEditorDraft as jest.Mock).mockReturnValue({
       uploadCoverImage: mockUploadCoverImage,
       removeCoverImage: mockRemoveCoverImage,
@@ -55,7 +57,6 @@ describe('FeaturedMediaBox', () => {
   });
 
   it('handles successful image upload', async () => {
-    mockUploadCoverImage.mockResolvedValue(undefined);
     render(<FeaturedMediaBox />);
 
     const file = new File(['dummy'], 'dummy.png', { type: 'image/png' });
@@ -67,9 +68,7 @@ describe('FeaturedMediaBox', () => {
 
     await userEvent.upload(fileInput, file);
 
-    await waitFor(() => {
-      expect(mockUploadCoverImage).toHaveBeenCalledWith(file);
-    });
+    expect(mockUploadCoverImage).toHaveBeenCalledWith(file);
   });
 
   it('handles failed image upload', async () => {

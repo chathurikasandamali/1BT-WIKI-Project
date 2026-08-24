@@ -41,10 +41,11 @@ export class TechTalkRepository {
   async listAll(
     query: TechTalkListQuery
   ): Promise<{ techTalks: TechTalk[]; total: number }> {
-    const { page, limit, search, sort, order } = query;
+    const { page, limit, search, sort, order, status } = query;
     const where = {
       deletedAt: null,
       ...buildSearchFilter('title', search),
+      ...(status !== undefined && { status }),
     };
     const orderBy = buildSortOrder(
       TECH_TALK_SORT_FIELDS,
