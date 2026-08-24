@@ -77,10 +77,14 @@ describe('Article lifecycle', () => {
       expect(interception.response?.body.data.role).to.eq(E2E_AUTHOR.role);
     });
 
-    // 9. Assert the authenticated UI
-    cy.get('[data-cy="user-avatar-name"]')
+    // 9. Assert the authenticated UI through the compact user account menu
+    cy.get('[data-testid="user-account-trigger"]')
       .should('be.visible')
-      .and('contain.text', 'E2E Author');
+      .click();
+    cy.get('[data-testid="user-account-dropdown"]')
+      .should('be.visible')
+      .and('contain.text', 'E2E Author')
+      .and('contain.text', E2E_AUTHOR.email);
 
     // 10. Open new editor
     cy.visit('/editor');

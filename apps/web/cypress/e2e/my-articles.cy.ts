@@ -80,6 +80,7 @@ describe('My Articles page', () => {
 
   it('prompts sign-in when there is no session', () => {
     stubAuthSession(null);
+    cy.viewport(1280, 720);
 
     // No session cookies -> proxy.ts middleware redirects server-side before
     // the page ever loads, so we can't use visitPage() (it asserts the URL
@@ -88,8 +89,7 @@ describe('My Articles page', () => {
     cy.location('pathname').should('eq', '/signin');
 
     cy.get('button[aria-label="1BT Wiki home"]').should('be.visible');
-    cy.get('button[aria-label="Open navigation menu"]').click();
-    cy.get('#mobile-landing-navigation').contains('button', /^Log in$/).should('be.visible');
+    cy.get('button[aria-label="Log in with Google"]').should('be.visible');
   });
 
   it("author deletes own Draft and confirms, and cannot delete non-Draft", () => {
