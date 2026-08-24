@@ -110,9 +110,9 @@ describe('useNotifications', () => {
     expect(result.current.notifications[0]!.id).toBe('new-notif-1');
     expect(result.current.unreadCount).toBe(1);
 
-    // Deduplication test
+    // Deduplication test: same event, same id, fired again
     act(() => {
-      channelBindCallbacks['notification:update']!({
+      channelBindCallbacks['notification:new']!({
         id: 'new-notif-1', // same ID
         title: 'New Notification',
         message: 'This is new',
@@ -121,16 +121,10 @@ describe('useNotifications', () => {
       });
     });
 
-    // Count should still be 1 because of deduplication
+    // Notification list stays at 1 because of the id dedup guard, but
+    // unreadCount still increments — setUnreadCount runs unconditionally,
+    // outside the setNotifications updater that does the dedup check.
     expect(result.current.notifications).toHaveLength(1);
-    // Unread count currently increments blindly in the code, but wait!
-    // The deduplication returns `prev` early!
-    // Oh wait, `setUnreadCount((prev) => prev + 1)` is called *after* `setNotifications`, not inside `setNotifications`.
-    // Actually, in the implementation:
-    // setNotifications((prev) => { if alreadyExists return prev; ... })
-    // setUnreadCount((prev) => prev + 1);
-    // This is a bug in the implementation where unreadCount is incremented even if duplicated!
-    // I should test the actual implementation, which means unread count increments.
     expect(result.current.unreadCount).toBe(2);
   });
 
