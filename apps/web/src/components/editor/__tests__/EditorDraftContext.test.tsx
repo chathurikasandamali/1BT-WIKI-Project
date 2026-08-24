@@ -123,12 +123,54 @@ describe('EditorDraftContext', () => {
             expect(result.current.tags).toEqual(['Tag1', 'Tag2']);
         });
 
-        it('setFeaturedImageUrl updates the featured image', () => {
-            const { result } = renderHook(() => useEditorDraft(), { wrapper });
-            act(() => {
-                result.current.setFeaturedImageUrl('https://example.com/image.png');
+        it('removeCoverImage clears the featured image', async () => {
+            mockApiFetch.mockResolvedValueOnce({
+                success: true,
+                data: { status: 'Draft' },
             });
-            expect(result.current.featuredImageUrl).toBe('https://example.com/image.png');
+
+            const { result } = renderHook(() => useEditorDraft(), { wrapper: wrapperWithArticle });
+
+            await act(async () => {
+                await result.current.removeCoverImage();
+            });
+
+            expect(result.current.featuredImageUrl).toBeNull();
+            expect(result.current.coverAttachmentId).toBeNull();
+            expect(mockApiFetch).toHaveBeenCalledWith('/articles/article-123', expect.objectContaining({
+                method: 'PATCH',
+                body: expect.any(FormData),
+            }));
+            const formData = mockApiFetch.mock.calls[0]![1].body as FormData;
+            const payload = JSON.parse(formData.get('data') as string);
+            expect(payload.coverAttachmentId).toBeNull();
+        });
+
+        it('uploadCoverImage sets the featured image to the uploaded file URL', async () => {
+            mockApiFetch
+                .mockResolvedValueOnce({ // PATCH: upload attachment
+                    success: true,
+                    data: {
+                        status: 'Draft',
+                        attachments: [
+                            { id: 'cover-1', fileUrl: 'https://img.com/cover.png' }
+                        ]
+                    },
+                })
+                .mockResolvedValueOnce({ // PATCH: persist cover attachment
+                    success: true,
+                    data: { status: 'Draft' },
+                });
+
+            const { result } = renderHook(() => useEditorDraft(), { wrapper: wrapperWithArticle });
+            const mockFile = new File([''], 'cover.png', { type: 'image/png' });
+
+            await act(async () => {
+                await result.current.uploadCoverImage(mockFile);
+            });
+
+            expect(result.current.featuredImageUrl).toBe('https://img.com/cover.png');
+            expect(result.current.coverAttachmentId).toBe('cover-1');
         });
 
         it('notifyContentChanged updates word and character counts', () => {
