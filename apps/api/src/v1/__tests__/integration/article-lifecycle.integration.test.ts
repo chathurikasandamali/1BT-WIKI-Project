@@ -1,5 +1,10 @@
 import { jest, describe, it, expect, beforeAll } from '@jest/globals';
 import { createTestUserHeaders } from '../helpers/auth.helpers.js';
+import type { CreateNotificationInput } from '@models/notificationTypes.js';
+import type { UserRole } from '@/types/userTypes.js';
+import { UserRoleValue } from '@/types/userTypes.js';
+
+const REVIEWER_ID = 'reviewer-1';
 
 // 1. Mock DB and Prisma
 await jest.unstable_mockModule('@repo/db', () => ({
@@ -90,11 +95,16 @@ await jest.unstable_mockModule('@repositories/articleReviewRepository.js', () =>
 // The real userRepository default-exports a plain object of functions (no class),
 // so the mock must be a plain object too — a constructor-style mock leaves the
 // methods undefined at call sites like UserRepository.findManyByIds().
+const mockFindActiveByRole = jest
+  .fn<(role: UserRole) => Promise<unknown[]>>()
+  .mockResolvedValue([]);
+
 const MockUserRepository = {
   findById: jest.fn<any>(async () => ({ id: 'author-1', name: 'Author', email: 'author@example.com' })),
   findManyByIds: jest.fn<any>(async () => [
     { id: 'author-1', name: 'Author', email: 'author@example.com' },
   ]),
+  findActiveByRole: mockFindActiveByRole,
 };
 
 await jest.unstable_mockModule('@repositories/userRepository.js', () => ({
@@ -109,9 +119,13 @@ await jest.unstable_mockModule('@v1/lib/b2Client.js', () => ({
 }));
 
 // Mock NotificationService to avoid Pusher
+const mockNotificationSend = jest
+  .fn<(payload: CreateNotificationInput) => Promise<void>>()
+  .mockResolvedValue(undefined);
+
 await jest.unstable_mockModule('@services/notificationService.js', () => ({
   default: {
-    send: jest.fn<any>().mockResolvedValue(undefined),
+    send: mockNotificationSend,
   }
 }));
 
@@ -130,7 +144,7 @@ describe('Article Lifecycle Integration', () => {
   });
 
   const reviewerHeaders = createTestUserHeaders({
-    userId: 'reviewer-1',
+    userId: REVIEWER_ID,
     email: 'reviewer@example.com',
     role: 'Reviewer',
   });
@@ -144,12 +158,14 @@ describe('Article Lifecycle Integration', () => {
 
     expect(createRes.status).toBe(201);
     expect(createRes.body.success).toBe(true);
-    
+
     const articleId = createRes.body.data.id;
     expect(articleId).toBeDefined();
     expect(createRes.body.data.status).toBe('Draft');
 
     // 2. Author submits the article for review
+    mockFindActiveByRole.mockResolvedValueOnce([{ id: REVIEWER_ID }]);
+
     const submitRes = await request(app)
       .post(`/api/v1/articles/${articleId}/submit`)
       .set(authorHeaders);
@@ -157,6 +173,17 @@ describe('Article Lifecycle Integration', () => {
     expect(submitRes.status).toBe(200);
     expect(submitRes.body.success).toBe(true);
     expect(submitRes.body.data.status).toBe('Pending');
+    expect(mockFindActiveByRole).toHaveBeenCalledWith(
+      UserRoleValue.Reviewer
+    );
+    expect(mockNotificationSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: REVIEWER_ID,
+        referenceId: articleId,
+        notificationType: 'info',
+        notificationTitle: 'New Article for Review',
+      })
+    );
 
     // 3. Reviewer approves the article
     const approveRes = await request(app)

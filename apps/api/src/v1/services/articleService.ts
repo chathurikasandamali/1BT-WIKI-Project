@@ -4,6 +4,8 @@ import { ArticleAttachmentRepository } from '@repositories/articleAttachmentRepo
 import { ArticleReviewRepository } from '@repositories/articleReviewRepository.js';
 import UserRepository from '@repositories/userRepository.js';
 import b2Client from '@v1/lib/b2Client.js';
+import notificationService from '@services/notificationService.js';
+import { NotificationBuilder } from '@v1/lib/NotificationBuilder.js';
 import { AppError } from '@errors/AppError.js';
 import type { UserRole } from '@/types/userTypes.js';
 import { UserRoleValue } from '@/types/userTypes.js';
@@ -344,7 +346,46 @@ export class ArticleService {
 
     assertTransition(article.status, ArticleStatusValue.Pending);
 
-    return this.repository.updateStatus(articleId, ArticleStatusValue.Pending);
+    const updatedArticle = await this.repository.updateStatus(
+      articleId,
+      ArticleStatusValue.Pending
+    );
+
+    try {
+      const reviewers = await this.userRepository.findActiveByRole(
+        UserRoleValue.Reviewer
+      );
+
+      const notificationTasks = reviewers.map(async (reviewer): Promise<void> => {
+        try {
+          const notificationPayload = new NotificationBuilder()
+            .forUser(reviewer.id)
+            .regardingArticle(articleId)
+            .withInfo(
+              'New Article for Review',
+              `The article ${article.title} has been submitted for review.`
+            )
+            .build();
+
+          await notificationService.send(notificationPayload);
+        } catch (error) {
+          console.error(
+            '[NotificationService] Failed to send article review notification:',
+            error
+          );
+          throw error;
+        }
+      });
+
+      void Promise.allSettled(notificationTasks);
+    } catch (error) {
+      console.error(
+        '[ArticleService] Failed to find active Reviewers for article review notification:',
+        error
+      );
+    }
+
+    return updatedArticle;
   }
 
   async listPublished(
