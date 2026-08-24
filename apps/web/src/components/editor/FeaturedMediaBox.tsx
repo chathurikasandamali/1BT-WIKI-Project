@@ -90,7 +90,7 @@ export function FeaturedMediaBox() {
         </span>
       </div>
 
-      {isUploading ? (
+      {isUploading && (
         <div className="relative mb-6 flex h-32 w-full items-center justify-center rounded-lg border-2 border-dashed border-brand-red/30 bg-red-50">
           <div className="flex flex-col items-center gap-2">
             <Loader2 className="h-6 w-6 text-brand-red animate-spin" />
@@ -99,7 +99,8 @@ export function FeaturedMediaBox() {
             </span>
           </div>
         </div>
-      ) : featuredImageUrl ? (
+      )}
+      {!isUploading && featuredImageUrl ? (
         <div className="relative mb-6 h-32 w-full overflow-hidden rounded-lg group border border-brand-border">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img

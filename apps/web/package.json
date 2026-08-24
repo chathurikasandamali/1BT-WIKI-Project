@@ -18,7 +18,7 @@
     "cypress:ci": "cypress run --browser chrome --headless",
     "lint": "eslint --max-warnings 0",
     "check-types": "next typegen && tsc --noEmit",
-    "dev:e2e": "cross-env NEXT_PUBLIC_SERVER_URL=http://localhost:5001 next dev --port 3000"
+    "dev:e2e": "cross-env NEXT_PUBLIC_SERVER_URL=http://localhost:5000 next dev --port 3000"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

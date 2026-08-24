@@ -110,7 +110,7 @@ describe('useNotifications', () => {
     expect(result.current.notifications[0]!.id).toBe('new-notif-1');
     expect(result.current.unreadCount).toBe(1);
 
-    // Deduplication test
+    // Deduplication test: same event, same id, fired again
     act(() => {
       channelBindCallbacks['notification:new']!({
         id: 'new-notif-1', // same ID

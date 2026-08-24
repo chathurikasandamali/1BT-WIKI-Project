@@ -329,7 +329,7 @@ function ArticleManagementContent(): React.JSX.Element {
         </div>
 
         {/* Table body */}
-        {loading ? (
+        {loading && (
           <div
             className="py-20 flex flex-col items-center justify-center gap-3"
             data-testid="loading-state"
@@ -339,14 +339,16 @@ function ArticleManagementContent(): React.JSX.Element {
               Loading articles…
             </p>
           </div>
-        ) : articles.length === 0 ? (
+        )}
+        {!loading && articles.length === 0 && (
           <div
             className="py-20 text-center text-sm text-brand-text-secondary"
             data-testid="empty-state"
           >
             No articles found.
           </div>
-        ) : (
+        )}
+        {!loading && articles.length > 0 && (
           <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -437,6 +439,7 @@ function ArticleManagementContent(): React.JSX.Element {
           </>
         )}
       </div>
+
     </div>
   );
 }

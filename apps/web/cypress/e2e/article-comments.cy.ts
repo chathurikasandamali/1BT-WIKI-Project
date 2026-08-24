@@ -6,6 +6,9 @@ function makeComment(overrides: Record<string, unknown> = {}) {
     articleId: 'a1',
     createdBy: 'other-user',
     body: 'Great read!',
+    status: 'Approved',
+    reviewedBy: null,
+    reviewedAt: null,
     authorName: 'Other User',
     authorImage: null,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -87,6 +90,9 @@ describe('Article comments', () => {
           articleId: 'a1',
           createdBy: 'test-user-1',
           body: 'This is a great article!',
+          status: 'Pending',
+          reviewedBy: null,
+          reviewedAt: null,
           createdAt: '2026-01-10T00:00:00.000Z',
           updatedAt: '2026-01-10T00:00:00.000Z',
         },
@@ -110,7 +116,18 @@ describe('Article comments', () => {
     cy.contains('This is a great article!')
       .scrollIntoView()
       .should('be.visible');
-    cy.get('[data-testid="success-toast"]').should('be.visible');
+    cy.get('[data-testid="success-toast"]').should(
+      'contain.text',
+      'pending approval'
+    );
+    // A freshly posted comment is only visible to its own author (via this
+    // optimistic update) until an Admin approves it; a second GET (as would
+    // happen for another visitor) would omit it entirely since the backend
+    // filters non-Approved comments to the requester only.
+    cy.get('[data-testid="comment-status-badge"]').should(
+      'contain.text',
+      'Pending approval'
+    );
   });
 
   it('edits an own comment and shows the updated body', () => {
@@ -140,6 +157,9 @@ describe('Article comments', () => {
           articleId: 'a1',
           createdBy: 'test-user-1',
           body: 'Updated body',
+          status: 'Pending',
+          reviewedBy: null,
+          reviewedAt: null,
           createdAt: '2026-01-01T00:00:00.000Z',
           updatedAt: '2026-01-02T00:00:00.000Z',
         },

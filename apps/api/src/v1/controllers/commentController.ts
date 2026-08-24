@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import CommentService from '@services/commentService.js';
 import { successResponse } from '@models/article.types.js';
+import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT } from '@repo/shared';
 
 const create = async (
   req: Request,
@@ -86,4 +87,61 @@ const remove = async (
   }
 };
 
-export default { create, list, update, remove };
+const listPending = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const page = Number(req.query.page) || DEFAULT_PAGE;
+    const limit = Number(req.query.limit) || DEFAULT_PAGE_LIMIT;
+
+    const result = await CommentService.listPendingComments(page, limit);
+
+    res
+      .status(200)
+      .json(successResponse(result, 'Pending comments retrieved successfully'));
+  } catch (error) {
+    next(error);
+  }
+};
+
+const approve = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { commentId } = req.params;
+    // req.user is guaranteed to exist because of authenticate middleware
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const reviewerId = req.user!.userId;
+
+    const comment = await CommentService.approveComment(commentId, reviewerId);
+
+    res.status(200).json(successResponse(comment, 'Comment approved'));
+  } catch (error) {
+    next(error);
+  }
+};
+
+const reject = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { commentId } = req.params;
+    // req.user is guaranteed to exist because of authenticate middleware
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const reviewerId = req.user!.userId;
+
+    const comment = await CommentService.rejectComment(commentId, reviewerId);
+
+    res.status(200).json(successResponse(comment, 'Comment rejected'));
+  } catch (error) {
+    next(error);
+  }
+};
+
+export default { create, list, update, remove, listPending, approve, reject };

@@ -201,16 +201,13 @@ export function UserManagementTable({
                         : 'border-brand-red/20 text-brand-red hover:bg-brand-red/5'
                     )}
                   >
-                    {isUpdating ? (
+                    {isUpdating && (
                       <span className="inline-flex items-center gap-1.5">
                         <SpinnerIcon className="w-3 h-3 animate-spin" />
                         Saving...
                       </span>
-                    ) : isBanned ? (
-                      'Reactivate'
-                    ) : (
-                      'Deactivate'
                     )}
+                    {!isUpdating && (isBanned ? 'Reactivate' : 'Deactivate')}
                   </button>
                 </td>
               </tr>

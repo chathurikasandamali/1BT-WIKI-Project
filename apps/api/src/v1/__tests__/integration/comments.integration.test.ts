@@ -72,6 +72,11 @@ await jest.unstable_mockModule('@repositories/commentRepository.js', () => ({
     findById: jest.fn<() => Promise<unknown>>().mockResolvedValue(null),
     update: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
     remove: jest.fn<() => Promise<unknown>>().mockResolvedValue(undefined),
+    findPending: jest
+      .fn<() => Promise<unknown>>()
+      .mockResolvedValue({ comments: [], total: 0 }),
+    approve: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
+    reject: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
   },
 }));
 
@@ -99,12 +104,21 @@ const mockFindByArticleId = CommentRepository.findByArticleId as jest.Mock<any>;
 const mockFindCommentById = CommentRepository.findById as jest.Mock<any>;
 const mockUpdateComment = CommentRepository.update as jest.Mock<any>;
 const mockRemoveComment = CommentRepository.remove as jest.Mock<any>;
+const mockFindPendingComments = CommentRepository.findPending as jest.Mock<any>;
+const mockApproveComment = CommentRepository.approve as jest.Mock<any>;
+const mockRejectComment = CommentRepository.reject as jest.Mock<any>;
 const mockCreateNotification = NotificationRepository.create as jest.Mock<any>;
 
 const userHeaders = {
   'x-test-user-id': 'user-123',
   'x-test-user-email': 'user@example.com',
   'x-test-user-role': 'User',
+};
+
+const adminHeaders = {
+  'x-test-user-id': 'admin-1',
+  'x-test-user-email': 'admin@example.com',
+  'x-test-user-role': 'Admin',
 };
 
 describe('Comments API Integration', () => {
@@ -158,7 +172,7 @@ describe('Comments API Integration', () => {
       expect(response.status).toBe(403);
     });
 
-    it('should create the comment and notify the article author on a Published article', async () => {
+    it('should create the comment as Pending without notifying anyone on a Published article', async () => {
       const article = {
         id: articleId,
         authorId: 'other-user',
@@ -170,6 +184,9 @@ describe('Comments API Integration', () => {
         articleId,
         createdBy: 'user-123',
         body: 'Nice article',
+        status: 'Pending',
+        reviewedBy: null,
+        reviewedAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -185,20 +202,16 @@ describe('Comments API Integration', () => {
       expect(response.status).toBe(201);
       expect(response.body.success).toBe(true);
       expect(response.body.data.body).toBe('Nice article');
+      expect(response.body.data.status).toBe('Pending');
       expect(mockCreateComment).toHaveBeenCalledWith({
         articleId,
         createdBy: 'user-123',
         body: 'Nice article',
       });
 
-      // Notification is fire-and-forget; flush microtasks before asserting.
+      // No notification fires at creation time — only once an Admin approves.
       await new Promise((resolve) => setImmediate(resolve));
-      expect(mockCreateNotification).toHaveBeenCalledWith(
-        expect.objectContaining({
-          recipientId: 'other-user',
-          notificationReferenceType: 'comment',
-        })
-      );
+      expect(mockCreateNotification).not.toHaveBeenCalled();
     });
   });
 
@@ -447,6 +460,199 @@ describe('Comments API Integration', () => {
         message: 'Comment deleted successfully',
       });
       expect(mockRemoveComment).toHaveBeenCalledWith(commentId);
+    });
+  });
+
+  describe('GET /api/v1/admin/comments/pending', () => {
+    it('should return 401 if unauthenticated', async () => {
+      const response = await request(app).get('/api/v1/admin/comments/pending');
+
+      expect(response.status).toBe(401);
+    });
+
+    it('should return 403 if requester is not an Admin', async () => {
+      const response = await request(app)
+        .get('/api/v1/admin/comments/pending')
+        .set(userHeaders);
+
+      expect(response.status).toBe(403);
+    });
+
+    it('should return 200 with pending comments for an Admin', async () => {
+      const pendingComments = [
+        {
+          id: 'comment-1',
+          articleId: 'article-123',
+          articleTitle: 'Test Article',
+          createdBy: 'user-123',
+          authorName: 'Jane Doe',
+          authorImage: null,
+          body: 'Nice article',
+          status: 'Pending',
+          reviewedBy: null,
+          reviewedAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ];
+      mockFindPendingComments.mockResolvedValueOnce({
+        comments: pendingComments,
+        total: 1,
+      });
+
+      const response = await request(app)
+        .get('/api/v1/admin/comments/pending')
+        .set(adminHeaders);
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.comments).toHaveLength(1);
+      expect(response.body.data.total).toBe(1);
+    });
+  });
+
+  describe('PATCH /api/v1/admin/comments/:commentId/approve', () => {
+    const commentId = 'comment-123';
+
+    it('should return 401 if unauthenticated', async () => {
+      const response = await request(app).patch(
+        `/api/v1/admin/comments/${commentId}/approve`
+      );
+
+      expect(response.status).toBe(401);
+    });
+
+    it('should return 403 if requester is not an Admin', async () => {
+      const response = await request(app)
+        .patch(`/api/v1/admin/comments/${commentId}/approve`)
+        .set(userHeaders);
+
+      expect(response.status).toBe(403);
+    });
+
+    it('should return 400 if comment is not Pending', async () => {
+      mockFindCommentById.mockResolvedValueOnce({
+        id: commentId,
+        status: 'Approved',
+      });
+
+      const response = await request(app)
+        .patch(`/api/v1/admin/comments/${commentId}/approve`)
+        .set(adminHeaders);
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should approve the comment and notify the comment author', async () => {
+      const pendingComment = {
+        id: commentId,
+        articleId: 'article-123',
+        createdBy: 'user-123',
+        status: 'Pending',
+      };
+      const approvedComment = {
+        ...pendingComment,
+        status: 'Approved',
+        reviewedBy: 'admin-1',
+        reviewedAt: new Date(),
+      };
+      const article = {
+        id: 'article-123',
+        authorId: 'article-author',
+        title: 'Test Article',
+      };
+
+      mockFindCommentById.mockResolvedValueOnce(pendingComment);
+      mockApproveComment.mockResolvedValueOnce(approvedComment);
+      mockFindById.mockResolvedValueOnce(article);
+
+      const response = await request(app)
+        .patch(`/api/v1/admin/comments/${commentId}/approve`)
+        .set(adminHeaders);
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.status).toBe('Approved');
+      expect(mockApproveComment).toHaveBeenCalledWith(commentId, 'admin-1');
+
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(mockCreateNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          recipientId: 'user-123',
+          notificationReferenceType: 'comment',
+        })
+      );
+      expect(mockCreateNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          recipientId: 'article-author',
+          notificationReferenceType: 'comment',
+        })
+      );
+    });
+  });
+
+  describe('PATCH /api/v1/admin/comments/:commentId/reject', () => {
+    const commentId = 'comment-123';
+
+    it('should return 401 if unauthenticated', async () => {
+      const response = await request(app).patch(
+        `/api/v1/admin/comments/${commentId}/reject`
+      );
+
+      expect(response.status).toBe(401);
+    });
+
+    it('should return 403 if requester is not an Admin', async () => {
+      const response = await request(app)
+        .patch(`/api/v1/admin/comments/${commentId}/reject`)
+        .set(userHeaders);
+
+      expect(response.status).toBe(403);
+    });
+
+    it('should return 400 if comment is not Pending', async () => {
+      mockFindCommentById.mockResolvedValueOnce({
+        id: commentId,
+        status: 'Rejected',
+      });
+
+      const response = await request(app)
+        .patch(`/api/v1/admin/comments/${commentId}/reject`)
+        .set(adminHeaders);
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should reject the comment and notify the comment author', async () => {
+      const pendingComment = {
+        id: commentId,
+        articleId: 'article-123',
+        createdBy: 'user-123',
+        status: 'Pending',
+      };
+      const rejectedComment = {
+        ...pendingComment,
+        status: 'Rejected',
+        reviewedBy: 'admin-1',
+        reviewedAt: new Date(),
+      };
+
+      mockFindCommentById.mockResolvedValueOnce(pendingComment);
+      mockRejectComment.mockResolvedValueOnce(rejectedComment);
+
+      const response = await request(app)
+        .patch(`/api/v1/admin/comments/${commentId}/reject`)
+        .set(adminHeaders);
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.status).toBe('Rejected');
+      expect(mockRejectComment).toHaveBeenCalledWith(commentId, 'admin-1');
+
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(mockCreateNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          recipientId: 'user-123',
+          notificationReferenceType: 'comment',
+        })
+      );
     });
   });
 });

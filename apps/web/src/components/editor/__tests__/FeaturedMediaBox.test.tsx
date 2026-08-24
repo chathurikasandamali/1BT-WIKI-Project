@@ -42,43 +42,44 @@ describe('FeaturedMediaBox', () => {
   });
 
   it('removes image when remove button is clicked', async () => {
+    mockRemoveCoverImage.mockResolvedValue(undefined);
     (useEditorDraft as jest.Mock).mockReturnValue({
       uploadCoverImage: mockUploadCoverImage,
       removeCoverImage: mockRemoveCoverImage,
       featuredImageUrl: 'https://featured.com/img.png',
     });
     render(<FeaturedMediaBox />);
-    
+
     const removeBtn = screen.getByTitle('Remove image');
     await userEvent.click(removeBtn);
-    
+
     expect(mockRemoveCoverImage).toHaveBeenCalledTimes(1);
   });
 
   it('handles successful image upload', async () => {
     render(<FeaturedMediaBox />);
-    
+
     const file = new File(['dummy'], 'dummy.png', { type: 'image/png' });
     // The input is hidden via sr-only but wrapped in a label
-    // getByLabelText on 'Upload Image' might not work directly if the text is in a span, 
+    // getByLabelText on 'Upload Image' might not work directly if the text is in a span,
     // but there's an input inside the label. We can find the file input directly.
     // Instead of label, we can select the input type file.
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-    
+
     await userEvent.upload(fileInput, file);
-    
+
     expect(mockUploadCoverImage).toHaveBeenCalledWith(file);
   });
 
   it('handles failed image upload', async () => {
     mockUploadCoverImage.mockRejectedValue(new Error('Upload failed!'));
     render(<FeaturedMediaBox />);
-    
+
     const file = new File(['dummy'], 'dummy.png', { type: 'image/png' });
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-    
+
     await userEvent.upload(fileInput, file);
-    
+
     await waitFor(() => {
       expect(screen.getByText('Upload failed!')).toBeInTheDocument();
     });
