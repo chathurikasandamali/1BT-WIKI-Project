@@ -8,6 +8,7 @@ import type { CreateTechTalkInput, UpdateTechTalkInput } from '@models/techTalk.
 import { TechTalkListQuery } from '@models/techTalk.types.js';
 import { HttpStatusCode } from '@utils/httpStatus.js';
 import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT } from '@repo/shared';
+import { TechTalkStatus } from '@repo/db';
 
 export class TechTalkController {
   constructor(
@@ -50,6 +51,7 @@ export class TechTalkController {
         search: req.query.search as string | undefined,
         sort: req.query.sort as string | undefined,
         order: req.query.order as string | undefined,
+        status: req.query.status as TechTalkStatus | undefined,
       };
       const result = await this.techTalkService.listAll(query);
       res.status(HttpStatusCode.OK).json({
