@@ -1,6 +1,9 @@
 // apps/api/src/__tests__/integration/articles.integration.test.ts
 
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
+import type { CreateNotificationInput } from '@models/notificationTypes.js';
+import type { UserRole } from '@/types/userTypes.js';
+import { UserRoleValue } from '@/types/userTypes.js';
 
 // Mock Prisma DB from @repo/db
 await jest.unstable_mockModule('@repo/db', () => ({
@@ -91,12 +94,27 @@ await jest.unstable_mockModule(
   }
 );
 
-// Mock User Repository (author enrichment in getArticleById / listAllArticles)
+const mockFindActiveByRole = jest
+  .fn<(role: UserRole) => Promise<unknown[]>>()
+  .mockResolvedValue([]);
+
+// Mock User Repository (author enrichment and active Reviewer lookup)
 await jest.unstable_mockModule('@repositories/userRepository.js', () => ({
   default: {
     findManyByIds: jest
       .fn<() => Promise<unknown[]>>()
       .mockResolvedValue([]),
+    findActiveByRole: mockFindActiveByRole,
+  },
+}));
+
+const mockNotificationSend = jest
+  .fn<(payload: CreateNotificationInput) => Promise<void>>()
+  .mockResolvedValue(undefined);
+
+await jest.unstable_mockModule('@services/notificationService.js', () => ({
+  default: {
+    send: mockNotificationSend,
   },
 }));
 
@@ -637,15 +655,18 @@ describe('Articles API Integration', () => {
     });
 
     it('should submit article for review successfully', async () => {
+      const reviewer = { id: 'reviewer-1' };
       const existingArticle = {
         id: articleId,
         authorId: 'user-123',
+        title: 'Integration Test Article',
         status: 'Draft',
       };
       const updatedArticle = { ...existingArticle, status: 'Pending' };
 
       mockFindById.mockResolvedValueOnce(existingArticle);
       mockUpdateStatus.mockResolvedValueOnce(updatedArticle);
+      mockFindActiveByRole.mockResolvedValueOnce([reviewer]);
 
       const response = await request(app)
         .post(submitPath)
@@ -655,6 +676,18 @@ describe('Articles API Integration', () => {
       expect(response.body.success).toBe(true);
       expect(response.body.data.status).toBe('Pending');
       expect(mockUpdateStatus).toHaveBeenCalledWith(articleId, 'Pending');
+      expect(mockFindActiveByRole).toHaveBeenCalledWith(
+        UserRoleValue.Reviewer
+      );
+      expect(mockNotificationSend).toHaveBeenCalledTimes(1);
+      expect(mockNotificationSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          recipientId: reviewer.id,
+          referenceId: articleId,
+          notificationType: 'info',
+          notificationTitle: 'New Article for Review',
+        })
+      );
     });
   });
 
