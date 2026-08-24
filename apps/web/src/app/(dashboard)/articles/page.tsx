@@ -184,7 +184,7 @@ export default function ArticlesPage(): React.JSX.Element {
         </div>
       )}
 
-      {loading ? (
+      {loading && (
         <div
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
           data-testid="loading-skeleton"
@@ -214,7 +214,8 @@ export default function ArticlesPage(): React.JSX.Element {
             </div>
           ))}
         </div>
-      ) : !hasArticles ? (
+      )}
+      {!loading && !hasArticles && (
         <div
           className="text-center py-20 bg-gray-50 rounded-lg border border-brand-border border-dashed"
           data-testid="empty-state"
@@ -230,7 +231,8 @@ export default function ArticlesPage(): React.JSX.Element {
             Check back later or try adjusting your search.
           </p>
         </div>
-      ) : (
+      )}
+      {!loading && hasArticles && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-10">
             {articles.map((article) => (

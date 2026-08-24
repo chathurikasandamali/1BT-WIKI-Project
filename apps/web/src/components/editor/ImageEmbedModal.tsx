@@ -19,6 +19,12 @@ interface ImageEmbedModalProps {
   onClose: () => void;
 }
 
+function stockGradientClass(i: number): string {
+  if (i % 3 === 0) return 'from-blue-400 to-purple-500';
+  if (i % 2 === 0) return 'from-orange-400 to-pink-500';
+  return 'from-green-400 to-teal-500';
+}
+
 export function ImageEmbedModal({ isOpen, onClose }: ImageEmbedModalProps) {
   const { uploadImage, insertEditorImage } = useEditorDraft();
   const [activeTab, setActiveTab] = useState<'preset' | 'upload' | 'url'>(
@@ -165,11 +171,7 @@ export function ImageEmbedModal({ isOpen, onClose }: ImageEmbedModalProps) {
                     <div
                       className={cn(
                         'absolute inset-0 transition-transform duration-500 group-hover:scale-110 bg-gradient-to-br',
-                        i % 3 === 0
-                          ? 'from-blue-400 to-purple-500'
-                          : i % 2 === 0
-                            ? 'from-orange-400 to-pink-500'
-                            : 'from-green-400 to-teal-500'
+                        stockGradientClass(i)
                       )}
                     />
                     <div className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/20" />

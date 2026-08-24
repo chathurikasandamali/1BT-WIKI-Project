@@ -489,7 +489,7 @@ function TechTalkManagementContent(): React.JSX.Element {
         </div>
 
         {/* Table body */}
-        {loading ? (
+        {loading && (
           <div
             className="py-20 flex flex-col items-center justify-center gap-3"
             data-testid="admin-techtalks-loading"
@@ -499,14 +499,16 @@ function TechTalkManagementContent(): React.JSX.Element {
               Loading Tech Talks…
             </p>
           </div>
-        ) : techTalks.length === 0 ? (
+        )}
+        {!loading && techTalks.length === 0 && (
           <div
             className="py-20 text-center text-sm text-brand-text-secondary"
             data-testid="admin-techtalks-empty"
           >
             No Tech Talks found.
           </div>
-        ) : (
+        )}
+        {!loading && techTalks.length > 0 && (
           <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

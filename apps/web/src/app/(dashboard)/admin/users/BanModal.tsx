@@ -69,6 +69,12 @@ export function BanModal({
     }
   };
 
+  const getConfirmButtonLabel = (): string => {
+    if (isSubmitting) return isBanned ? 'Reactivating...' : 'Deactivating...';
+    return isBanned ? 'Reactivate' : 'Deactivate';
+  };
+  const confirmButtonLabel = getConfirmButtonLabel();
+
   return (
     <div
       ref={overlayRef}
@@ -175,13 +181,7 @@ export function BanModal({
                 : 'bg-brand-red hover:bg-brand-red-hover'
             )}
           >
-            {isSubmitting
-              ? isBanned
-                ? 'Reactivating...'
-                : 'Deactivating...'
-              : isBanned
-                ? 'Reactivate'
-                : 'Deactivate'}
+            {confirmButtonLabel}
           </button>
         </div>
       </div>

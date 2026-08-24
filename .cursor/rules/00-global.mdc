@@ -73,6 +73,32 @@ async function fetchArticle(id: string): Promise<Article> {
 }
 ```
 
+## Control Flow / Readability
+- **Never nest ternary operators.** A ternary whose consequent or alternate is itself a ternary is banned — enforced repo-wide via `no-nested-ternary` in `packages/eslint-config/base.js`.
+- For a value with 3+ cases, use a lookup object/`Record` keyed by the discriminant, or an `if`/`return` chain in a small helper function.
+- For conditionally-rendered JSX with more than two branches (e.g. `loading` / `empty` / `content`), use sibling `{condition && (...)}` blocks instead of chained ternaries.
+
+```typescript
+// ✅ Correct — lookup object
+const STATUS_LABELS: Partial<Record<Status, string>> = {
+  Pending: 'Pending approval',
+  Rejected: 'Not approved',
+};
+const label = STATUS_LABELS[status] ?? null;
+
+// ✅ Correct — sibling JSX blocks
+{loading && <Spinner />}
+{!loading && items.length === 0 && <EmptyState />}
+{!loading && items.length > 0 && <List items={items} />}
+
+// ❌ Wrong — never do this
+const label = status === 'Pending'
+  ? 'Pending approval'
+  : status === 'Rejected'
+    ? 'Not approved'
+    : null;
+```
+
 ## Environment Variables
 - All secrets and config must come from `process.env`
 - Never hardcode URLs, API keys, database strings, or domain names

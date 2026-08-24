@@ -46,12 +46,11 @@ export function CommentItem({
   const isMine = comment.createdBy === currentUserId;
   const isEdited = comment.updatedAt !== comment.createdAt;
   const canEditComment = isMine && !isEditing;
-  const moderationLabel =
-    comment.status === 'Pending'
-      ? 'Pending approval'
-      : comment.status === 'Rejected'
-        ? 'Not approved'
-        : null;
+  const MODERATION_LABELS: Partial<Record<CommentWithAuthor['status'], string>> = {
+    Pending: 'Pending approval',
+    Rejected: 'Not approved',
+  };
+  const moderationLabel = MODERATION_LABELS[comment.status] ?? null;
   const moderationBadgeClass =
     comment.status === 'Rejected'
       ? 'bg-brand-red/10 text-brand-red border-brand-red/20'
