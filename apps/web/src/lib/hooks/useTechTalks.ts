@@ -76,7 +76,7 @@ export interface UseAllTechTalksResult {
  * duplicated-fetch-logic bug.
  */
 export function useAllTechTalks(
-    query: Omit<AdminTechTalkListQuery, 'status'> = {}
+    query: AdminTechTalkListQuery = {}
 ): UseAllTechTalksResult {
     const [techTalks, setTechTalks] = useState<AdminTechTalkListResult['techTalks']>([]);
     const [total, setTotal] = useState(0);
@@ -102,6 +102,7 @@ export function useAllTechTalks(
         query.search,
         query.sort,
         query.order,
+        query.status,
     ]);
 
     useEffect(() => {

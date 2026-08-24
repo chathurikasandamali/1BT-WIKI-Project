@@ -27,7 +27,7 @@ jest.mock('@/lib/hooks/useTechTalks', () => ({
         (e: Error) => setState({ techTalks: [], total: 0, loading: false, error: e.message })
       );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [JSON.stringify(query)]);
     return { ...state, refetch: mockRefetch };
   },
 }));
@@ -239,6 +239,85 @@ describe('AdminTechTalksPage', () => {
     await waitFor(() =>
       expect(screen.getByTestId('pagination-controls')).toBeInTheDocument()
     );
+  });
+
+  it('renders status filter select dropdown with all options', async () => {
+    render(<AdminTechTalksPage />);
+    await waitFor(() =>
+      expect(screen.getByTestId('techtalk-status-filter')).toBeInTheDocument()
+    );
+    const select = screen.getByTestId('techtalk-status-filter') as HTMLSelectElement;
+    expect(select.options.length).toBe(4);
+    expect(select.options[0]!.text).toBe('All Statuses');
+    expect(select.options[0]!.value).toBe('All');
+    expect(select.options[1]!.text).toBe('Draft');
+    expect(select.options[1]!.value).toBe('draft');
+    expect(select.options[2]!.text).toBe('Published');
+    expect(select.options[2]!.value).toBe('published');
+    expect(select.options[3]!.text).toBe('Unpublished');
+    expect(select.options[3]!.value).toBe('unpublished');
+  });
+
+  it('filters by status when a filter is selected, and does not alter stat cards', async () => {
+    mockListAll.mockImplementation((query?: unknown) => {
+      const q = query as { status?: string } | undefined;
+      if (q && q.status === 'draft') {
+        return Promise.resolve({
+          techTalks: [draftTalk],
+          total: 1,
+          page: 1,
+          limit: 12,
+        });
+      }
+      return Promise.resolve(sampleResult);
+    });
+
+    render(<AdminTechTalksPage />);
+
+    await waitFor(() =>
+      expect(screen.getByText('Draft Talk')).toBeInTheDocument()
+    );
+    expect(screen.getByText('Published Talk')).toBeInTheDocument();
+
+    expect(screen.getByTestId('total-techtalks-stat')).toHaveTextContent('3');
+    expect(screen.getByTestId('draft-techtalks-stat')).toHaveTextContent('1');
+    expect(screen.getByTestId('published-techtalks-stat')).toHaveTextContent('1');
+    expect(screen.getByTestId('unpublished-techtalks-stat')).toHaveTextContent('1');
+
+    const select = screen.getByTestId('techtalk-status-filter');
+    fireEvent.change(select, { target: { value: 'draft' } });
+
+    // hook must be called with the exact lowercase status value
+    await waitFor(() =>
+      expect(mockListAll).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'draft' })
+      )
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByText('Published Talk')).not.toBeInTheDocument()
+    );
+
+    expect(screen.getByTestId('total-techtalks-stat')).toHaveTextContent('3');
+    expect(screen.getByTestId('draft-techtalks-stat')).toHaveTextContent('1');
+    expect(screen.getByTestId('published-techtalks-stat')).toHaveTextContent('1');
+    expect(screen.getByTestId('unpublished-techtalks-stat')).toHaveTextContent('1');
+
+    fireEvent.change(select, { target: { value: 'All' } });
+
+    // when reset, status must be omitted / undefined so all entries are returned
+    await waitFor(() =>
+      expect(mockListAll).toHaveBeenCalledWith(
+        expect.not.objectContaining({ status: 'draft' })
+      )
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText('Published Talk')).toBeInTheDocument()
+    );
+    expect(screen.getByText('Draft Talk')).toBeInTheDocument();
+
+    expect(screen.getByTestId('total-techtalks-stat')).toHaveTextContent('3');
   });
 });
 
