@@ -46,6 +46,16 @@ export function CommentItem({
   const isMine = comment.createdBy === currentUserId;
   const isEdited = comment.updatedAt !== comment.createdAt;
   const canEditComment = isMine && !isEditing;
+  const moderationLabel =
+    comment.status === 'Pending'
+      ? 'Pending approval'
+      : comment.status === 'Rejected'
+        ? 'Not approved'
+        : null;
+  const moderationBadgeClass =
+    comment.status === 'Rejected'
+      ? 'bg-brand-red/10 text-brand-red border-brand-red/20'
+      : 'bg-amber-50 text-amber-700 border-amber-200';
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -110,6 +120,14 @@ export function CommentItem({
             {isEdited && (
               <span className="ml-2 text-xs text-brand-text-secondary">
                 (edited)
+              </span>
+            )}
+            {moderationLabel && (
+              <span
+                data-testid="comment-status-badge"
+                className={`ml-2 inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full border ${moderationBadgeClass}`}
+              >
+                {moderationLabel}
               </span>
             )}
           </div>

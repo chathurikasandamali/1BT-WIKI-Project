@@ -3,7 +3,12 @@ import CommentRepository from '@repositories/commentRepository.js';
 import NotificationService from './notificationService.js';
 import { NotificationBuilder } from '@v1/lib/NotificationBuilder.js';
 import { AppError } from '@errors/AppError.js';
-import type { Comment, CommentWithAuthor } from '@models/comment.types.js';
+import type {
+  Comment,
+  CommentWithAuthor,
+  PendingCommentListItem,
+} from '@models/comment.types.js';
+import { CommentStatusValue } from '@models/comment.types.js';
 
 const validateBody = (body: string | undefined): string => {
   if (!body || body.trim() === '') {
@@ -40,18 +45,6 @@ const addComment = async (
     body,
   });
 
-  if (article.authorId !== authorId) {
-    const notificationPayload = new NotificationBuilder()
-      .forUser(article.authorId)
-      .regardingComment(comment.id)
-      .withInfo('New comment on your article', `Someone commented on your article "${article.title}"`)
-      .build();
-
-    NotificationService.send(notificationPayload).catch((error: unknown) => {
-      console.error('Failed to send new_comment notification:', error);
-    });
-  }
-
   return comment;
 };
 
@@ -69,7 +62,7 @@ const listComments = async (
     throw new AppError('Cannot view comments on this article', 403);
   }
 
-  return CommentRepository.findByArticleId(articleId);
+  return CommentRepository.findByArticleId(articleId, requesterId);
 };
 
 const updateComment = async (
@@ -109,4 +102,93 @@ const deleteComment = async (
   await CommentRepository.remove(commentId);
 };
 
-export default { addComment, listComments, updateComment, deleteComment };
+const listPendingComments = async (
+  page: number,
+  limit: number
+): Promise<{ comments: PendingCommentListItem[]; total: number; page: number; limit: number }> => {
+  const { comments, total } = await CommentRepository.findPending(page, limit);
+
+  return { comments, total, page, limit };
+};
+
+const approveComment = async (
+  commentId: string,
+  reviewerId: string
+): Promise<Comment> => {
+  const comment = await CommentRepository.findById(commentId);
+
+  if (!comment) {
+    throw new AppError('Comment not found', 404);
+  }
+
+  if (comment.status !== CommentStatusValue.Pending) {
+    throw new AppError('Only Pending comments can be approved', 400);
+  }
+
+  const approved = await CommentRepository.approve(commentId, reviewerId);
+
+  const authorNotification = new NotificationBuilder()
+    .forUser(approved.createdBy)
+    .regardingComment(approved.id)
+    .withSuccess('Comment Approved', 'Your comment has been approved and is now visible.')
+    .build();
+
+  NotificationService.send(authorNotification).catch((error: unknown) => {
+    console.error('Failed to send comment-approved notification:', error);
+  });
+
+  const article = await ArticleRepository.findById(approved.articleId);
+
+  if (article && article.authorId !== approved.createdBy && article.authorId !== reviewerId) {
+    const articleAuthorNotification = new NotificationBuilder()
+      .forUser(article.authorId)
+      .regardingComment(approved.id)
+      .withInfo('New comment on your article', `Someone commented on your article "${article.title}"`)
+      .build();
+
+    NotificationService.send(articleAuthorNotification).catch((error: unknown) => {
+      console.error('Failed to send new_comment notification:', error);
+    });
+  }
+
+  return approved;
+};
+
+const rejectComment = async (
+  commentId: string,
+  reviewerId: string
+): Promise<Comment> => {
+  const comment = await CommentRepository.findById(commentId);
+
+  if (!comment) {
+    throw new AppError('Comment not found', 404);
+  }
+
+  if (comment.status !== CommentStatusValue.Pending) {
+    throw new AppError('Only Pending comments can be rejected', 400);
+  }
+
+  const rejected = await CommentRepository.reject(commentId, reviewerId);
+
+  const notificationPayload = new NotificationBuilder()
+    .forUser(rejected.createdBy)
+    .regardingComment(rejected.id)
+    .withFailure('Comment Not Approved', 'Your comment was not approved by a moderator.')
+    .build();
+
+  NotificationService.send(notificationPayload).catch((error: unknown) => {
+    console.error('Failed to send comment-rejected notification:', error);
+  });
+
+  return rejected;
+};
+
+export default {
+  addComment,
+  listComments,
+  updateComment,
+  deleteComment,
+  listPendingComments,
+  approveComment,
+  rejectComment,
+};

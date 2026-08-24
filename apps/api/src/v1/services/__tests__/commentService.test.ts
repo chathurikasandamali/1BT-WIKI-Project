@@ -14,6 +14,9 @@ jest.unstable_mockModule('@repositories/commentRepository.js', () => ({
     findById: jest.fn(),
     update: jest.fn(),
     remove: jest.fn(),
+    findPending: jest.fn(),
+    approve: jest.fn(),
+    reject: jest.fn(),
   },
 }));
 
@@ -81,7 +84,7 @@ describe('CommentService.addComment', () => {
     }
   );
 
-  it('should create the comment and notify the article author', async () => {
+  it('should create the comment as Pending without notifying anyone yet', async () => {
     const article = {
       id: articleId,
       authorId: 'other-user',
@@ -93,6 +96,9 @@ describe('CommentService.addComment', () => {
       articleId,
       createdBy: authorId,
       body: 'Nice article',
+      status: 'Pending',
+      reviewedBy: null,
+      reviewedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -113,40 +119,8 @@ describe('CommentService.addComment', () => {
       createdBy: authorId,
       body: 'Nice article',
     });
-    expect(NotificationService.send).toHaveBeenCalledWith(
-      expect.objectContaining({
-        recipientId: 'other-user',
-        notificationReferenceType: 'comment',
-        referenceId: 'comment-123',
-      })
-    );
-    expect(result).toEqual(createdComment);
-  });
-
-  it('should not send a notification when the author comments on their own article', async () => {
-    const article = {
-      id: articleId,
-      authorId,
-      title: 'Test Article',
-      status: 'Published',
-    };
-    const createdComment = {
-      id: 'comment-123',
-      articleId,
-      createdBy: authorId,
-      body: 'Nice article',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(article);
-    (CommentRepository.create as jest.Mock<any>).mockResolvedValue(
-      createdComment
-    );
-
-    await CommentService.addComment(articleId, authorId, 'Nice article');
-
     expect(NotificationService.send).not.toHaveBeenCalled();
+    expect(result).toEqual(createdComment);
   });
 });
 
@@ -195,7 +169,10 @@ describe('CommentService.listComments', () => {
 
     const result = await CommentService.listComments(articleId, requesterId);
 
-    expect(CommentRepository.findByArticleId).toHaveBeenCalledWith(articleId);
+    expect(CommentRepository.findByArticleId).toHaveBeenCalledWith(
+      articleId,
+      requesterId
+    );
     expect(result).toEqual(comments);
   });
 
@@ -218,7 +195,10 @@ describe('CommentService.listComments', () => {
 
     const result = await CommentService.listComments(articleId, requesterId);
 
-    expect(CommentRepository.findByArticleId).toHaveBeenCalledWith(articleId);
+    expect(CommentRepository.findByArticleId).toHaveBeenCalledWith(
+      articleId,
+      requesterId
+    );
     expect(result).toEqual(comments);
   });
 });
@@ -262,6 +242,9 @@ describe('CommentService.updateComment', () => {
       articleId: 'article-123',
       createdBy: 'other-user',
       body: 'Original body',
+      status: 'Approved',
+      reviewedBy: null,
+      reviewedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -273,16 +256,25 @@ describe('CommentService.updateComment', () => {
     );
   });
 
-  it('should update the comment when requester is its owner', async () => {
+  it('should update the comment and reset it to Pending when requester is its owner', async () => {
     const existingComment = {
       id: commentId,
       articleId: 'article-123',
       createdBy: userId,
       body: 'Original body',
+      status: 'Approved',
+      reviewedBy: 'admin-1',
+      reviewedAt: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    const updatedComment = { ...existingComment, body: 'Updated body' };
+    const updatedComment = {
+      ...existingComment,
+      body: 'Updated body',
+      status: 'Pending',
+      reviewedBy: null,
+      reviewedAt: null,
+    };
 
     (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(
       existingComment
@@ -327,6 +319,9 @@ describe('CommentService.deleteComment', () => {
       articleId: 'article-123',
       createdBy: 'other-user',
       body: 'Original body',
+      status: 'Approved',
+      reviewedBy: null,
+      reviewedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -346,6 +341,9 @@ describe('CommentService.deleteComment', () => {
       articleId: 'article-123',
       createdBy: userId,
       body: 'Original body',
+      status: 'Approved',
+      reviewedBy: null,
+      reviewedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -354,5 +352,196 @@ describe('CommentService.deleteComment', () => {
     await CommentService.deleteComment(commentId, userId);
 
     expect(CommentRepository.remove).toHaveBeenCalledWith(commentId);
+  });
+});
+
+describe('CommentService.listPendingComments', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should return pending comments with pagination metadata', async () => {
+    const comments = [{ id: 'comment-1', status: 'Pending' }];
+    (CommentRepository.findPending as jest.Mock<any>).mockResolvedValue({
+      comments,
+      total: 1,
+    });
+
+    const result = await CommentService.listPendingComments(1, 20);
+
+    expect(CommentRepository.findPending).toHaveBeenCalledWith(1, 20);
+    expect(result).toEqual({ comments, total: 1, page: 1, limit: 20 });
+  });
+});
+
+describe('CommentService.approveComment', () => {
+  const commentId = 'comment-123';
+  const reviewerId = 'admin-1';
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (NotificationService.send as jest.Mock<any>).mockResolvedValue(undefined);
+  });
+
+  it('should throw AppError if comment is not found', async () => {
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(null);
+
+    await expect(
+      CommentService.approveComment(commentId, reviewerId)
+    ).rejects.toThrow(new AppError('Comment not found', 404));
+  });
+
+  it('should throw AppError if comment is not Pending', async () => {
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue({
+      id: commentId,
+      status: 'Approved',
+    });
+
+    await expect(
+      CommentService.approveComment(commentId, reviewerId)
+    ).rejects.toThrow(new AppError('Only Pending comments can be approved', 400));
+  });
+
+  it('should approve the comment and notify the comment author and article author', async () => {
+    const pendingComment = {
+      id: commentId,
+      articleId: 'article-123',
+      createdBy: 'comment-author',
+      status: 'Pending',
+    };
+    const approvedComment = {
+      ...pendingComment,
+      status: 'Approved',
+      reviewedBy: reviewerId,
+      reviewedAt: new Date(),
+    };
+    const article = {
+      id: 'article-123',
+      authorId: 'article-author',
+      title: 'Test Article',
+    };
+
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(
+      pendingComment
+    );
+    (CommentRepository.approve as jest.Mock<any>).mockResolvedValue(
+      approvedComment
+    );
+    (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(article);
+
+    const result = await CommentService.approveComment(commentId, reviewerId);
+
+    expect(CommentRepository.approve).toHaveBeenCalledWith(
+      commentId,
+      reviewerId
+    );
+    expect(NotificationService.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: 'comment-author',
+        notificationReferenceType: 'comment',
+        referenceId: commentId,
+      })
+    );
+    expect(NotificationService.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: 'article-author',
+        notificationReferenceType: 'comment',
+        referenceId: commentId,
+      })
+    );
+    expect(result).toEqual(approvedComment);
+  });
+
+  it('should not notify the article author when they are also the comment author', async () => {
+    const pendingComment = {
+      id: commentId,
+      articleId: 'article-123',
+      createdBy: 'same-user',
+      status: 'Pending',
+    };
+    const approvedComment = { ...pendingComment, status: 'Approved' };
+    const article = {
+      id: 'article-123',
+      authorId: 'same-user',
+      title: 'Test Article',
+    };
+
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(
+      pendingComment
+    );
+    (CommentRepository.approve as jest.Mock<any>).mockResolvedValue(
+      approvedComment
+    );
+    (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(article);
+
+    await CommentService.approveComment(commentId, reviewerId);
+
+    expect(NotificationService.send).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('CommentService.rejectComment', () => {
+  const commentId = 'comment-123';
+  const reviewerId = 'admin-1';
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (NotificationService.send as jest.Mock<any>).mockResolvedValue(undefined);
+  });
+
+  it('should throw AppError if comment is not found', async () => {
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(null);
+
+    await expect(
+      CommentService.rejectComment(commentId, reviewerId)
+    ).rejects.toThrow(new AppError('Comment not found', 404));
+  });
+
+  it('should throw AppError if comment is not Pending', async () => {
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue({
+      id: commentId,
+      status: 'Rejected',
+    });
+
+    await expect(
+      CommentService.rejectComment(commentId, reviewerId)
+    ).rejects.toThrow(new AppError('Only Pending comments can be rejected', 400));
+  });
+
+  it('should reject the comment and notify the comment author', async () => {
+    const pendingComment = {
+      id: commentId,
+      articleId: 'article-123',
+      createdBy: 'comment-author',
+      status: 'Pending',
+    };
+    const rejectedComment = {
+      ...pendingComment,
+      status: 'Rejected',
+      reviewedBy: reviewerId,
+      reviewedAt: new Date(),
+    };
+
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(
+      pendingComment
+    );
+    (CommentRepository.reject as jest.Mock<any>).mockResolvedValue(
+      rejectedComment
+    );
+
+    const result = await CommentService.rejectComment(commentId, reviewerId);
+
+    expect(CommentRepository.reject).toHaveBeenCalledWith(
+      commentId,
+      reviewerId
+    );
+    expect(NotificationService.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: 'comment-author',
+        notificationReferenceType: 'comment',
+        referenceId: commentId,
+      })
+    );
+    expect(result).toEqual(rejectedComment);
   });
 });
