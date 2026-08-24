@@ -57,4 +57,26 @@ const unlike = async (
   }
 };
 
-export default { like, unlike };
+const list = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id: articleId } = req.params;
+
+    if (!UUID_REGEX.test(articleId)) {
+      throw new AppError('Invalid article ID format', 400);
+    }
+
+    const likers = await LikeService.getLikers(articleId);
+
+    res
+      .status(200)
+      .json(successResponse(likers, 'Likers retrieved successfully'));
+  } catch (error) {
+    next(error);
+  }
+};
+
+export default { like, unlike, list };

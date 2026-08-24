@@ -43,6 +43,9 @@ router.post('/:id/like', authenticate, LikeController.like);
 // DELETE /api/v1/articles/:id/like — Unlike a previously liked article (idempotent)
 router.delete('/:id/like', authenticate, LikeController.unlike);
 
+// GET /api/v1/articles/:id/likes — List users who liked a published article
+router.get('/:id/likes', authenticate, LikeController.list);
+
 // /api/v1/articles/:id/comments — Comments on an article
 router.use('/:id/comments', commentsRoutes);
 

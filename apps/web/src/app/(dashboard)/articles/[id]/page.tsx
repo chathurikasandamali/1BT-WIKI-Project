@@ -6,6 +6,7 @@ import { getArticle, ArticleDetail } from '@/lib/api/articles';
 import { UserAvatar } from '@/components/UserAvatar';
 import { ArticleContent } from '@/components/article-detail/ArticleContent';
 import { LikeButton } from '@/components/article-detail/LikeButton';
+import { LikedByAvatars } from '@/components/article-detail/LikedByAvatars';
 import { CommentsSection } from '@/components/article-detail/CommentsSection';
 import { ArrowLeftIcon } from '@/components/shared/icons/ArrowLeftIcon';
 import { ReaderQuizModal } from '@/components/quiz/ReaderQuizModal';
@@ -22,7 +23,7 @@ export default function ArticleDetailPage(props: ArticlePageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isQuizModalOpen, setIsQuizModalOpen] = useState(false);
-
+  const [likeToggle, setLikeToggle] = useState(false); // State to trigger re-render for like count
   useEffect(() => {
     let mounted = true;
     async function loadArticle() {
@@ -31,6 +32,7 @@ export default function ArticleDetailPage(props: ArticlePageProps) {
         const data = await getArticle(params.id);
         if (mounted) {
           setArticle(data);
+          setLikeToggle(data.likedByMe); // Initialize likeToggle based on the article's likedByMe status
           setError(null);
         }
       } catch (err) {
@@ -131,11 +133,19 @@ export default function ArticleDetailPage(props: ArticlePageProps) {
                 </p>
               </div>
             </div>
-            <LikeButton
-              articleId={article.id}
-              initialLikeCount={article.likeCount}
-              initialLikedByMe={article.likedByMe}
-            />
+            <div className="flex items-center gap-3">
+              <LikeButton
+                articleId={article.id}
+                initialLikeCount={article.likeCount}
+                initialLikedByMe={article.likedByMe}
+                handleLikeToggle={setLikeToggle}
+              />
+              <LikedByAvatars
+                articleId={article.id}
+                likeCount={article.likeCount}
+                likeToggle={likeToggle}
+              />
+            </div>
           </div>
         </div>
         <div className="p-8 md:p-12 bg-white">

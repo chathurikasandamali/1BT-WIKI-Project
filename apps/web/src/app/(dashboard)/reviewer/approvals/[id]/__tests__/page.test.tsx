@@ -25,6 +25,15 @@ jest.mock('@/lib/api/reviewer.api', () => ({
   reject: (...args: unknown[]) => mockReject(...args),
 }));
 
+jest.mock('gsap', () => ({
+  __esModule: true,
+  default: { registerPlugin: jest.fn(), to: jest.fn(), fromTo: jest.fn() },
+}));
+
+jest.mock('@gsap/react', () => ({
+  useGSAP: jest.fn(),
+}));
+
 import ReviewArticleDetailPage from '../page';
 
 function makeArticleDetail(overrides: Partial<ArticleDetail> = {}): ArticleDetail {

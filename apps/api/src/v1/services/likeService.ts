@@ -3,6 +3,7 @@ import LikeRepository from '@repositories/likeRepository.js';
 import NotificationService from '@services/notificationService.js';
 import { NotificationBuilder } from '@v1/lib/NotificationBuilder.js';
 import { AppError } from '@/errors/AppError.js';
+import type { LikeWithUser } from '@models/like.types.js';
 
 const likeArticle = async (
   articleId: string,
@@ -46,4 +47,14 @@ const unlikeArticle = async (
   await LikeRepository.remove(articleId, userId);
 };
 
-export default { likeArticle, unlikeArticle };
+const getLikers = async (articleId: string): Promise<LikeWithUser[]> => {
+  const article = await ArticleRepository.findById(articleId);
+
+  if (!article) {
+    throw new AppError('Article not found', 404);
+  }
+
+  return LikeRepository.findByArticleId(articleId);
+};
+
+export default { likeArticle, unlikeArticle, getLikers };
