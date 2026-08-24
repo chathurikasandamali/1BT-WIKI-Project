@@ -158,7 +158,7 @@ describe('Article Lifecycle Integration', () => {
 
     expect(createRes.status).toBe(201);
     expect(createRes.body.success).toBe(true);
-    
+
     const articleId = createRes.body.data.id;
     expect(articleId).toBeDefined();
     expect(createRes.body.data.status).toBe('Draft');

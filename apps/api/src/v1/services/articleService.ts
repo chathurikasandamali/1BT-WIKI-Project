@@ -356,7 +356,7 @@ export class ArticleService {
         UserRoleValue.Reviewer
       );
 
-      for (const reviewer of reviewers) {
+      const notificationTasks = reviewers.map(async (reviewer): Promise<void> => {
         try {
           const notificationPayload = new NotificationBuilder()
             .forUser(reviewer.id)
@@ -367,21 +367,17 @@ export class ArticleService {
             )
             .build();
 
-          notificationService
-            .send(notificationPayload)
-            .catch((error: unknown) => {
-              console.error(
-                '[NotificationService] Failed to send article review notification:',
-                error
-              );
-            });
+          await notificationService.send(notificationPayload);
         } catch (error) {
           console.error(
-            '[NotificationService] Failed to build article review notification:',
+            '[NotificationService] Failed to send article review notification:',
             error
           );
+          throw error;
         }
-      }
+      });
+
+      void Promise.allSettled(notificationTasks);
     } catch (error) {
       console.error(
         '[ArticleService] Failed to find active Reviewers for article review notification:',

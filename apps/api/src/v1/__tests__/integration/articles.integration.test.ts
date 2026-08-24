@@ -164,7 +164,7 @@ describe('Articles API Integration', () => {
   describe('PATCH /api/v1/articles/:id', () => {
     const articleId = 'article-123';
     const articlePath = `/api/v1/articles/${articleId}`;
-    
+
     it('should return 401 if unauthenticated', async () => {
       const response = await request(app)
         .patch(articlePath)
@@ -227,7 +227,7 @@ describe('Articles API Integration', () => {
 
   describe('GET /api/v1/articles', () => {
     const listArticlePath = `/api/v1/articles`;
-    
+
     it('should return 401 if unauthenticated', async () => {
       const response = await request(app).get(listArticlePath);
       expect(response.status).toBe(401);
@@ -607,7 +607,7 @@ describe('Articles API Integration', () => {
   describe('POST /api/v1/articles/:id/submit', () => {
     const articleId = 'article-123';
     const submitPath = `/api/v1/articles/${articleId}/submit`;
-    
+
     it('should return 401 if unauthenticated', async () => {
       const response = await request(app).post(submitPath);
       expect(response.status).toBe(401);
