@@ -61,6 +61,14 @@ jobs:
           DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
         run: pnpm --filter @repo/db build
 
+      - name: Run Prisma Migrations
+        # Applies pending migrations to the isolated E2E database so the
+        # generated Prisma Client (built above from the current schema)
+        # matches the actual table columns before any queries run.
+        env:
+          DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+        run: pnpm --filter @repo/db migrate:deploy
+
       - name: Seed E2E database
         # Upsert E2E users into isolated DB. Both DB env vars must be isolated.
         env:
