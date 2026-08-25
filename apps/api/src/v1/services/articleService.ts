@@ -163,7 +163,12 @@ const assertTransition = (
 
 // Draft articles are private to their authors and never appear in the admin
 // oversight list, so 'Draft' is not an accepted filter value.
-const ALLOWED_STATUS_FILTERS = ['Pending', 'Published', 'Unpublished'] as const;
+const ALLOWED_STATUS_FILTERS = [
+  'Pending',
+  ArticleStatusValue.Approved,
+  'Published',
+  'Unpublished',
+] as const;
 
 export class ArticleService {
   constructor(

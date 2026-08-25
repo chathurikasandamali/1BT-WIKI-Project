@@ -138,7 +138,7 @@ const AUTHOR_ALICE = { id: 'user-1', name: 'Alice', email: 'alice@example.com' }
 const AUTHOR_BOB = { id: 'user-2', name: 'Bob', email: 'bob@example.com' };
 const UNKNOWN_AUTHOR = { authorName: 'Unknown', authorEmail: null, authorImage: null };
 const INVALID_STATUS_FILTER_ERROR = new AppError(
-  'Invalid status filter. Allowed: Pending, Published, Unpublished',
+  'Invalid status filter. Allowed: Pending, Approved, Published, Unpublished',
   400
 );
 
@@ -412,10 +412,10 @@ describe('ArticleService.listAllArticles', () => {
     mockRepo.findByStatus.mockResolvedValue({ articles: [], total: 0 } as never);
     mockUserRepo.findManyByIds.mockResolvedValue([]);
 
-    await service.listAllArticles(1, 20, 'Pending');
+    await service.listAllArticles(1, 20, ArticleStatusValue.Approved);
 
     expect(mockRepo.findByStatus).toHaveBeenCalledWith(
-      'Pending',
+      ArticleStatusValue.Approved,
       1,
       20,
       { includeCounts: true, search: undefined, sort: undefined, order: undefined }
@@ -544,6 +544,9 @@ describe('ArticleService.listAllArticles', () => {
     mockUserRepo.findManyByIds.mockResolvedValue([]);
 
     await expect(service.listAllArticles(1, 20, 'Pending')).resolves.not.toThrow();
+    await expect(
+      service.listAllArticles(1, 20, ArticleStatusValue.Approved)
+    ).resolves.not.toThrow();
     await expect(service.listAllArticles(1, 20, 'Published')).resolves.not.toThrow();
     await expect(service.listAllArticles(1, 20, 'Unpublished')).resolves.not.toThrow();
   });
