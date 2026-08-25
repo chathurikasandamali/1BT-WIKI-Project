@@ -1,4 +1,4 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals';
+import { jest, describe, it, expect, beforeAll, beforeEach } from '@jest/globals';
 import request from 'supertest';
 import { HttpStatusCode } from '@/v1/utils/httpStatus.js';
 import { createTechTalk } from '@repo/shared';
@@ -9,6 +9,9 @@ await jest.unstable_mockModule('@repo/db', () => ({
     published: 'published',
     unpublished: 'unpublished',
   },
+  ReviewStatus: { Pending: 'Pending', Approved: 'Approved', Rejected: 'Rejected' },
+  ReviewCommentStatus: { Open: 'Open', Resolved: 'Resolved' },
+  ArticleStatus: { Draft: 'Draft', Pending: 'Pending', Published: 'Published', Unpublished: 'Unpublished' },
   prisma: {
     techTalk: {
       create: jest.fn(),
@@ -81,7 +84,11 @@ await jest.unstable_mockModule('@v1/lib/b2Client.js', () => ({
   },
 }));
 
-const { default: app } = await import('@/app.js');
+const { default: app, appReady } = await import('@/app.js');
+
+beforeAll(async () => {
+  await appReady;
+});
 
 describe('POST /api/v1/techTalks - Integration', () => {
   beforeEach(() => {

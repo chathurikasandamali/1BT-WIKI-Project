@@ -4,6 +4,7 @@ import type { CreateNotificationInput } from '@models/notificationTypes.js';
 import { ArticleStatusValue } from '@models/article.types.js';
 import type { UserRole } from '@/types/userTypes.js';
 import { UserRoleValue } from '@/types/userTypes.js';
+import { HttpStatusCode } from '@/v1/utils/httpStatus.js';
 
 const REVIEWER_ID = 'reviewer-1';
 const ADMIN_ID = 'admin-1';
@@ -11,6 +12,9 @@ const ADMIN_ID = 'admin-1';
 // 1. Mock DB and Prisma
 await jest.unstable_mockModule('@repo/db', () => ({
   TechTalkStatus: { draft: 'draft', published: 'published', unpublished: 'unpublished' },
+  ReviewStatus: { Pending: 'Pending', Approved: 'Approved', Rejected: 'Rejected' },
+  ReviewCommentStatus: { Open: 'Open', Resolved: 'Resolved' },
+  ArticleStatus: { Draft: 'Draft', Pending: 'Pending', Approved: 'Approved', Published: 'Published', Unpublished: 'Unpublished' },
   prisma: {
     user: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn(), create: jest.fn() },
     article: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn(), create: jest.fn(), count: jest.fn() },
@@ -92,6 +96,9 @@ await jest.unstable_mockModule('@repositories/articleRepository.js', () => ({
 
 const MockArticleReviewRepository = {
   create: jest.fn<any>(async () => ({})),
+  findPendingWithComments: jest.fn<any>().mockResolvedValue(null),
+  updateStatus: jest.fn<any>().mockResolvedValue({}),
+  findById: jest.fn<any>().mockResolvedValue(null),
 };
 
 const mockReviewCreate = MockArticleReviewRepository.create;
@@ -186,7 +193,7 @@ describe('Article Lifecycle Integration', () => {
       .set(authorHeaders)
       .field('data', JSON.stringify({ title: 'Lifecycle Test', body: { type: 'doc', content: [] }, tags: ['test'] }));
 
-    expect(createRes.status).toBe(201);
+    expect(createRes.status).toBe(HttpStatusCode.CREATED);
     expect(createRes.body.success).toBe(true);
 
     const articleId = createRes.body.data.id;
@@ -199,7 +206,7 @@ describe('Article Lifecycle Integration', () => {
       .post(`/api/v1/articles/${articleId}/submit`)
       .set(authorHeaders);
 
-    expect(submitRes.status).toBe(200);
+    expect(submitRes.status).toBe(HttpStatusCode.OK);
     expect(submitRes.body.success).toBe(true);
     expect(submitRes.body.data.status).toBe(ArticleStatusValue.Pending);
     expect(mockFindActiveByRole).toHaveBeenCalledWith(
@@ -218,7 +225,7 @@ describe('Article Lifecycle Integration', () => {
       .patch(`/api/v1/reviewer/articles/${articleId}/approve`)
       .set(reviewerHeaders);
 
-    expect(approveRes.status).toBe(200);
+    expect(approveRes.status).toBe(HttpStatusCode.OK);
     expect(approveRes.body.success).toBe(true);
     expect(approveRes.body.data.status).toBe(ArticleStatusValue.Approved);
     expect(mockReviewCreate).toHaveBeenCalledWith(
@@ -280,7 +287,7 @@ describe('Article Lifecycle Integration', () => {
       .get(`/api/v1/articles/${articleId}`)
       .set(readerHeaders);
 
-    expect(getRes.status).toBe(200);
+    expect(getRes.status).toBe(HttpStatusCode.OK);
     expect(getRes.body.success).toBe(true);
     expect(getRes.body.data.status).toBe(ArticleStatusValue.Published);
     expect(getRes.body.data.id).toBe(articleId);
