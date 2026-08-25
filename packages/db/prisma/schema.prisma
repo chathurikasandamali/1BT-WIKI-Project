@@ -363,6 +363,7 @@ model appSettings {
 enum ArticleStatus {
   Draft
   Pending
+  Approved
   Published
   Unpublished
 
