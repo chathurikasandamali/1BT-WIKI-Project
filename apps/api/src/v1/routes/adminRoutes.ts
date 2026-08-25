@@ -15,6 +15,7 @@ import ArticleController from '@controllers/articleController.js';
 import SettingsController from '@controllers/settingsController.js';
 import { authenticate } from '@/middleware/auth.middleware.js';
 import { requireRole } from '@/middleware/rbac.middleware.js';
+import { UserRoleValue } from '@/types/userTypes.js';
 
 const router = Router();
 const articleController = new ArticleController();
@@ -29,7 +30,7 @@ router.get('/articles', authenticate, requireRole('Admin'), listAllArticles);
 router.patch(
   '/articles/:id/publish',
   authenticate,
-  requireRole('Admin'),
+  requireRole(UserRoleValue.Admin),
   publishArticle
 );
 
