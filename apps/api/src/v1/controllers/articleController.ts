@@ -95,6 +95,25 @@ export class ArticleController {
     }
   };
 
+  publishArticle = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const callerRole = req.user!.role as UserRole;
+
+      const article = await this.service.publishArticle(id, callerRole);
+
+      res
+        .status(200)
+        .json(successResponse(article, 'Article published successfully.'));
+    } catch (error) {
+      next(error);
+    }
+  };
+
   listPublished = async (
     req: Request,
     res: Response,
