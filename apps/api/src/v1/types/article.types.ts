@@ -3,11 +3,12 @@
  * Domain owner: Malindu (Flag for review when back from leave)
  */
 
-export type ArticleStatus = 'Draft' | 'Pending' | 'Published' | 'Unpublished';
+export type ArticleStatus = 'Draft' | 'Pending' | 'Approved' | 'Published' | 'Unpublished';
 
 export const ArticleStatusValue = {
   Draft: 'Draft',
   Pending: 'Pending',
+  Approved: 'Approved',
   Published: 'Published',
   Unpublished: 'Unpublished',
 } as const satisfies Record<ArticleStatus, ArticleStatus>;

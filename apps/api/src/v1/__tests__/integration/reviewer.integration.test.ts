@@ -255,7 +255,7 @@ describe('Reviewer API Integration', () => {
       expect(mockReviewCreate).not.toHaveBeenCalled();
     });
 
-    it('should return 200 and publish a Pending article for a Reviewer', async () => {
+    it('should return 200 and approve a Pending article for a Reviewer', async () => {
       const pendingArticle = {
         id: articleId,
         title: 'Pending Article',
@@ -266,10 +266,10 @@ describe('Reviewer API Integration', () => {
         createdAt: mockDate,
         updatedAt: mockDate,
       };
-      const publishedArticle = { ...pendingArticle, status: 'Published' };
+      const approvedArticle = { ...pendingArticle, status: 'Approved' };
 
       mockFindById.mockResolvedValueOnce(pendingArticle);
-      mockUpdateStatus.mockResolvedValueOnce(publishedArticle);
+      mockUpdateStatus.mockResolvedValueOnce(approvedArticle);
       mockReviewCreate.mockResolvedValueOnce({
         id: 'review-1',
         articleId,
@@ -283,9 +283,11 @@ describe('Reviewer API Integration', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
-      expect(response.body.message).toBe('Article approved and published');
-      expect(response.body.data.status).toBe('Published');
-      expect(mockUpdateStatus).toHaveBeenCalledWith(articleId, 'Published');
+      expect(response.body.message).toBe(
+        'Article approved and sent for Admin publication.'
+      );
+      expect(response.body.data.status).toBe('Approved');
+      expect(mockUpdateStatus).toHaveBeenCalledWith(articleId, 'Approved');
       expect(mockReviewCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           articleId,
