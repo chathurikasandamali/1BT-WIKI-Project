@@ -142,6 +142,7 @@ model user {
   articles         article[]
   notifications    notification[]
   techTalks        techTalk[]
+  reviewComments   articleReviewComment[] @relation("review_comment_created_by")
 
   @@schema("neon_auth")
 }
@@ -323,6 +324,7 @@ model articleReview {
   article       article      @relation(fields: [articleId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   createdByUser user         @relation("article_reviews_created_byTouser", fields: [createdBy], references: [id], onUpdate: NoAction)
   reviewerUser  user         @relation("article_reviews_reviewer_idTouser", fields: [reviewerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  comments      articleReviewComment[]
 
   @@index([articleId], map: "idx_article_reviews_article_id")
   @@index([reviewerId], map: "idx_article_reviews_reviewer_id")
@@ -416,3 +418,32 @@ enum CommentStatus {
   @@map("comment_status")
   @@schema("public")
 }
+
+enum ReviewCommentStatus {
+  Open
+  Resolved
+
+  @@map("review_comment_status")
+  @@schema("public")
+}
+
+model articleReviewComment {
+  id            String              @id @default(uuid()) @db.Uuid
+  reviewId      String              @map("review_id") @db.Uuid
+  comment       String              @map("comment")
+  selectedText  String?             @map("selected_text")
+  anchorData    Json                @map("anchor_data")
+  status        ReviewCommentStatus @default(Open) @map("status")
+  createdBy     String              @map("created_by") @db.Uuid
+  deletedAt     DateTime?           @map("deleted_at") @db.Timestamp(6)
+  createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime            @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  review        articleReview       @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  createdByUser user                @relation("review_comment_created_by", fields: [createdBy], references: [id], onUpdate: NoAction)
+
+  @@index([reviewId], map: "idx_article_review_comments_review_id")
+  @@map("article_review_comments")
+  @@schema("public")
+}
+

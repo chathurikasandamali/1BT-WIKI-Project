@@ -2,6 +2,7 @@ import { jest } from '@jest/globals';
 import type { Request, Response, NextFunction } from 'express';
 import type { ReviewerService } from '@services/reviewerService.js';
 import { AppError } from '@errors/AppError.js';
+import { HttpStatusCode } from '@/v1/utils/httpStatus.js';
 
 jest.unstable_mockModule('@services/reviewerService.js', () => ({
   ReviewerService: jest.fn(),
@@ -52,7 +53,7 @@ describe('ReviewerController', () => {
       await controller.listPending(req as Request, res as Response, next);
 
       expect(mockService.listPending).toHaveBeenCalledWith(1, 20);
-      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.status).toHaveBeenCalledWith(HttpStatusCode.OK);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: mockResult,
@@ -77,7 +78,7 @@ describe('ReviewerController', () => {
     });
 
     it('should pass errors to next', async () => {
-      const error = new AppError('Database error', 500);
+      const error = new AppError('Database error', HttpStatusCode.INTERNAL_SERVER_ERROR);
       mockService.listPending.mockRejectedValue(error as never);
 
       await controller.listPending(req as Request, res as Response, next);
@@ -106,7 +107,7 @@ describe('ReviewerController', () => {
         'article-123',
         'reviewer-1'
       );
-      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.status).toHaveBeenCalledWith(HttpStatusCode.OK);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: approvedArticle,
@@ -116,7 +117,7 @@ describe('ReviewerController', () => {
     });
 
     it('should pass errors to next', async () => {
-      const error = new AppError('Only Pending articles can be approved', 400);
+      const error = new AppError('Only Pending articles can be approved', HttpStatusCode.BAD_REQUEST);
       mockService.approveArticle.mockRejectedValue(error as never);
 
       await controller.approveArticle(req as Request, res as Response, next);
@@ -147,7 +148,7 @@ describe('ReviewerController', () => {
         'reviewer-1',
         'valid feedback text'
       );
-      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.status).toHaveBeenCalledWith(HttpStatusCode.OK);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: rejectedArticle,
@@ -176,7 +177,7 @@ describe('ReviewerController', () => {
     });
 
     it('should pass errors to next', async () => {
-      const error = new AppError('Only Pending articles can be rejected', 400);
+      const error = new AppError('Only Pending articles can be rejected', HttpStatusCode.BAD_REQUEST);
       mockService.rejectArticle.mockRejectedValue(error as never);
 
       await controller.rejectArticle(req as Request, res as Response, next);
@@ -191,29 +192,32 @@ describe('ReviewerController', () => {
     });
 
     it('should call service.getArticleForReview with id and return 200 with article', async () => {
-      const pendingArticle = {
-        id: 'article-123',
-        title: 'Pending Article',
-        body: { type: 'doc' },
-        status: 'Pending',
-        authorId: 'user-1',
+      const mockResult = {
+        article: {
+          id: 'article-123',
+          title: 'Pending Article',
+          body: { type: 'doc' },
+          status: 'Pending',
+          authorId: 'user-1',
+        },
+        review: null,
       };
-      mockService.getArticleForReview.mockResolvedValue(pendingArticle as never);
+      mockService.getArticleForReview.mockResolvedValue(mockResult as never);
 
       await controller.getArticleForReview(req as Request, res as Response, next);
 
       expect(mockService.getArticleForReview).toHaveBeenCalledWith('article-123');
-      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.status).toHaveBeenCalledWith(HttpStatusCode.OK);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
-        data: pendingArticle,
+        data: mockResult,
         message: 'Article retrieved for review',
       });
       expect(next).not.toHaveBeenCalled();
     });
 
     it('should pass errors to next', async () => {
-      const error = new AppError('Only Pending articles can be reviewed', 400);
+      const error = new AppError('Only Pending articles can be reviewed', HttpStatusCode.BAD_REQUEST);
       mockService.getArticleForReview.mockRejectedValue(error as never);
 
       await controller.getArticleForReview(req as Request, res as Response, next);

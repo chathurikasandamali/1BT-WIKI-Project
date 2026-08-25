@@ -5,7 +5,14 @@ import { ReviewerController } from '@controllers/reviewerController.js';
 
 const router = Router();
 const reviewerController = new ReviewerController();
-const { listPending, approveArticle, rejectArticle, getArticleForReview } = reviewerController;
+const {
+  listPending,
+  approveArticle,
+  rejectArticle,
+  getArticleForReview,
+  createComment,
+  updateCommentStatus,
+} = reviewerController;
 
 router.get(
   '/articles/pending',
@@ -15,6 +22,12 @@ router.get(
 );
 router.get(
   '/articles/:id',
+  authenticate,
+  requireRole('Reviewer', 'Admin'),
+  getArticleForReview
+);
+router.get(
+  '/approvals/:id',
   authenticate,
   requireRole('Reviewer', 'Admin'),
   getArticleForReview
@@ -30,6 +43,18 @@ router.patch(
   authenticate,
   requireRole('Reviewer', 'Admin'),
   rejectArticle
+);
+router.post(
+  '/approvals/:articleId/comments',
+  authenticate,
+  requireRole('Reviewer', 'Admin'),
+  createComment
+);
+router.patch(
+  '/approvals/:articleId/comments/:commentId',
+  authenticate,
+  requireRole('Reviewer', 'Admin'),
+  updateCommentStatus
 );
 
 export default router;

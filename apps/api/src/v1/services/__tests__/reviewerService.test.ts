@@ -4,6 +4,7 @@ import type { ArticleRepository } from '@repositories/articleRepository.js';
 import type { ArticleReviewRepository } from '@repositories/articleReviewRepository.js';
 import type { QuizService } from '@services/quizService.js';
 import { ReviewStatus } from '@repo/db/generated/prisma/index.js';
+import { HttpStatusCode } from '@/v1/utils/httpStatus.js';
 
 jest.unstable_mockModule('@repositories/articleRepository.js', () => ({
   ArticleRepository: jest.fn(),
@@ -39,9 +40,12 @@ const makeMockArticleRepo = (): jest.Mocked<
 });
 
 const makeMockReviewRepo = (): jest.Mocked<
-  Pick<ArticleReviewRepository, 'create'>
+  Pick<ArticleReviewRepository, 'create' | 'findPendingWithComments' | 'updateStatus' | 'findById'>
 > => ({
   create: jest.fn(),
+  findPendingWithComments: jest.fn<any>().mockResolvedValue(null),
+  updateStatus: jest.fn(),
+  findById: jest.fn<any>().mockResolvedValue(null),
 });
 
 const makeMockUserRepo = () => ({
@@ -221,7 +225,7 @@ describe('ReviewerService.approveArticle', () => {
       await expect(
         service.approveArticle(articleId, reviewerId)
       ).rejects.toThrow(
-        new AppError('Only Pending articles can be approved', 400)
+        new AppError('Only Pending articles can be approved', HttpStatusCode.BAD_REQUEST)
       );
 
       expect(mockArticleRepo.updateStatus).not.toHaveBeenCalled();
@@ -233,7 +237,7 @@ describe('ReviewerService.approveArticle', () => {
     mockArticleRepo.findById.mockResolvedValue(null);
 
     await expect(service.approveArticle(articleId, reviewerId)).rejects.toThrow(
-      new AppError('Article not found', 404)
+      new AppError('Article not found', HttpStatusCode.NOT_FOUND)
     );
 
     expect(mockArticleRepo.updateStatus).not.toHaveBeenCalled();
@@ -266,7 +270,7 @@ describe('ReviewerService.rejectArticle', () => {
     await expect(
       service.rejectArticle(articleId, reviewerId, '')
     ).rejects.toThrow(
-      new AppError('Rejection feedback must be at least 10 characters', 400)
+      new AppError('Rejection feedback must be at least 10 characters', HttpStatusCode.BAD_REQUEST)
     );
 
     expect(mockArticleRepo.findById).not.toHaveBeenCalled();
@@ -278,7 +282,7 @@ describe('ReviewerService.rejectArticle', () => {
     await expect(
       service.rejectArticle(articleId, reviewerId, 'too short')
     ).rejects.toThrow(
-      new AppError('Rejection feedback must be at least 10 characters', 400)
+      new AppError('Rejection feedback must be at least 10 characters', HttpStatusCode.BAD_REQUEST)
     );
 
     expect(mockArticleRepo.findById).not.toHaveBeenCalled();
@@ -290,7 +294,7 @@ describe('ReviewerService.rejectArticle', () => {
     await expect(
       service.rejectArticle(articleId, reviewerId, '   short   ')
     ).rejects.toThrow(
-      new AppError('Rejection feedback must be at least 10 characters', 400)
+      new AppError('Rejection feedback must be at least 10 characters', HttpStatusCode.BAD_REQUEST)
     );
 
     expect(mockArticleRepo.findById).not.toHaveBeenCalled();
@@ -332,7 +336,7 @@ describe('ReviewerService.rejectArticle', () => {
 
     await expect(
       service.rejectArticle(articleId, reviewerId, 'valid feedback text')
-    ).rejects.toThrow(new AppError('Article not found', 404));
+    ).rejects.toThrow(new AppError('Article not found', HttpStatusCode.NOT_FOUND));
 
     expect(mockArticleRepo.updateStatus).not.toHaveBeenCalled();
     expect(mockReviewRepo.create).not.toHaveBeenCalled();
@@ -350,7 +354,7 @@ describe('ReviewerService.rejectArticle', () => {
       await expect(
         service.rejectArticle(articleId, reviewerId, 'valid feedback text')
       ).rejects.toThrow(
-        new AppError('Only Pending articles can be rejected', 400)
+        new AppError('Only Pending articles can be rejected', HttpStatusCode.BAD_REQUEST)
       );
 
       expect(mockArticleRepo.updateStatus).not.toHaveBeenCalled();
@@ -442,9 +446,12 @@ describe('ReviewerService.getArticleForReview', () => {
     expect(mockArticleRepo.findById).toHaveBeenCalledWith(articleId);
     expect(mockUserRepo.findById).toHaveBeenCalledWith('user-1');
     expect(result).toEqual({
-      ...pendingArticle,
-      authorName: 'Author Person',
-      authorEmail: 'author@example.com',
+      article: {
+        ...pendingArticle,
+        authorName: 'Author Person',
+        authorEmail: 'author@example.com',
+      },
+      review: null,
     });
   });
 
@@ -462,9 +469,12 @@ describe('ReviewerService.getArticleForReview', () => {
     const result = await service.getArticleForReview(articleId);
 
     expect(result).toEqual({
-      ...pendingArticle,
-      authorName: 'Unknown',
-      authorEmail: null,
+      article: {
+        ...pendingArticle,
+        authorName: 'Unknown',
+        authorEmail: null,
+      },
+      review: null,
     });
   });
 
@@ -472,7 +482,7 @@ describe('ReviewerService.getArticleForReview', () => {
     mockArticleRepo.findById.mockResolvedValue(null);
 
     await expect(service.getArticleForReview(articleId))
-      .rejects.toThrow(new AppError('Article not found', 404));
+      .rejects.toThrow(new AppError('Article not found', HttpStatusCode.NOT_FOUND));
 
     expect(mockArticleRepo.findById).toHaveBeenCalledWith(articleId);
   });
@@ -487,7 +497,7 @@ describe('ReviewerService.getArticleForReview', () => {
       } as never);
 
       await expect(service.getArticleForReview(articleId))
-        .rejects.toThrow(new AppError('Only Pending articles can be reviewed', 400));
+        .rejects.toThrow(new AppError('Only Pending articles can be reviewed', HttpStatusCode.BAD_REQUEST));
     }
   );
 });

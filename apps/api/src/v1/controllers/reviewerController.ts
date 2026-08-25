@@ -74,6 +74,65 @@ export class ReviewerController {
       next(error);
     }
   };
+
+  createComment = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const { articleId } = req.params;
+      const { comment, selectedText, anchorData } = req.body as {
+        comment?: string;
+        selectedText?: string | null;
+        anchorData?: unknown;
+      };
+      const reviewerId = req.user!.userId;
+
+      const result = await this.service.createComment(
+        articleId,
+        reviewerId,
+        comment ?? '',
+        selectedText ?? null,
+        anchorData
+      );
+
+      res.status(201).json({
+        success: true,
+        data: result,
+        message: 'Review comment created successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateCommentStatus = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const { articleId, commentId } = req.params;
+      const { status } = req.body as { status?: any };
+      const reviewerId = req.user!.userId;
+
+      const result = await this.service.updateCommentStatus(
+        articleId,
+        commentId,
+        reviewerId,
+        status
+      );
+
+      res.status(200).json({
+        success: true,
+        data: result,
+        message: 'Review comment status updated successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 }
 
 export default new ReviewerController();

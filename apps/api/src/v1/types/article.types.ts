@@ -153,3 +153,31 @@ export interface CreateArticleReviewInput {
   feedback: string | null;
   createdBy: string;
 }
+
+export type ReviewCommentStatus = 'Open' | 'Resolved';
+
+export const ReviewCommentStatusValue = {
+  Open: 'Open',
+  Resolved: 'Resolved',
+} as const satisfies Record<ReviewCommentStatus, ReviewCommentStatus>;
+
+export interface ArticleReviewComment {
+  id: string;
+  reviewId: string;
+  comment: string;
+  selectedText: string | null;
+  anchorData: unknown;
+  status: ReviewCommentStatus;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateReviewCommentInput {
+  reviewId: string;
+  comment: string;
+  selectedText?: string | null;
+  anchorData: unknown;
+  createdBy: string;
+}
+
