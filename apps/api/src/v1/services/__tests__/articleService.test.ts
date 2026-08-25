@@ -2,8 +2,9 @@ import { jest } from '@jest/globals';
 import crypto from 'node:crypto';
 import { AppError } from '@errors/AppError.js';
 import type { ArticleRepository, ArticleDetailRecord } from '@repositories/articleRepository.js';
-import type { ArticleStatus } from '@models/article.types.js';
+import { ArticleStatusValue, type ArticleStatus } from '@models/article.types.js';
 import type { CreateNotificationInput } from '@models/notificationTypes.js';
+import type { QuizService } from '@services/quizService.js';
 import type { User, UserRole } from '@/types/userTypes.js';
 import { UserRoleValue } from '@/types/userTypes.js';
 
@@ -122,6 +123,14 @@ const makeUserRepo = () => ({
   findActiveByRole: jest
     .fn<(role: UserRole) => Promise<User[]>>()
     .mockResolvedValue([]),
+});
+
+const makeQuizService = (): jest.Mocked<
+  Pick<QuizService, 'pregenerateFallbackQuiz'>
+> => ({
+  pregenerateFallbackQuiz: jest
+    .fn<(articleId: string) => Promise<void>>()
+    .mockResolvedValue(undefined),
 });
 
 // Shared fixtures for author enrichment assertions
@@ -901,6 +910,160 @@ describe('ArticleService.submitForReview', () => {
     ).resolves.toEqual(updatedArticle);
     expect(mockNotificationSend).toHaveBeenCalledTimes(1);
     await Promise.resolve();
+    consoleErrorSpy.mockRestore();
+  });
+});
+
+describe('ArticleService.publishArticle', () => {
+  const articleId = 'article-123';
+  const approvedArticle = makeArticleRecord({
+    id: articleId,
+    title: 'Approved Article',
+    status: ArticleStatusValue.Approved,
+    authorId: AUTHOR_ALICE.id,
+  });
+  const publishedArticle = {
+    ...approvedArticle,
+    status: ArticleStatusValue.Published,
+  };
+  let mockRepo: ReturnType<typeof makeRepo>;
+  let mockQuizService: ReturnType<typeof makeQuizService>;
+  let service: InstanceType<typeof ArticleService>;
+
+  beforeEach(() => {
+    mockRepo = makeRepo();
+    mockQuizService = makeQuizService();
+    service = new ArticleService(
+      mockRepo as unknown as ArticleRepository,
+      undefined,
+      undefined,
+      undefined,
+      mockQuizService as unknown as QuizService
+    );
+    jest.clearAllMocks();
+    mockNotificationSend.mockReset();
+    mockNotificationSend.mockResolvedValue(undefined);
+  });
+
+  it('should allow an Admin to publish an Approved article', async () => {
+    mockRepo.findById.mockResolvedValue(approvedArticle);
+    mockRepo.updateStatus.mockResolvedValue(publishedArticle);
+
+    const result = await service.publishArticle(
+      articleId,
+      UserRoleValue.Admin
+    );
+
+    expect(mockRepo.findById).toHaveBeenCalledWith(articleId);
+    expect(mockRepo.updateStatus).toHaveBeenCalledWith(
+      articleId,
+      ArticleStatusValue.Published
+    );
+    expect(result).toEqual(publishedArticle);
+    expect(result.status).toBe(ArticleStatusValue.Published);
+    expect(mockNotificationSend).toHaveBeenCalledWith({
+      recipientId: approvedArticle.authorId,
+      notificationReferenceType: 'article',
+      referenceId: articleId,
+      notificationType: 'success',
+      notificationTitle: 'Article Published',
+      message: `Your article "${approvedArticle.title}" is now published.`,
+    });
+    expect(mockQuizService.pregenerateFallbackQuiz).toHaveBeenCalledWith(
+      articleId
+    );
+  });
+
+  it.each([UserRoleValue.Reviewer, UserRoleValue.User] as const)(
+    'should forbid the %s role from publishing an Approved article',
+    async (role) => {
+      await expect(service.publishArticle(articleId, role)).rejects.toMatchObject({
+        message: 'Only Admins can publish articles',
+        statusCode: 403,
+      });
+
+      expect(mockRepo.findById).not.toHaveBeenCalled();
+      expect(mockRepo.updateStatus).not.toHaveBeenCalled();
+    }
+  );
+
+  it('should return 404 when an Admin publishes a missing article', async () => {
+    mockRepo.findById.mockResolvedValue(null);
+
+    await expect(
+      service.publishArticle(articleId, UserRoleValue.Admin)
+    ).rejects.toMatchObject({
+      message: 'Article not found',
+      statusCode: 404,
+    });
+
+    expect(mockRepo.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ArticleStatusValue.Draft,
+    ArticleStatusValue.Pending,
+    ArticleStatusValue.Published,
+    ArticleStatusValue.Unpublished,
+  ] as const)(
+    'should reject Admin publication when the article status is %s',
+    async (status) => {
+      mockRepo.findById.mockResolvedValue(
+        makeArticleRecord({ id: articleId, status })
+      );
+
+      await expect(
+        service.publishArticle(articleId, UserRoleValue.Admin)
+      ).rejects.toMatchObject({
+        message: 'Only Approved articles can be published',
+        statusCode: 400,
+      });
+
+      expect(mockRepo.updateStatus).not.toHaveBeenCalled();
+    }
+  );
+
+  it('should complete publication when the author notification fails', async () => {
+    const consoleErrorSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    mockRepo.findById.mockResolvedValue(approvedArticle);
+    mockRepo.updateStatus.mockResolvedValue(publishedArticle);
+    mockNotificationSend.mockRejectedValueOnce(
+      new Error('Notification failed')
+    );
+
+    await expect(
+      service.publishArticle(articleId, UserRoleValue.Admin)
+    ).resolves.toEqual(publishedArticle);
+    await Promise.resolve();
+
+    expect(mockRepo.updateStatus).toHaveBeenCalledWith(
+      articleId,
+      ArticleStatusValue.Published
+    );
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('should complete publication when fallback quiz generation fails', async () => {
+    const consoleErrorSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    mockRepo.findById.mockResolvedValue(approvedArticle);
+    mockRepo.updateStatus.mockResolvedValue(publishedArticle);
+    mockQuizService.pregenerateFallbackQuiz.mockRejectedValueOnce(
+      new Error('Quiz generation failed')
+    );
+
+    await expect(
+      service.publishArticle(articleId, UserRoleValue.Admin)
+    ).resolves.toEqual(publishedArticle);
+    await Promise.resolve();
+
+    expect(mockRepo.updateStatus).toHaveBeenCalledWith(
+      articleId,
+      ArticleStatusValue.Published
+    );
     consoleErrorSpy.mockRestore();
   });
 });
