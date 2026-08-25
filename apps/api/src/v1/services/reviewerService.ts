@@ -3,7 +3,6 @@ import { ArticleReviewRepository } from '@repositories/articleReviewRepository.j
 import UserRepository from '@repositories/userRepository.js';
 import { AppError } from '@errors/AppError.js';
 import type { Article, ArticleReviewComment } from '@models/article.types.js';
-import { ArticleStatusValue } from '@models/article.types.js';
 import { ReviewStatus, ArticleStatus, ReviewCommentStatus } from '@repo/db';
 import notificationService from '@services/notificationService.js';
 import defaultQuizService, { type QuizService } from '@services/quizService.js';
@@ -25,7 +24,7 @@ export class ReviewerService {
     limit: number = 20
   ): Promise<{ articles: (Article & { authorName: string; authorEmail: string | null })[]; total: number; page: number; limit: number }> {
     const { articles, total } = await this.articleRepository.findByStatus(
-      ArticleStatusValue.Pending,
+      ArticleStatus.Pending,
       page,
       limit
     );
@@ -51,13 +50,13 @@ export class ReviewerService {
   ): Promise<Article> {
     const article = await this.articleRepository.findById(articleId);
     if (!article) throw new AppError('Article not found', HttpStatusCode.NOT_FOUND);
-    if (article.status !== ArticleStatusValue.Pending) {
+    if (article.status !== ArticleStatus.Pending) {
       throw new AppError('Only Pending articles can be approved', HttpStatusCode.BAD_REQUEST);
     }
 
     const approved = await this.articleRepository.updateStatus(
       articleId,
-      ArticleStatusValue.Published
+      ArticleStatus.Published
     );
 
     const pendingReview = await this.reviewRepository.findPendingWithComments(articleId);
@@ -128,7 +127,7 @@ export class ReviewerService {
 
     const rejected = await this.articleRepository.updateStatus(
       articleId,
-      ArticleStatusValue.Draft
+      ArticleStatus.Draft
     );
 
     const pendingReview = await this.reviewRepository.findPendingWithComments(articleId);
@@ -250,19 +249,14 @@ export class ReviewerService {
       throw new AppError('Invalid status. Allowed: Open, Resolved', HttpStatusCode.BAD_REQUEST);
     }
 
-    const article = await this.articleRepository.findById(articleId);
-    if (!article) throw new AppError('Article not found', HttpStatusCode.NOT_FOUND);
-
-    const comment = await this.commentRepository.findById(commentId);
+    const comment = await this.commentRepository.findByIdWithReview(commentId);
     if (!comment) throw new AppError('Comment not found', HttpStatusCode.NOT_FOUND);
 
-    const review = await this.reviewRepository.findById(comment.reviewId);
-    if (!review || review.articleId !== articleId) {
+    if (comment.review.articleId !== articleId) {
       throw new AppError('Comment does not belong to this article review', HttpStatusCode.BAD_REQUEST);
     }
 
-    const updatedComment = await this.commentRepository.updateStatus(commentId, status);
-    return updatedComment;
+    return this.commentRepository.updateStatus(commentId, status);
   }
 }
 

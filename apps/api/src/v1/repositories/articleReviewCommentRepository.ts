@@ -10,17 +10,12 @@ export class ArticleReviewCommentRepository {
     const result = await prisma.articleReviewComment.findUnique({
       where: { id },
     });
+
     if (!result) return null;
+
     return {
-      id: result.id,
-      reviewId: result.reviewId,
-      comment: result.comment,
-      selectedText: result.selectedText,
-      anchorData: result.anchorData,
+      ...result,
       status: result.status as ReviewCommentStatus,
-      createdBy: result.createdBy,
-      createdAt: result.createdAt,
-      updatedAt: result.updatedAt,
     };
   }
 
@@ -30,39 +25,21 @@ export class ArticleReviewCommentRepository {
       orderBy: { createdAt: 'asc' },
     });
     return results.map((result) => ({
-      id: result.id,
-      reviewId: result.reviewId,
-      comment: result.comment,
-      selectedText: result.selectedText,
-      anchorData: result.anchorData,
+      ...result,
       status: result.status as ReviewCommentStatus,
-      createdBy: result.createdBy,
-      createdAt: result.createdAt,
-      updatedAt: result.updatedAt,
     }));
   }
 
   async create(data: CreateReviewCommentInput): Promise<ArticleReviewComment> {
     const result = await prisma.articleReviewComment.create({
       data: {
-        reviewId: data.reviewId,
-        comment: data.comment,
-        selectedText: data.selectedText ?? null,
+        ...data,
         anchorData: data.anchorData as Prisma.InputJsonValue,
-        createdBy: data.createdBy,
-        status: ReviewCommentStatus.Open,
       },
     });
     return {
-      id: result.id,
-      reviewId: result.reviewId,
-      comment: result.comment,
-      selectedText: result.selectedText,
-      anchorData: result.anchorData,
+      ...result,
       status: result.status as ReviewCommentStatus,
-      createdBy: result.createdBy,
-      createdAt: result.createdAt,
-      updatedAt: result.updatedAt,
     };
   }
 
@@ -72,15 +49,28 @@ export class ArticleReviewCommentRepository {
       data: { status },
     });
     return {
-      id: result.id,
-      reviewId: result.reviewId,
-      comment: result.comment,
-      selectedText: result.selectedText,
-      anchorData: result.anchorData,
+      ...result,
       status: result.status as ReviewCommentStatus,
-      createdBy: result.createdBy,
-      createdAt: result.createdAt,
-      updatedAt: result.updatedAt,
+    };
+  }
+
+  async findByIdWithReview(commentId: string): Promise<(ArticleReviewComment & { review: { articleId: string } }) | null> {
+    const result = await prisma.articleReviewComment.findUnique({
+      where: { id: commentId },
+      include: {
+        review: {
+          select: {
+            articleId: true,
+          },
+        },
+      },
+    });
+
+    if (!result) return null;
+
+    return {
+      ...result,
+      status: result.status as ReviewCommentStatus,
     };
   }
 }
