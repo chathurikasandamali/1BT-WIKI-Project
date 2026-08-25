@@ -31,12 +31,6 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
 
-      - name: Push remaining database migrations       
-        run: pnpm --filter db db:push --accept-data-loss
-
-      - name: Run DB Migrations       
-        run: pnpm --filter db migrate:latest
-
       - name: Build DB Package       
         run: pnpm --filter db build
 
