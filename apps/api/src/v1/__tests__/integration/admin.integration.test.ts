@@ -12,6 +12,9 @@ import {
 
 await jest.unstable_mockModule('@repo/db', () => ({
   TechTalkStatus: { draft: 'draft', published: 'published', unpublished: 'unpublished' },
+  ReviewStatus: { Pending: 'Pending', Approved: 'Approved', Rejected: 'Rejected' },
+  ReviewCommentStatus: { Open: 'Open', Resolved: 'Resolved' },
+  ArticleStatus: { Draft: 'Draft', Pending: 'Pending', Published: 'Published', Unpublished: 'Unpublished' },
   prisma: {
     user: {
       findFirst: jest.fn(),
