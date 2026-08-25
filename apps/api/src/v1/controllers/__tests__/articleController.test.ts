@@ -20,6 +20,7 @@ const makeMockService = (): jest.Mocked<
     | 'createArticle'
     | 'updateArticle'
     | 'submitForReview'
+    | 'publishArticle'
     | 'listPublished'
     | 'listAllArticles'
     | 'listMine'
@@ -30,6 +31,7 @@ const makeMockService = (): jest.Mocked<
   createArticle: jest.fn(),
   updateArticle: jest.fn(),
   submitForReview: jest.fn(),
+  publishArticle: jest.fn(),
   listPublished: jest.fn(),
   listAllArticles: jest.fn(),
   listMine: jest.fn(),
@@ -235,6 +237,52 @@ describe('ArticleController', () => {
         data: updatedArticle,
         message: 'Article submitted for review',
       });
+    });
+  });
+
+  describe('publishArticle', () => {
+    beforeEach(() => {
+      req.params = { id: 'article-123' };
+      req.user = {
+        userId: 'admin-1',
+        email: 'admin@example.com',
+        role: 'Admin',
+      };
+    });
+
+    it('should publish an article and return a success response', async () => {
+      const publishedArticle = {
+        id: 'article-123',
+        title: 'Published Article',
+        status: 'Published',
+        authorId: 'user-123',
+      };
+      mockService.publishArticle.mockResolvedValue(publishedArticle as never);
+
+      await controller.publishArticle(req as Request, res as Response, next);
+
+      expect(mockService.publishArticle).toHaveBeenCalledWith(
+        'article-123',
+        'Admin'
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: publishedArticle,
+        message: 'Article published successfully.',
+      });
+      expect(next).not.toHaveBeenCalled();
+    });
+
+    it('should forward publication errors to next without sending a success response', async () => {
+      const error = new AppError('Only Approved articles can be published', 400);
+      mockService.publishArticle.mockRejectedValue(error as never);
+
+      await controller.publishArticle(req as Request, res as Response, next);
+
+      expect(next).toHaveBeenCalledWith(error);
+      expect(res.status).not.toHaveBeenCalled();
+      expect(res.json).not.toHaveBeenCalled();
     });
   });
 

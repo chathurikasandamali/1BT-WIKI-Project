@@ -96,7 +96,7 @@ describe('ReviewerController', () => {
       const approvedArticle = {
         id: 'article-123',
         title: 'Approved Article',
-        status: 'Published',
+        status: 'Approved',
         authorId: 'user-1',
       };
       mockService.approveArticle.mockResolvedValue(approvedArticle as never);
@@ -111,7 +111,7 @@ describe('ReviewerController', () => {
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: approvedArticle,
-        message: 'Article approved and published',
+        message: 'Article approved and sent for Admin publication.',
       });
       expect(next).not.toHaveBeenCalled();
     });

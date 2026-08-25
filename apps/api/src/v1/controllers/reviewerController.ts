@@ -36,7 +36,7 @@ export class ReviewerController {
       res.status(200).json({
         success: true,
         data: article,
-        message: 'Article approved and published',
+        message: 'Article approved and sent for Admin publication.',
       });
     } catch (error) {
       next(error);

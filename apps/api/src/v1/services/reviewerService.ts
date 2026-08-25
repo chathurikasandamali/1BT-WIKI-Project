@@ -56,7 +56,7 @@ export class ReviewerService {
 
     const approved = await this.articleRepository.updateStatus(
       articleId,
-      ArticleStatus.Published
+      ArticleStatus.Approved
     );
 
     const pendingReview = await this.reviewRepository.findPendingWithComments(articleId);
@@ -77,29 +77,18 @@ export class ReviewerService {
       });
     }
 
-    // Notify the author that their article has been approved and published.
-    // Fire-and-forget — a notification failure must not roll back the approval.
     const notificationPayload = new NotificationBuilder()
       .forUser(article.authorId)
       .regardingArticle(articleId)
       .withSuccess(
         'Article Approved',
-        `Your article "${article.title}" has been approved and is now published.`
+        `Your article "${article.title}" has been approved and is awaiting Admin publication.`
       )
       .build();
 
     notificationService.send(notificationPayload).catch((err: unknown) => {
       console.error(
         '[NotificationService] Failed to send approval notification:',
-        err
-      );
-    });
-
-    // Pre-generate a fallback quiz for the newly published article.
-    // Fire-and-forget — quiz generation must not block or roll back the approval.
-    this.quizService.pregenerateFallbackQuiz(articleId).catch((err: unknown) => {
-      console.error(
-        '[QuizService] Failed to pre-generate fallback quiz:',
         err
       );
     });

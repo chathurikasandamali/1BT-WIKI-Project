@@ -1,11 +1,13 @@
 import { jest, describe, it, expect, beforeAll } from '@jest/globals';
 import { createTestUserHeaders } from '../helpers/auth.helpers.js';
 import type { CreateNotificationInput } from '@models/notificationTypes.js';
+import { ArticleStatusValue } from '@models/article.types.js';
 import type { UserRole } from '@/types/userTypes.js';
 import { UserRoleValue } from '@/types/userTypes.js';
 import { HttpStatusCode } from '@/v1/utils/httpStatus.js';
 
 const REVIEWER_ID = 'reviewer-1';
+const ADMIN_ID = 'admin-1';
 
 // 1. Mock DB and Prisma
 await jest.unstable_mockModule('@repo/db', () => ({
@@ -79,7 +81,12 @@ const MockArticleRepository = {
     articleStore.set(id, article);
     return article;
   }),
-  findByStatus: jest.fn<any>(async () => ({ articles: Array.from(articleStore.values()), total: articleStore.size }))
+  findByStatus: jest.fn<any>(async (status?: string) => {
+    const articles = Array.from(articleStore.values()).filter(
+      (article) => status === undefined || article.status === status
+    );
+    return { articles, total: articles.length };
+  })
 };
 
 await jest.unstable_mockModule('@repositories/articleRepository.js', () => ({
@@ -93,6 +100,8 @@ const MockArticleReviewRepository = {
   updateStatus: jest.fn<any>().mockResolvedValue({}),
   findById: jest.fn<any>().mockResolvedValue(null),
 };
+
+const mockReviewCreate = MockArticleReviewRepository.create;
 
 await jest.unstable_mockModule('@repositories/articleReviewRepository.js', () => ({
   ArticleReviewRepository: jest.fn().mockImplementation(() => MockArticleReviewRepository),
@@ -136,6 +145,16 @@ await jest.unstable_mockModule('@services/notificationService.js', () => ({
   }
 }));
 
+const mockPregenerateFallbackQuiz = jest
+  .fn<(articleId: string) => Promise<void>>()
+  .mockResolvedValue(undefined);
+
+await jest.unstable_mockModule('@services/quizService.js', () => ({
+  default: {
+    pregenerateFallbackQuiz: mockPregenerateFallbackQuiz,
+  },
+}));
+
 const { default: app, appReady } = await import('@/app.js');
 const { default: request } = await import('supertest');
 
@@ -147,17 +166,28 @@ describe('Article Lifecycle Integration', () => {
   const authorHeaders = createTestUserHeaders({
     userId: 'author-1',
     email: 'author@example.com',
-    role: 'User',
+    role: UserRoleValue.User,
   });
 
   const reviewerHeaders = createTestUserHeaders({
     userId: REVIEWER_ID,
     email: 'reviewer@example.com',
-    role: 'Reviewer',
+    role: UserRoleValue.Reviewer,
   });
 
-  it('moves an article from Draft to Pending to Published', async () => {
-    // 1. Author creates an article
+  const adminHeaders = createTestUserHeaders({
+    userId: ADMIN_ID,
+    email: 'admin@example.com',
+    role: UserRoleValue.Admin,
+  });
+
+  const readerHeaders = createTestUserHeaders({
+    userId: 'reader-1',
+    email: 'reader@example.com',
+    role: UserRoleValue.User,
+  });
+
+  it('moves an article from Draft to Pending to Approved to Published', async () => {
     const createRes = await request(app)
       .post('/api/v1/articles')
       .set(authorHeaders)
@@ -168,9 +198,8 @@ describe('Article Lifecycle Integration', () => {
 
     const articleId = createRes.body.data.id;
     expect(articleId).toBeDefined();
-    expect(createRes.body.data.status).toBe('Draft');
+    expect(createRes.body.data.status).toBe(ArticleStatusValue.Draft);
 
-    // 2. Author submits the article for review
     mockFindActiveByRole.mockResolvedValueOnce([{ id: REVIEWER_ID }]);
 
     const submitRes = await request(app)
@@ -179,7 +208,7 @@ describe('Article Lifecycle Integration', () => {
 
     expect(submitRes.status).toBe(HttpStatusCode.OK);
     expect(submitRes.body.success).toBe(true);
-    expect(submitRes.body.data.status).toBe('Pending');
+    expect(submitRes.body.data.status).toBe(ArticleStatusValue.Pending);
     expect(mockFindActiveByRole).toHaveBeenCalledWith(
       UserRoleValue.Reviewer
     );
@@ -192,23 +221,75 @@ describe('Article Lifecycle Integration', () => {
       })
     );
 
-    // 3. Reviewer approves the article
     const approveRes = await request(app)
       .patch(`/api/v1/reviewer/articles/${articleId}/approve`)
       .set(reviewerHeaders);
 
     expect(approveRes.status).toBe(HttpStatusCode.OK);
     expect(approveRes.body.success).toBe(true);
-    expect(approveRes.body.data.status).toBe('Published');
+    expect(approveRes.body.data.status).toBe(ArticleStatusValue.Approved);
+    expect(mockReviewCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        articleId,
+        reviewerId: REVIEWER_ID,
+        status: 'Approved',
+      })
+    );
+    expect(mockPregenerateFallbackQuiz).not.toHaveBeenCalled();
 
-    // 4. Fetch the article and verify its final Published state
+    const approvedListRes = await request(app)
+      .get('/api/v1/articles')
+      .set(readerHeaders);
+
+    expect(approvedListRes.status).toBe(200);
+    expect(approvedListRes.body.data.articles).toHaveLength(0);
+
+    const approvedDetailRes = await request(app)
+      .get(`/api/v1/articles/${articleId}`)
+      .set(readerHeaders);
+
+    expect(approvedDetailRes.status).toBe(403);
+    expect(approvedDetailRes.body.error).toBe('Article not available');
+
+    const reviewerPublishRes = await request(app)
+      .patch(`/api/v1/admin/articles/${articleId}/publish`)
+      .set(reviewerHeaders);
+
+    expect(reviewerPublishRes.status).toBe(403);
+    expect(reviewerPublishRes.body.error).toBe('Insufficient permissions');
+    expect(articleStore.get(articleId)?.status).toBe(
+      ArticleStatusValue.Approved
+    );
+    expect(mockPregenerateFallbackQuiz).not.toHaveBeenCalled();
+
+    const publishRes = await request(app)
+      .patch(`/api/v1/admin/articles/${articleId}/publish`)
+      .set(adminHeaders);
+
+    expect(publishRes.status).toBe(200);
+    expect(publishRes.body.success).toBe(true);
+    expect(publishRes.body.data.status).toBe(ArticleStatusValue.Published);
+    expect(publishRes.body.message).toBe('Article published successfully.');
+    expect(mockPregenerateFallbackQuiz).toHaveBeenCalledWith(articleId);
+
+    const publishedListRes = await request(app)
+      .get('/api/v1/articles')
+      .set(readerHeaders);
+
+    expect(publishedListRes.status).toBe(200);
+    expect(publishedListRes.body.data.articles).toHaveLength(1);
+    expect(publishedListRes.body.data.articles[0].id).toBe(articleId);
+    expect(publishedListRes.body.data.articles[0].status).toBe(
+      ArticleStatusValue.Published
+    );
+
     const getRes = await request(app)
       .get(`/api/v1/articles/${articleId}`)
-      .set(authorHeaders);
+      .set(readerHeaders);
 
     expect(getRes.status).toBe(HttpStatusCode.OK);
     expect(getRes.body.success).toBe(true);
-    expect(getRes.body.data.status).toBe('Published');
+    expect(getRes.body.data.status).toBe(ArticleStatusValue.Published);
     expect(getRes.body.data.id).toBe(articleId);
   });
 });

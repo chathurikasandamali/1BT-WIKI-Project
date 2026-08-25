@@ -3,8 +3,14 @@ import { AppError } from '@errors/AppError.js';
 import type { ArticleRepository } from '@repositories/articleRepository.js';
 import type { ArticleReviewRepository } from '@repositories/articleReviewRepository.js';
 import type { QuizService } from '@services/quizService.js';
+import { ArticleStatusValue } from '@models/article.types.js';
+import type { CreateNotificationInput } from '@models/notificationTypes.js';
 import { ReviewStatus } from '@repo/db/generated/prisma/index.js';
 import { HttpStatusCode } from '@/v1/utils/httpStatus.js';
+
+const mockNotificationSend = jest
+  .fn<(payload: CreateNotificationInput) => Promise<void>>()
+  .mockResolvedValue(undefined);
 
 jest.unstable_mockModule('@repositories/articleRepository.js', () => ({
   ArticleRepository: jest.fn(),
@@ -19,7 +25,7 @@ jest.unstable_mockModule('@repositories/articleReviewRepository.js', () => ({
 
 jest.unstable_mockModule('@services/notificationService.js', () => ({
   default: {
-    send: jest.fn(() => Promise.resolve()),
+    send: mockNotificationSend,
   },
 }));
 
@@ -183,10 +189,13 @@ describe('ReviewerService.approveArticle', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    const publishedArticle = { ...pendingArticle, status: 'Published' };
+    const approvedArticle = {
+      ...pendingArticle,
+      status: ArticleStatusValue.Approved,
+    };
 
     mockArticleRepo.findById.mockResolvedValue(pendingArticle as never);
-    mockArticleRepo.updateStatus.mockResolvedValue(publishedArticle as never);
+    mockArticleRepo.updateStatus.mockResolvedValue(approvedArticle as never);
     mockReviewRepo.create.mockResolvedValue({
       id: 'review-1',
       articleId,
@@ -201,7 +210,7 @@ describe('ReviewerService.approveArticle', () => {
     expect(mockArticleRepo.findById).toHaveBeenCalledWith(articleId);
     expect(mockArticleRepo.updateStatus).toHaveBeenCalledWith(
       articleId,
-      'Published'
+      ArticleStatusValue.Approved
     );
     expect(mockReviewRepo.create).toHaveBeenCalledWith({
       articleId,
@@ -210,7 +219,22 @@ describe('ReviewerService.approveArticle', () => {
       feedback: null,
       createdBy: reviewerId,
     });
-    expect(result).toEqual(publishedArticle);
+    expect(mockNotificationSend).toHaveBeenCalledTimes(1);
+    expect(mockNotificationSend).toHaveBeenCalledWith({
+      recipientId: pendingArticle.authorId,
+      notificationReferenceType: 'article',
+      referenceId: articleId,
+      notificationType: 'success',
+      notificationTitle: 'Article Approved',
+      message: `Your article "${pendingArticle.title}" has been approved and is awaiting Admin publication.`,
+    });
+    expect(mockNotificationSend).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining('now published'),
+      })
+    );
+    expect(mockQuizService.pregenerateFallbackQuiz).not.toHaveBeenCalled();
+    expect(result).toEqual(approvedArticle);
   });
 
   it.each(['Draft', 'Published', 'Rejected'] as const)(
