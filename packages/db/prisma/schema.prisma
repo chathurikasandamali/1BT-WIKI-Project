@@ -219,6 +219,7 @@ model comment {
   status     CommentStatus @default(Pending) @map("status")
   reviewedBy String?       @map("reviewed_by") @db.Uuid
   reviewedAt DateTime?     @map("reviewed_at") @db.Timestamptz(6)
+  rejectionReason String?  @map("rejection_reason")
   deletedAt  DateTime?     @map("deleted_at") @db.Timestamp(6)
   createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt  DateTime      @updatedAt @map("updated_at") @db.Timestamp(6)

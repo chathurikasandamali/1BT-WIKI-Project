@@ -135,8 +135,9 @@ const reject = async (
     // req.user is guaranteed to exist because of authenticate middleware
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const reviewerId = req.user!.userId;
+    const { reason } = req.body as { reason?: string };
 
-    const comment = await CommentService.rejectComment(commentId, reviewerId);
+    const comment = await CommentService.rejectComment(commentId, reviewerId, reason);
 
     res.status(200).json(successResponse(comment, 'Comment rejected'));
   } catch (error) {

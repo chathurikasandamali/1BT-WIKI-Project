@@ -608,6 +608,14 @@ describe('Comments API Integration', () => {
       expect(response.status).toBe(403);
     });
 
+    it('should return 400 if reason is missing', async () => {
+      const response = await request(app)
+        .patch(`/api/v1/admin/comments/${commentId}/reject`)
+        .set(adminHeaders);
+
+      expect(response.status).toBe(400);
+    });
+
     it('should return 400 if comment is not Pending', async () => {
       mockFindCommentById.mockResolvedValueOnce({
         id: commentId,
@@ -616,7 +624,8 @@ describe('Comments API Integration', () => {
 
       const response = await request(app)
         .patch(`/api/v1/admin/comments/${commentId}/reject`)
-        .set(adminHeaders);
+        .set(adminHeaders)
+        .send({ reason: 'This comment violates community guidelines' });
 
       expect(response.status).toBe(400);
     });
@@ -633,6 +642,7 @@ describe('Comments API Integration', () => {
         status: 'Rejected',
         reviewedBy: 'admin-1',
         reviewedAt: new Date(),
+        rejectionReason: 'This comment violates community guidelines',
       };
 
       mockFindCommentById.mockResolvedValueOnce(pendingComment);
@@ -640,11 +650,16 @@ describe('Comments API Integration', () => {
 
       const response = await request(app)
         .patch(`/api/v1/admin/comments/${commentId}/reject`)
-        .set(adminHeaders);
+        .set(adminHeaders)
+        .send({ reason: 'This comment violates community guidelines' });
 
       expect(response.status).toBe(200);
       expect(response.body.data.status).toBe('Rejected');
-      expect(mockRejectComment).toHaveBeenCalledWith(commentId, 'admin-1');
+      expect(mockRejectComment).toHaveBeenCalledWith(
+        commentId,
+        'admin-1',
+        'This comment violates community guidelines'
+      );
 
       await new Promise((resolve) => setImmediate(resolve));
       expect(mockCreateNotification).toHaveBeenCalledWith(
