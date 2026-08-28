@@ -2,7 +2,18 @@ import { jest } from '@jest/globals';
 import crypto from 'node:crypto';
 import { AppError } from '@errors/AppError.js';
 import type { ArticleRepository, ArticleDetailRecord } from '@repositories/articleRepository.js';
-import type { ArticleStatus } from '@models/article.types.js';
+import { ArticleStatusValue, type ArticleStatus } from '@models/article.types.js';
+import type { CreateNotificationInput } from '@models/notificationTypes.js';
+import type { QuizService } from '@services/quizService.js';
+import type { User, UserRole } from '@/types/userTypes.js';
+import { UserRoleValue } from '@/types/userTypes.js';
+
+const mockFindActiveByRole = jest
+  .fn<(role: UserRole) => Promise<User[]>>()
+  .mockResolvedValue([]);
+const mockNotificationSend = jest
+  .fn<(payload: CreateNotificationInput) => Promise<void>>()
+  .mockResolvedValue(undefined);
 
 // Side-effect dependencies that aren't injected — still mock via module system
 jest.unstable_mockModule('@repositories/articleRepository.js', () => {
@@ -66,6 +77,13 @@ jest.unstable_mockModule('@repositories/userRepository.js', () => ({
   default: {
     findManyByIds: jest.fn(),
     findById: jest.fn(),
+    findActiveByRole: mockFindActiveByRole,
+  },
+}));
+
+jest.unstable_mockModule('@services/notificationService.js', () => ({
+  default: {
+    send: mockNotificationSend,
   },
 }));
 
@@ -102,6 +120,17 @@ const makeRepo = (): jest.Mocked<
 
 const makeUserRepo = () => ({
   findManyByIds: jest.fn<() => Promise<unknown[]>>(),
+  findActiveByRole: jest
+    .fn<(role: UserRole) => Promise<User[]>>()
+    .mockResolvedValue([]),
+});
+
+const makeQuizService = (): jest.Mocked<
+  Pick<QuizService, 'pregenerateFallbackQuiz'>
+> => ({
+  pregenerateFallbackQuiz: jest
+    .fn<(articleId: string) => Promise<void>>()
+    .mockResolvedValue(undefined),
 });
 
 // Shared fixtures for author enrichment assertions
@@ -683,6 +712,19 @@ describe('ArticleService.updateArticle', () => {
 describe('ArticleService.submitForReview', () => {
   const authorId = 'user-123';
   const articleId = 'article-123';
+  const makeReviewer = (id: string): User => ({
+    id,
+    name: `Reviewer ${id}`,
+    email: `${id}@example.com`,
+    emailVerified: true,
+    image: null,
+    createdAt: new Date('2026-07-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-07-01T00:00:00.000Z'),
+    role: UserRoleValue.Reviewer,
+    banned: false,
+    banReason: null,
+    banExpires: null,
+  });
   let mockRepo: ReturnType<typeof makeRepo>;
   let service: InstanceType<typeof ArticleService>;
 
@@ -734,6 +776,295 @@ describe('ArticleService.submitForReview', () => {
 
     expect(mockRepo.updateStatus).toHaveBeenCalledWith(articleId, 'Pending');
     expect(result).toEqual(updatedArticle);
+  });
+
+  it('should notify an active Reviewer after successful submission', async () => {
+    const reviewer = makeReviewer('reviewer-1');
+    const existingArticle = {
+      id: articleId,
+      authorId,
+      title: 'Notification Test Article',
+      status: 'Draft',
+    };
+    const updatedArticle = { ...existingArticle, status: 'Pending' };
+
+    mockRepo.findById.mockResolvedValue(existingArticle as never);
+    mockRepo.updateStatus.mockResolvedValue(updatedArticle as never);
+    mockFindActiveByRole.mockResolvedValueOnce([reviewer]);
+
+    const result = await service.submitForReview(articleId, authorId);
+
+    expect(result).toEqual(updatedArticle);
+    expect(mockFindActiveByRole).toHaveBeenCalledWith(
+      UserRoleValue.Reviewer
+    );
+    expect(mockNotificationSend).toHaveBeenCalledTimes(1);
+    expect(mockNotificationSend).toHaveBeenCalledWith({
+      recipientId: reviewer.id,
+      notificationReferenceType: 'article',
+      referenceId: articleId,
+      notificationType: 'info',
+      notificationTitle: 'New Article for Review',
+      message: expect.stringContaining(existingArticle.title),
+    });
+    expect(mockRepo.updateStatus.mock.invocationCallOrder[0]).toBeLessThan(
+      mockFindActiveByRole.mock.invocationCallOrder[0]
+    );
+  });
+
+  it('should send one notification to each active Reviewer', async () => {
+    const reviewers = [
+      makeReviewer('reviewer-1'),
+      makeReviewer('reviewer-2'),
+    ];
+    const existingArticle = {
+      id: articleId,
+      authorId,
+      title: 'Multi-reviewer Article',
+      status: 'Draft',
+    };
+    const updatedArticle = { ...existingArticle, status: 'Pending' };
+
+    mockRepo.findById.mockResolvedValue(existingArticle as never);
+    mockRepo.updateStatus.mockResolvedValue(updatedArticle as never);
+    mockFindActiveByRole.mockResolvedValueOnce(reviewers);
+
+    const result = await service.submitForReview(articleId, authorId);
+
+    expect(result).toEqual(updatedArticle);
+    expect(mockNotificationSend).toHaveBeenCalledTimes(reviewers.length);
+    expect(
+      mockNotificationSend.mock.calls.map(([payload]) => payload.recipientId)
+    ).toEqual(reviewers.map((reviewer) => reviewer.id));
+  });
+
+  it('should succeed without sending notifications when there are no active Reviewers', async () => {
+    const existingArticle = {
+      id: articleId,
+      authorId,
+      title: 'No Reviewers Article',
+      status: 'Draft',
+    };
+    const updatedArticle = { ...existingArticle, status: 'Pending' };
+
+    mockRepo.findById.mockResolvedValue(existingArticle as never);
+    mockRepo.updateStatus.mockResolvedValue(updatedArticle as never);
+    mockFindActiveByRole.mockResolvedValueOnce([]);
+
+    const result = await service.submitForReview(articleId, authorId);
+
+    expect(result).toEqual(updatedArticle);
+    expect(mockFindActiveByRole).toHaveBeenCalledWith(
+      UserRoleValue.Reviewer
+    );
+    expect(mockNotificationSend).not.toHaveBeenCalled();
+  });
+
+  it('should succeed when active Reviewer lookup fails', async () => {
+    const consoleErrorSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    const existingArticle = {
+      id: articleId,
+      authorId,
+      title: 'Lookup Failure Article',
+      status: 'Draft',
+    };
+    const updatedArticle = { ...existingArticle, status: 'Pending' };
+
+    mockRepo.findById.mockResolvedValue(existingArticle as never);
+    mockRepo.updateStatus.mockResolvedValue(updatedArticle as never);
+    mockFindActiveByRole.mockRejectedValueOnce(
+      new Error('Reviewer lookup failed')
+    );
+
+    const result = await service.submitForReview(articleId, authorId);
+
+    expect(result).toEqual(updatedArticle);
+    expect(mockNotificationSend).not.toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('should succeed when sending a Reviewer notification fails', async () => {
+    const consoleErrorSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    const reviewer = makeReviewer('reviewer-1');
+    const existingArticle = {
+      id: articleId,
+      authorId,
+      title: 'Send Failure Article',
+      status: 'Draft',
+    };
+    const updatedArticle = { ...existingArticle, status: 'Pending' };
+
+    mockRepo.findById.mockResolvedValue(existingArticle as never);
+    mockRepo.updateStatus.mockResolvedValue(updatedArticle as never);
+    mockFindActiveByRole.mockResolvedValueOnce([reviewer]);
+    mockNotificationSend.mockRejectedValueOnce(
+      new Error('Notification send failed')
+    );
+
+    await expect(
+      service.submitForReview(articleId, authorId)
+    ).resolves.toEqual(updatedArticle);
+    expect(mockNotificationSend).toHaveBeenCalledTimes(1);
+    await Promise.resolve();
+    consoleErrorSpy.mockRestore();
+  });
+});
+
+describe('ArticleService.publishArticle', () => {
+  const articleId = 'article-123';
+  const approvedArticle = makeArticleRecord({
+    id: articleId,
+    title: 'Approved Article',
+    status: ArticleStatusValue.Approved,
+    authorId: AUTHOR_ALICE.id,
+  });
+  const publishedArticle = {
+    ...approvedArticle,
+    status: ArticleStatusValue.Published,
+  };
+  let mockRepo: ReturnType<typeof makeRepo>;
+  let mockQuizService: ReturnType<typeof makeQuizService>;
+  let service: InstanceType<typeof ArticleService>;
+
+  beforeEach(() => {
+    mockRepo = makeRepo();
+    mockQuizService = makeQuizService();
+    service = new ArticleService(
+      mockRepo as unknown as ArticleRepository,
+      undefined,
+      undefined,
+      undefined,
+      mockQuizService as unknown as QuizService
+    );
+    jest.clearAllMocks();
+    mockNotificationSend.mockReset();
+    mockNotificationSend.mockResolvedValue(undefined);
+  });
+
+  it('should allow an Admin to publish an Approved article', async () => {
+    mockRepo.findById.mockResolvedValue(approvedArticle);
+    mockRepo.updateStatus.mockResolvedValue(publishedArticle);
+
+    const result = await service.publishArticle(
+      articleId,
+      UserRoleValue.Admin
+    );
+
+    expect(mockRepo.findById).toHaveBeenCalledWith(articleId);
+    expect(mockRepo.updateStatus).toHaveBeenCalledWith(
+      articleId,
+      ArticleStatusValue.Published
+    );
+    expect(result).toEqual(publishedArticle);
+    expect(result.status).toBe(ArticleStatusValue.Published);
+    expect(mockNotificationSend).toHaveBeenCalledWith({
+      recipientId: approvedArticle.authorId,
+      notificationReferenceType: 'article',
+      referenceId: articleId,
+      notificationType: 'success',
+      notificationTitle: 'Article Published',
+      message: `Your article "${approvedArticle.title}" is now published.`,
+    });
+    expect(mockQuizService.pregenerateFallbackQuiz).toHaveBeenCalledWith(
+      articleId
+    );
+  });
+
+  it.each([UserRoleValue.Reviewer, UserRoleValue.User] as const)(
+    'should forbid the %s role from publishing an Approved article',
+    async (role) => {
+      await expect(service.publishArticle(articleId, role)).rejects.toMatchObject({
+        message: 'Only Admins can publish articles',
+        statusCode: 403,
+      });
+
+      expect(mockRepo.findById).not.toHaveBeenCalled();
+      expect(mockRepo.updateStatus).not.toHaveBeenCalled();
+    }
+  );
+
+  it('should return 404 when an Admin publishes a missing article', async () => {
+    mockRepo.findById.mockResolvedValue(null);
+
+    await expect(
+      service.publishArticle(articleId, UserRoleValue.Admin)
+    ).rejects.toMatchObject({
+      message: 'Article not found',
+      statusCode: 404,
+    });
+
+    expect(mockRepo.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ArticleStatusValue.Draft,
+    ArticleStatusValue.Pending,
+    ArticleStatusValue.Published,
+    ArticleStatusValue.Unpublished,
+  ] as const)(
+    'should reject Admin publication when the article status is %s',
+    async (status) => {
+      mockRepo.findById.mockResolvedValue(
+        makeArticleRecord({ id: articleId, status })
+      );
+
+      await expect(
+        service.publishArticle(articleId, UserRoleValue.Admin)
+      ).rejects.toMatchObject({
+        message: 'Only Approved articles can be published',
+        statusCode: 400,
+      });
+
+      expect(mockRepo.updateStatus).not.toHaveBeenCalled();
+    }
+  );
+
+  it('should complete publication when the author notification fails', async () => {
+    const consoleErrorSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    mockRepo.findById.mockResolvedValue(approvedArticle);
+    mockRepo.updateStatus.mockResolvedValue(publishedArticle);
+    mockNotificationSend.mockRejectedValueOnce(
+      new Error('Notification failed')
+    );
+
+    await expect(
+      service.publishArticle(articleId, UserRoleValue.Admin)
+    ).resolves.toEqual(publishedArticle);
+    await Promise.resolve();
+
+    expect(mockRepo.updateStatus).toHaveBeenCalledWith(
+      articleId,
+      ArticleStatusValue.Published
+    );
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('should complete publication when fallback quiz generation fails', async () => {
+    const consoleErrorSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    mockRepo.findById.mockResolvedValue(approvedArticle);
+    mockRepo.updateStatus.mockResolvedValue(publishedArticle);
+    mockQuizService.pregenerateFallbackQuiz.mockRejectedValueOnce(
+      new Error('Quiz generation failed')
+    );
+
+    await expect(
+      service.publishArticle(articleId, UserRoleValue.Admin)
+    ).resolves.toEqual(publishedArticle);
+    await Promise.resolve();
+
+    expect(mockRepo.updateStatus).toHaveBeenCalledWith(
+      articleId,
+      ArticleStatusValue.Published
+    );
+    consoleErrorSpy.mockRestore();
   });
 });
 

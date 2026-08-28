@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { UserHomepageArticleCard } from '@/components/homepage/UserHomepageArticleCard';
 import { UserHomepagePopularTags } from '@/components/homepage/UserHomepagePopularTags';
 import { UserHomepageTechTalkCard } from '@/components/homepage/UserHomepageTechTalkCard';
@@ -42,10 +43,16 @@ const FILTERS: Array<{
     { label: 'Tech Talks', value: UserHomepageFeedItemType.TechTalk },
   ];
 
-async function fetchUserHomepageContent(signal?: AbortSignal) {
+async function fetchUserHomepageContent(
+  searchQuery: string,
+  signal?: AbortSignal
+): Promise<{
+  articles: PublishedArticleListItem[];
+  techTalks: TechTalkListItem[];
+}> {
   const [articleResult, techTalkResult] = await Promise.all([
-    fetchPublishedArticles({ signal }),
-    fetchPublishedTechTalks({ signal }),
+    fetchPublishedArticles({ search: searchQuery || undefined, signal }),
+    fetchPublishedTechTalks({ search: searchQuery || undefined, signal }),
   ]);
 
   return {
@@ -55,11 +62,17 @@ async function fetchUserHomepageContent(signal?: AbortSignal) {
 }
 
 export function UserHomepage(): React.JSX.Element {
+  const searchParams = useSearchParams();
+  const searchQuery = searchParams.get('search')?.trim() ?? '';
   const [activeFilter, setActiveFilter] =
     useState<UserHomepageFeedFilter>(ALL_FEED_ITEMS);
-  const { data, loading, error } = useAsync(fetchUserHomepageContent, [], {
-    useAbortSignal: true,
-  });
+  const { data, loading, error } = useAsync(
+    (signal) => fetchUserHomepageContent(searchQuery, signal),
+    [searchQuery],
+    {
+      useAbortSignal: true,
+    }
+  );
   const articles = data?.articles ?? [];
   const techTalks = data?.techTalks ?? [];
   const showHomepageRail = !loading && !error && data !== null;
@@ -111,17 +124,35 @@ export function UserHomepage(): React.JSX.Element {
   } else if (feedItems.length === 0) {
     feedContent = (
       <div className="mt-5 rounded-2xl border border-dashed border-brand-border bg-brand-surface px-6 py-12 text-center text-brand-text-secondary">
-        No published content yet.
+        {searchQuery ? (
+          <>
+            No results found for &quot;{searchQuery}&quot;.
+          </>
+        ) : (
+          'No published content yet.'
+        )}
       </div>
     );
   } else if (visibleFeedItems.length === 0) {
     feedContent = (
       <div className="mt-5 rounded-2xl border border-dashed border-brand-border bg-brand-surface px-6 py-12 text-center text-brand-text-secondary">
-        No{' '}
-        {activeFilter === UserHomepageFeedItemType.Article
-          ? 'articles'
-          : 'Tech Talks'}{' '}
-        yet.
+        {searchQuery ? (
+          <>
+            No{' '}
+            {activeFilter === UserHomepageFeedItemType.Article
+              ? 'articles'
+              : 'Tech Talks'}{' '}
+            found for &quot;{searchQuery}&quot;.
+          </>
+        ) : (
+          <>
+            No{' '}
+            {activeFilter === UserHomepageFeedItemType.Article
+              ? 'articles'
+              : 'Tech Talks'}{' '}
+            yet.
+          </>
+        )}
       </div>
     );
   } else {

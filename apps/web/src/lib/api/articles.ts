@@ -119,15 +119,25 @@ export async function fetchAllArticles(
   return result.data;
 }
 
-export type FetchPublishedArticlesOptions = PaginationParams & RequestInit;
+export type FetchPublishedArticlesOptions = PaginationParams & RequestInit & {
+  search?: string;
+};
 
 export async function fetchPublishedArticles({
   page = DEFAULT_PAGE,
   limit = DEFAULT_PAGE_LIMIT,
+  search,
   ...init
 }: FetchPublishedArticlesOptions = {}): Promise<PublishedArticleListResult> {
+  const params = new URLSearchParams();
+  params.append('page', String(page));
+  params.append('limit', String(limit));
+  if (search) {
+    params.append('search', search);
+  }
+
   const result = await apiFetch<PublishedArticleListResult>(
-    `/articles?page=${page}&limit=${limit}`,
+    `/articles?${params.toString()}`,
     init
   );
 

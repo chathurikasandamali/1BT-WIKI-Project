@@ -3,11 +3,12 @@
  * Domain owner: Malindu (Flag for review when back from leave)
  */
 
-export type ArticleStatus = 'Draft' | 'Pending' | 'Published' | 'Unpublished';
+export type ArticleStatus = 'Draft' | 'Pending' | 'Approved' | 'Published' | 'Unpublished';
 
 export const ArticleStatusValue = {
   Draft: 'Draft',
   Pending: 'Pending',
+  Approved: 'Approved',
   Published: 'Published',
   Unpublished: 'Unpublished',
 } as const satisfies Record<ArticleStatus, ArticleStatus>;
@@ -153,3 +154,31 @@ export interface CreateArticleReviewInput {
   feedback: string | null;
   createdBy: string;
 }
+
+export type ReviewCommentStatus = 'Open' | 'Resolved';
+
+export const ReviewCommentStatusValue = {
+  Open: 'Open',
+  Resolved: 'Resolved',
+} as const satisfies Record<ReviewCommentStatus, ReviewCommentStatus>;
+
+export interface ArticleReviewComment {
+  id: string;
+  reviewId: string;
+  comment: string;
+  selectedText: string | null;
+  anchorData: unknown;
+  status: ReviewCommentStatus;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateReviewCommentInput {
+  reviewId: string;
+  comment: string;
+  selectedText?: string | null;
+  anchorData: unknown;
+  createdBy: string;
+}
+
