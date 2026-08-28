@@ -8,6 +8,7 @@ import notificationService from '@services/notificationService.js';
 import defaultQuizService, { type QuizService } from '@services/quizService.js';
 import { NotificationBuilder } from '@v1/lib/NotificationBuilder.js';
 import { AppError } from '@errors/AppError.js';
+import { HttpStatusCode } from '@utils/httpStatus.js';
 import { UserRoleValue, type UserRole } from '@/types/userTypes.js';
 import type {
   Article,
@@ -404,7 +405,7 @@ export class ArticleService {
 
     const article = await this.repository.findById(articleId);
     if (!article) {
-      throw new AppError('Article not found', 404);
+      throw new AppError('Article not found', HttpStatusCode.NOT_FOUND);
     }
 
     if (article.status !== ArticleStatusValue.Approved) {

@@ -4,6 +4,7 @@ import { successResponse } from '@models/article.types.js';
 import type { CreateArticleInput } from '@models/article.types.js';
 import type { UserRole } from '@/types/userTypes.js';
 import { AppError } from '@errors/AppError.js';
+import { HttpStatusCode } from '@utils/httpStatus.js';
 import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT } from '@repo/shared';
 
 export class ArticleController {
@@ -105,9 +106,8 @@ export class ArticleController {
       const callerRole = req.user!.role as UserRole;
 
       const article = await this.service.publishArticle(id, callerRole);
-
       res
-        .status(200)
+        .status(HttpStatusCode.OK)
         .json(successResponse(article, 'Article published successfully.'));
     } catch (error) {
       next(error);
