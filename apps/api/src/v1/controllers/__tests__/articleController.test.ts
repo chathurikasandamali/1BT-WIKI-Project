@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import type { ArticleService } from '../../services/articleService.js';
 import { AppError } from '../../../errors/AppError.js';
 import { makeMockReqResNext } from '../../__tests__/helpers/mockExpress.helpers.js';
+import { UserRoleValue } from '@/types/userTypes.js';
 
 // articleController.ts imports ArticleService by its named class export (for the
 // constructor's default-parameter `new ArticleService()`); tests always inject a mock
@@ -246,7 +247,7 @@ describe('ArticleController', () => {
       req.user = {
         userId: 'admin-1',
         email: 'admin@example.com',
-        role: 'Admin',
+        role: UserRoleValue.Admin,
       };
     });
 
@@ -263,7 +264,7 @@ describe('ArticleController', () => {
 
       expect(mockService.publishArticle).toHaveBeenCalledWith(
         'article-123',
-        'Admin'
+        UserRoleValue.Admin
       );
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({

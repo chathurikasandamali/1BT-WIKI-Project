@@ -7,7 +7,7 @@ import {
   expect,
   beforeEach,
 } from '@jest/globals';
-import type { ArticleStatus } from '@models/article.types.js';
+import { ArticleStatusValue, type ArticleStatus } from '@models/article.types.js';
 import { UserRoleValue } from '@/types/userTypes.js';
 
 // ─── Module mocks (must precede all dynamic imports) ─────────────────────────
@@ -281,12 +281,17 @@ describe('Admin API Integration', () => {
       );
     });
 
-    it('should return 200 filtered by ?status=Pending for Admin', async () => {
-      const pendingArticles = [
+    it.each([
+      ArticleStatusValue.Pending,
+      ArticleStatusValue.Approved,
+      ArticleStatusValue.Published,
+      ArticleStatusValue.Unpublished,
+    ] as const)('should return 200 filtered by ?status=%s for Admin', async (status) => {
+      const filteredArticles = [
         {
           id: 'article-3',
-          title: 'My Pending',
-          status: 'Pending',
+          title: `My ${status}`,
+          status,
           authorId: 'user-1',
           tags: [],
           createdAt: mockDate,
@@ -294,18 +299,18 @@ describe('Admin API Integration', () => {
         },
       ];
 
-      mockFindByStatus.mockResolvedValueOnce({ articles: pendingArticles, total: 1 });
+      mockFindByStatus.mockResolvedValueOnce({ articles: filteredArticles, total: 1 });
       mockUserFindManyByIds.mockResolvedValueOnce([mockAuthor]);
 
       const response = await request(app)
-        .get('/api/v1/admin/articles?status=Pending')
+        .get(`/api/v1/admin/articles?status=${status}`)
         .set(adminHeaders);
 
       expect(response.status).toBe(200);
       expect(response.body.data.articles).toHaveLength(1);
-      expect(response.body.data.articles[0].status).toBe('Pending');
+      expect(response.body.data.articles[0].status).toBe(status);
       expect(mockFindByStatus).toHaveBeenCalledWith(
-        'Pending',
+        status,
         1,
         20,
         expect.objectContaining({ includeCounts: true })
@@ -319,7 +324,7 @@ describe('Admin API Integration', () => {
 
       expect(response.status).toBe(400);
       expect(response.body.error).toBe(
-        'Invalid status filter. Allowed: Pending, Published, Unpublished'
+        'Invalid status filter. Allowed: Pending, Approved, Published, Unpublished'
       );
       expect(mockFindByStatus).not.toHaveBeenCalled();
     });
@@ -331,7 +336,7 @@ describe('Admin API Integration', () => {
 
       expect(response.status).toBe(400);
       expect(response.body.error).toBe(
-        'Invalid status filter. Allowed: Pending, Published, Unpublished'
+        'Invalid status filter. Allowed: Pending, Approved, Published, Unpublished'
       );
       expect(mockFindByStatus).not.toHaveBeenCalled();
     });

@@ -1,10 +1,14 @@
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, waitFor, act, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
 
 const mockGetArticle = jest.fn();
+const mockPublishArticleAsAdmin = jest.fn();
 
 jest.mock('@/lib/api/articles', () => ({
   getArticle: (...args: unknown[]) => mockGetArticle(...args),
+  publishArticleAsAdmin: (...args: unknown[]) =>
+    mockPublishArticleAsAdmin(...args),
 }));
 
 jest.mock('@/components/auth/RoleGuard', () => ({
@@ -13,6 +17,45 @@ jest.mock('@/components/auth/RoleGuard', () => ({
 
 jest.mock('@/components/article-detail/ArticleContent', () => ({
   ArticleContent: () => <div data-testid="article-content">Content</div>,
+}));
+
+jest.mock('@/components/shared/ConfirmationModal', () => ({
+  ConfirmationModal: ({
+    isOpen,
+    title,
+    message,
+    confirmText,
+    onConfirm,
+    isConfirming,
+  }: {
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    onConfirm: () => void;
+    isConfirming?: boolean;
+  }) =>
+    isOpen ? (
+      <div role="dialog" aria-label={title}>
+        <p>{message}</p>
+        <button type="button" onClick={onConfirm} disabled={isConfirming}>
+          {isConfirming ? 'Processing...' : confirmText}
+        </button>
+      </div>
+    ) : null,
+}));
+
+jest.mock('@/components/shared/Toast', () => ({
+  Toast: ({
+    visible,
+    message,
+    type,
+  }: {
+    visible: boolean;
+    message: string;
+    type: string;
+  }) =>
+    visible ? <div data-testid={`${type}-toast`}>{message}</div> : null,
 }));
 
 import AdminArticleDetailPage from '../page';
@@ -94,6 +137,133 @@ describe('AdminArticleDetailPage', () => {
       );
     });
     expect(screen.queryByTestId('author-email')).not.toBeInTheDocument();
+  });
+
+  it('shows Publish for an Approved article', async () => {
+    mockGetArticle.mockResolvedValue({
+      ...mockArticle,
+      status: 'Approved',
+    });
+
+    await renderPage();
+
+    expect(
+      await screen.findByRole('button', { name: 'Publish' })
+    ).toBeInTheDocument();
+  });
+
+  it.each(['Published', 'Pending'])(
+    'does not show Publish for a %s article',
+    async (status) => {
+      mockGetArticle.mockResolvedValue({
+        ...mockArticle,
+        status,
+      });
+
+      await renderPage();
+
+      await screen.findByText('Draft Under Review');
+      expect(
+        screen.queryByRole('button', { name: 'Publish' })
+      ).not.toBeInTheDocument();
+    }
+  );
+
+  it('publishes an Approved article after confirmation', async () => {
+    const approvedArticle = { ...mockArticle, status: 'Approved' };
+    mockGetArticle.mockResolvedValue(approvedArticle);
+    mockPublishArticleAsAdmin.mockResolvedValue({
+      ...approvedArticle,
+      status: 'Published',
+    });
+
+    await renderPage();
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Publish' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Publish Article' });
+    expect(
+      within(dialog).getByText(/become publicly visible immediately/i)
+    ).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Publish' }));
+
+    await waitFor(() => {
+      expect(mockPublishArticleAsAdmin).toHaveBeenCalledWith(mockArticleId);
+    });
+    expect(await screen.findByTestId('success-toast')).toHaveTextContent(
+      'Article published successfully'
+    );
+    expect(screen.getByTestId('article-status-badge')).toHaveTextContent(
+      'Published'
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Publish' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps an Approved article publishable when publication fails', async () => {
+    mockGetArticle.mockResolvedValue({
+      ...mockArticle,
+      status: 'Approved',
+    });
+    mockPublishArticleAsAdmin.mockRejectedValue(new Error('Publication failed'));
+
+    await renderPage();
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Publish' }));
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Publish Article' })).getByRole(
+        'button',
+        { name: 'Publish' }
+      )
+    );
+
+    expect(await screen.findByTestId('error-toast')).toHaveTextContent(
+      'Publication failed'
+    );
+    expect(screen.getByTestId('article-status-badge')).toHaveTextContent(
+      'Approved'
+    );
+    expect(
+      screen.getByRole('button', { name: 'Publish' })
+    ).toBeInTheDocument();
+  });
+
+  it('prevents duplicate publication while a request is in progress', async () => {
+    const approvedArticle = { ...mockArticle, status: 'Approved' };
+    let resolvePublication: ((article: typeof mockArticle) => void) | undefined;
+    const publicationRequest = new Promise<typeof mockArticle>((resolve) => {
+      resolvePublication = resolve;
+    });
+    mockGetArticle.mockResolvedValue(approvedArticle);
+    mockPublishArticleAsAdmin.mockReturnValue(publicationRequest);
+
+    await renderPage();
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Publish' }));
+    const dialog = screen.getByRole('dialog', { name: 'Publish Article' });
+    await user.click(within(dialog).getByRole('button', { name: 'Publish' }));
+
+    const processingButton = await within(dialog).findByRole('button', {
+      name: 'Processing...',
+    });
+    expect(processingButton).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Publishing...' })).toBeDisabled();
+
+    await user.click(processingButton);
+    expect(mockPublishArticleAsAdmin).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolvePublication?.({
+        ...mockArticle,
+        status: 'Published',
+      });
+      await publicationRequest;
+    });
   });
 
   it('renders the error state with a back link when loading fails', async () => {

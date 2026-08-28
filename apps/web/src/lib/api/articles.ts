@@ -4,6 +4,7 @@ import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT, type PaginationParams } from '@repo/s
 export type ArticleStatus =
   | 'Draft'
   | 'Pending'
+  | 'Approved'
   | 'Published'
   | 'Unpublished'
   | 'Rejected';
@@ -115,6 +116,19 @@ export async function fetchAllArticles(
   );
   if (!result.success || !result.data) {
     throw new Error(result.error || 'Failed to load articles');
+  }
+  return result.data;
+}
+
+export async function publishArticleAsAdmin(
+  articleId: string
+): Promise<ArticleDetail> {
+  const result = await apiFetch<ArticleDetail>(
+    `/admin/articles/${articleId}/publish`,
+    { method: 'PATCH' }
+  );
+  if (!result.success || !result.data) {
+    throw new Error(result.error || 'Failed to publish article');
   }
   return result.data;
 }

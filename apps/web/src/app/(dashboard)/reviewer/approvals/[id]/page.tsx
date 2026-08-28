@@ -32,7 +32,7 @@ function ReviewArticleDetailContent(): React.JSX.Element {
     setIsApproving(true);
     try {
       await approveArticle(id);
-      showToast('Article approved and published successfully', 'success');
+      showToast('Article approved and sent to Admin for publication', 'success');
       setIsApproveModalOpen(false);
       router.push('/reviewer/approvals');
     } catch (err) {
@@ -118,7 +118,7 @@ function ReviewArticleDetailContent(): React.JSX.Element {
             className="flex items-center gap-1.5 px-4 py-2 rounded bg-green-600 hover:bg-green-700 text-white text-sm font-bold transition-colors"
           >
             <CheckCircle className="w-4 h-4" />
-            Approve &amp; Publish
+            Approve &amp; Send to Admin
           </button>
 
           <button
@@ -171,9 +171,9 @@ function ReviewArticleDetailContent(): React.JSX.Element {
 
       <ConfirmationModal
         isOpen={isApproveModalOpen}
-        title="Approve & Publish Article"
-        message={`Are you sure you want to approve and publish "${article.title}"? This will make the article visible to all users.`}
-        confirmText="Approve & Publish"
+        title="Approve Article"
+        message={`Are you sure you want to approve "${article.title}"? It will be sent to Admin for publication and will not be published immediately.`}
+        confirmText="Approve & Send to Admin"
         cancelText="Cancel"
         onConfirm={handleApproveConfirm}
         onCancel={() => setIsApproveModalOpen(false)}

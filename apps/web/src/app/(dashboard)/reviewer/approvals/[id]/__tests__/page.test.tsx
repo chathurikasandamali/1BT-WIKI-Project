@@ -116,18 +116,36 @@ describe('ReviewArticleDetailPage', () => {
 
     await screen.findByRole('heading', { name: 'Pending Review Article Title' });
 
+    expect(screen.getByTestId('approve-button')).toHaveTextContent(
+      'Approve & Send to Admin'
+    );
+    expect(screen.queryByText(/Approve & Publish/i)).not.toBeInTheDocument();
+
     const user = userEvent.setup();
     await user.click(screen.getByTestId('approve-button'));
 
-    expect(screen.getByText('Approve & Publish Article')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Approve Article' })).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Are you sure you want to approve "Pending Review Article Title"? It will be sent to Admin for publication and will not be published immediately.'
+      )
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Approve & Publish/i)).not.toBeInTheDocument();
 
-    const confirmBtn = screen.getAllByRole('button', { name: 'Approve & Publish' }).pop()!;
+    const confirmBtn = screen
+      .getAllByRole('button', { name: 'Approve & Send to Admin' })
+      .pop()!;
     await user.click(confirmBtn);
 
     await waitFor(() => {
       expect(mockApprove).toHaveBeenCalledWith('article-123');
       expect(mockPush).toHaveBeenCalledWith('/reviewer/approvals');
     });
+
+    expect(
+      await screen.findByText('Article approved and sent to Admin for publication')
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Article published/i)).not.toBeInTheDocument();
   });
 
   it('handles reject flow: opens modal, accepts feedback, calls reject API, and navigates back', async () => {

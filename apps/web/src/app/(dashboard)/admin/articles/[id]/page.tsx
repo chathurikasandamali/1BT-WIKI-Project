@@ -2,10 +2,17 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { RoleGuard } from '@/components/auth/RoleGuard';
-import { getArticle, type ArticleDetail } from '@/lib/api/articles';
+import {
+  getArticle,
+  publishArticleAsAdmin,
+  type ArticleDetail,
+} from '@/lib/api/articles';
 import { ArticleContent } from '@/components/article-detail/ArticleContent';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ArrowLeftIcon } from '@/components/shared/icons/ArrowLeftIcon';
+import { ConfirmationModal } from '@/components/shared/ConfirmationModal';
+import { Toast } from '@/components/shared/Toast';
+import { useToast } from '@/lib/hooks/useToast';
 
 interface AdminArticlePageProps {
   params: Promise<{ id: string }>;
@@ -26,6 +33,9 @@ function AdminArticleDetailContent({
   const [article, setArticle] = useState<ArticleDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const { toast, showToast } = useToast();
 
   useEffect(() => {
     let mounted = true;
@@ -55,6 +65,26 @@ function AdminArticleDetailContent({
       mounted = false;
     };
   }, [id]);
+
+  const handlePublishConfirm = async (): Promise<void> => {
+    if (!article || article.status !== 'Approved' || isPublishing) return;
+
+    setIsPublishing(true);
+    try {
+      const publishedArticle = await publishArticleAsAdmin(article.id);
+      setArticle(publishedArticle);
+      setIsPublishModalOpen(false);
+      showToast('Article published successfully', 'success');
+    } catch (err) {
+      setIsPublishModalOpen(false);
+      showToast(
+        err instanceof Error ? err.message : 'Failed to publish article',
+        'error'
+      );
+    } finally {
+      setIsPublishing(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -89,7 +119,7 @@ function AdminArticleDetailContent({
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 pb-24">
-      <div className="mb-6">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <Link
           href="/admin/articles"
           className="inline-flex items-center text-sm font-medium text-brand-text-secondary hover:text-brand-red transition-colors"
@@ -98,6 +128,17 @@ function AdminArticleDetailContent({
           <ArrowLeftIcon width="16" height="16" className="mr-1" />
           Back to Article Management
         </Link>
+
+        {article.status === 'Approved' && (
+          <button
+            type="button"
+            onClick={() => setIsPublishModalOpen(true)}
+            disabled={isPublishing}
+            className="px-5 py-2 bg-brand-red hover:bg-brand-red-hover text-white rounded text-sm font-bold shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isPublishing ? 'Publishing...' : 'Publish'}
+          </button>
+        )}
       </div>
 
       <article className="bg-brand-surface rounded-xl shadow-sm border border-brand-border overflow-hidden">
@@ -185,6 +226,23 @@ function AdminArticleDetailContent({
           <ArticleContent body={article.body} />
         </div>
       </article>
+
+      <ConfirmationModal
+        isOpen={isPublishModalOpen}
+        title="Publish Article"
+        message={`Are you sure you want to publish "${article.title}"? It will become publicly visible immediately.`}
+        confirmText="Publish"
+        cancelText="Cancel"
+        onConfirm={handlePublishConfirm}
+        onCancel={() => setIsPublishModalOpen(false)}
+        isConfirming={isPublishing}
+      />
+
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+      />
     </div>
   );
 }
