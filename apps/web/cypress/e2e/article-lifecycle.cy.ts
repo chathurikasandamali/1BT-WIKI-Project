@@ -155,9 +155,31 @@ describe('Article lifecycle', () => {
 
     // 11. Create the draft
     const articleTitle = `Cypress Draft ${Date.now()}`;
-    const articleContent = 'This draft was created by the Cypress article lifecycle test.';
+    // Realistic, meaningful body whose plain text is well above
+    // MIN_ARTICLE_CONTENT_LENGTH (50 chars). It must also keep the
+    // "Cypress article lifecycle test" substring asserted later in the flow.
+    const articleContent =
+      'This draft provides a realistic article body for the Cypress article lifecycle test, covering the complete review, approval, and publication workflow.';
 
-    // Type the unique title and trigger the real blur behaviour
+    // Register the PATCH autosave alias before interacting so it is ready when
+    // the debounced autosave fires right after the create request resolves.
+    cy.intercept('PATCH', '**/api/v1/articles/*', (req) => {
+      const bodyString = typeof req.body === 'string'
+        ? req.body
+        : JSON.stringify(req.body);
+      if (bodyString.includes(articleContent)) {
+        req.alias = 'finalArticleAutosave';
+      }
+    });
+
+    // Type the article content FIRST so the create request already carries at
+    // least MIN_ARTICLE_CONTENT_LENGTH meaningful characters — the backend
+    // rejects articles that are created with empty content.
+    cy.get('[data-cy="article-content-editor"]')
+      .click()
+      .type(articleContent, { delay: 0 });
+
+    // Type the unique title and trigger the real blur behaviour (fires the create POST)
     cy.get('[data-cy="article-title-input"]').type(articleTitle, { delay: 0 }).blur();
 
     // Wait for the real POST request
@@ -180,21 +202,8 @@ describe('Article lifecycle', () => {
     // 12. Verify exactly one creation request occurred
     cy.get('@createArticle.all').should('have.length', 1);
 
-    // 13. Update content
-    cy.intercept('PATCH', '**/api/v1/articles/*', (req) => {
-      const bodyString = typeof req.body === 'string' 
-        ? req.body 
-        : JSON.stringify(req.body);
-      if (bodyString.includes(articleContent)) {
-        req.alias = 'finalArticleAutosave';
-      }
-    });
-
-    cy.get('[data-cy="article-content-editor"]')
-      .click()
-      .type(articleContent, { delay: 0 });
-
-    // 14. Wait for the real PATCH autosave request
+    // 13. Wait for the real PATCH autosave request (the editor already contains
+    // the content from step 11, so this is the debounced autosave of it)
     // The application has a 3000ms debounce, so we must allow a slightly longer timeout
     cy.wait('@finalArticleAutosave', { timeout: DEFAULT_TIMEOUT }).then((interception) => {
       // Assert PATCH URL contains createdArticleId
