@@ -12,6 +12,14 @@ import {
   SESSION_TOKEN_COOKIE,
 } from '../support/e2e-auth';
 
+type E2EIdentity = NonNullable<Parameters<typeof setE2EIdentity>[0]>;
+
+const E2E_ADMIN = {
+  id: '00000000-0000-4000-8000-000000000103',
+  email: 'e2e-admin@1billiontech.com',
+  role: 'Admin',
+} as unknown as E2EIdentity;
+
 interface PendingArticle {
   id: string;
 }
@@ -44,10 +52,13 @@ type PublishedArticleInterception = Interception<
 
 describe('Article lifecycle', () => {
   let createdArticleId: string | null = null;
+  let useAdminProfile = false;
 
   const DEFAULT_TIMEOUT = 10000; // 10 seconds
 
   beforeEach(() => {
+    useAdminProfile = false;
+
     // 1. Select E2E Author identity
     cy.then(() => setE2EIdentity(E2E_AUTHOR));
 
@@ -57,9 +68,44 @@ describe('Article lifecycle', () => {
 
     // 3. Register required Neon Auth infrastructure stubs
     registerE2EFrontendAuthStubs();
+
+    cy.intercept('GET', '**/api/v1/users/me', (req) => {
+      if (!useAdminProfile) return;
+
+      req.alias = 'getAdminUser';
+      req.reply({
+        statusCode: 200,
+        body: {
+          success: true,
+          data: {
+            id: E2E_ADMIN.id,
+            name: 'E2E Admin',
+            email: E2E_ADMIN.email,
+            avatarUrl: null,
+            role: 'Admin',
+            isActive: true,
+            createdAt: new Date().toISOString(),
+          },
+        },
+      });
+    });
+
+    cy.intercept('GET', '**/api/v1/admin/articles*', (req) => {
+      const reqUrl = new URL(req.url);
+      if (
+        reqUrl.searchParams.get('status') === 'Approved' &&
+        reqUrl.searchParams.get('limit') === '12'
+      ) {
+        req.alias = 'getApprovedAdminArticles';
+      }
+    });
+
+    cy.intercept('PATCH', '**/api/v1/admin/articles/*/publish', (req) => {
+      req.alias = 'publishArticleAsAdmin';
+    });
   });
 
-  it('authenticates the author, creates a draft, and updates content', () => {
+  it('moves an article through approval and Admin publication before public access', () => {
     // 4. Create or restore the frontend session using cy.session()
     cy.session(
       ['e2e-author', E2E_AUTHOR.id],
@@ -376,14 +422,21 @@ describe('Article lifecycle', () => {
       cy.get('[data-testid="article-status-badge"]').should('contain.text', 'Pending');
       cy.get('[data-testid="review-article-content"]').should('contain.text', 'Cypress article lifecycle test');
 
-      cy.get('[data-testid="approve-button"]').should('be.visible');
+      cy.get('[data-testid="approve-button"]')
+        .should('be.visible')
+        .and('contain.text', 'Approve & Send to Admin');
       cy.get('[data-testid="reject-button"]').should('exist');
+      cy.get('[data-testid="review-article-page"]')
+        .contains('button', /^Publish$/)
+        .should('not.exist');
 
       // 31. Approval modal flow
       cy.get('[data-testid="approve-button"]').click();
       cy.get('[data-cy="confirmation-modal"]')
         .filter(':visible')
-        .should('contain.text', 'Approve & Publish Article');
+        .should('contain.text', 'Approve Article')
+        .and('contain.text', 'sent to Admin for publication')
+        .and('contain.text', 'not be published immediately');
 
       cy.get('[data-cy="confirmation-modal"]')
         .filter(':visible')
@@ -411,7 +464,8 @@ describe('Article lifecycle', () => {
         const responseBody = interception.response?.body;
         expect(responseBody.success).to.eq(true);
         expect(responseBody.data.id).to.eq(articleId);
-        expect(responseBody.data.status).to.eq('Published');
+        expect(responseBody.data.status).to.eq('Approved');
+        expect(responseBody.data.status).not.to.eq('Published');
       });
 
       // 33. Assert exactly one approval request
@@ -450,10 +504,6 @@ describe('Article lifecycle', () => {
         );
         expect(hasApprovedArticle).to.eq(false, 'The approved article should no longer be in the pending list');
       });
-
-      // ---------------------------------------------------------
-      // AUTHOR PHASE - PUBLISHED ARTICLE VERIFICATION
-      // ---------------------------------------------------------
 
       cy.then(() => {
         setE2EIdentity(E2E_AUTHOR);
@@ -514,6 +564,191 @@ describe('Article lifecycle', () => {
         const responseBody = interception.response?.body;
         expect(responseBody.success).to.eq(true);
         expect(responseBody.data.articles).to.be.an('array');
+
+        interface PublishedArticle {
+          id: string;
+          title: string;
+          status: string;
+        }
+
+        const approvedArticle = responseBody.data.articles.find(
+          (article: PublishedArticle) => article.id === articleId
+        );
+        expect(approvedArticle).to.eq(undefined);
+      });
+
+      cy.get(`[data-testid="article-card-${articleId}"]`).should('not.exist');
+
+      cy.then(() => {
+        useAdminProfile = true;
+        setE2EIdentity(E2E_ADMIN);
+      });
+
+      cy.session(
+        ['e2e-admin', E2E_ADMIN.id],
+        () => {
+          mintE2EFrontendSession(E2E_ADMIN);
+        },
+        {
+          validate: () => {
+            cy.getCookie(SESSION_TOKEN_COOKIE).should('exist');
+          },
+        }
+      );
+
+      cy.visit('/admin/articles');
+
+      cy.wait('@getAdminUser', { timeout: DEFAULT_TIMEOUT }).then(
+        (interception) => {
+          expect(interception.response?.statusCode).to.eq(200);
+          expect(interception.response?.body.success).to.eq(true);
+          expect(interception.response?.body.data.id).to.eq(E2E_ADMIN.id);
+          expect(interception.response?.body.data.role).to.eq('Admin');
+        }
+      );
+
+      cy.get('[data-testid="status-filter-select"]').select('Approved');
+
+      cy.wait('@getApprovedAdminArticles', {
+        timeout: DEFAULT_TIMEOUT,
+      }).then((interception) => {
+        expect(interception.request.method).to.eq('GET');
+        const reqUrl = new URL(interception.request.url);
+        expect(reqUrl.pathname).to.eq('/api/v1/admin/articles');
+        expect(reqUrl.searchParams.get('status')).to.eq('Approved');
+
+        expect(interception.request.headers['x-test-user-id']).to.eq(
+          E2E_ADMIN.id
+        );
+        expect(interception.request.headers['x-test-user-email']).to.eq(
+          E2E_ADMIN.email
+        );
+        expect(interception.request.headers['x-test-user-role']).to.eq('Admin');
+
+        expect(interception.response?.statusCode).to.eq(200);
+        const responseBody = interception.response?.body;
+        expect(responseBody.success).to.eq(true);
+        expect(responseBody.data.articles).to.be.an('array');
+
+        interface ApprovedArticle {
+          id: string;
+          title: string;
+          status: string;
+        }
+
+        const approvedArticle = responseBody.data.articles.find(
+          (article: ApprovedArticle) => article.id === articleId
+        );
+        if (!approvedArticle) {
+          throw new Error('Article was not found in the Approved queue');
+        }
+
+        expect(approvedArticle.title).to.eq(articleTitle);
+        expect(approvedArticle.status).to.eq('Approved');
+      });
+
+      cy.get(`[data-testid="article-link-${articleId}"]`)
+        .should('be.visible')
+        .and('contain.text', articleTitle)
+        .closest('tr')
+        .should('contain.text', 'Approved');
+
+      cy.get(`[data-testid="article-link-${articleId}"]`).click();
+
+      cy.wait('@getPublishedArticleDetail', {
+        timeout: DEFAULT_TIMEOUT,
+      }).then((interception) => {
+        expect(interception.request.method).to.eq('GET');
+        const reqUrl = new URL(interception.request.url);
+        expect(reqUrl.pathname).to.eq(`/api/v1/articles/${articleId}`);
+        expect(interception.request.headers['x-test-user-id']).to.eq(
+          E2E_ADMIN.id
+        );
+        expect(interception.request.headers['x-test-user-role']).to.eq('Admin');
+        expect(interception.response?.statusCode).to.eq(200);
+        expect(interception.response?.body.data.id).to.eq(articleId);
+        expect(interception.response?.body.data.status).to.eq('Approved');
+      });
+
+      cy.get('[data-testid="article-status-badge"]').should(
+        'contain.text',
+        'Approved'
+      );
+      cy.get('[data-testid="back-link"]')
+        .parent()
+        .contains('button', /^Publish$/)
+        .should('be.visible')
+        .click();
+
+      cy.get('[data-cy="confirmation-modal"]')
+        .filter(':visible')
+        .should('contain.text', 'publicly visible immediately')
+        .within(() => {
+          cy.get('[data-cy="confirm-submit-button"]').click();
+        });
+
+      cy.wait('@publishArticleAsAdmin', {
+        timeout: DEFAULT_TIMEOUT,
+      }).then((interception) => {
+        expect(interception.request.method).to.eq('PATCH');
+        const reqUrl = new URL(interception.request.url);
+        expect(reqUrl.pathname).to.eq(
+          `/api/v1/admin/articles/${articleId}/publish`
+        );
+        expect(interception.request.headers['x-test-user-id']).to.eq(
+          E2E_ADMIN.id
+        );
+        expect(interception.request.headers['x-test-user-role']).to.eq('Admin');
+        expect(interception.response?.statusCode).to.eq(200);
+        expect(interception.response?.body.success).to.eq(true);
+        expect(interception.response?.body.data.id).to.eq(articleId);
+        expect(interception.response?.body.data.status).to.eq('Published');
+        expect(interception.response?.body.message).to.eq(
+          'Article published successfully.'
+        );
+      });
+
+      cy.get('[data-testid="success-toast"]')
+        .should('be.visible')
+        .and('contain.text', 'Article published successfully');
+      cy.get('[data-testid="article-status-badge"]').should(
+        'contain.text',
+        'Published'
+      );
+      cy.get('[data-testid="back-link"]')
+        .parent()
+        .contains('button', /^Publish$/)
+        .should('not.exist');
+
+      cy.then(() => {
+        useAdminProfile = false;
+        setE2EIdentity(E2E_AUTHOR);
+      });
+
+      cy.session(
+        ['e2e-author-published-check', E2E_AUTHOR.id],
+        () => {
+          mintE2EFrontendSession(E2E_AUTHOR);
+        },
+        {
+          validate: () => {
+            cy.getCookie(SESSION_TOKEN_COOKIE).should('exist');
+          },
+        }
+      );
+
+      cy.visit('/articles');
+      cy.wait('@getCurrentUser', { timeout: DEFAULT_TIMEOUT });
+      cy.get(
+        '[data-testid="search-input"][placeholder="Search by title..."]'
+      ).type(articleTitle, { delay: 0 });
+
+      cy.wait('@searchPublishedArticles', {
+        timeout: DEFAULT_TIMEOUT,
+      }).then((interception) => {
+        expect(interception.response?.statusCode).to.eq(200);
+        const responseBody = interception.response?.body;
+        expect(responseBody.success).to.eq(true);
 
         interface PublishedArticle {
           id: string;
