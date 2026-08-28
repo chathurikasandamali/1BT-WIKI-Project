@@ -33,6 +33,11 @@ export interface ArticleDetail {
   commentCount?: number;
 }
 
+interface ArticleForReviewResponse {
+  article: ArticleDetail;
+  review: unknown | null;
+}
+
 export interface ListPendingResult {
   articles: PendingArticleListItem[];
   total: number;
@@ -49,11 +54,11 @@ export async function listPending(page = DEFAULT_PAGE, limit = DEFAULT_PAGE_LIMI
 }
 
 export async function getArticleForReview(articleId: string): Promise<ArticleDetail> {
-  const result = await apiFetch<ArticleDetail>(`/reviewer/articles/${articleId}`);
+  const result = await apiFetch<ArticleForReviewResponse>(`/reviewer/articles/${articleId}`);
   if (!result.success || !result.data) {
     throw new Error(result.error || 'Failed to load article');
   }
-  return result.data;
+  return result.data.article;
 }
 
 export async function approve(articleId: string): Promise<void> {
