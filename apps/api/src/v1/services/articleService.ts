@@ -31,7 +31,6 @@ import {
   type TipTapJsonContent,
   getArticleContentLength,
 } from '@repo/shared';
-import { HttpStatusCode } from '../utils/httpStatus.js';
 
 // Derives update-field shapes from the app-level Article interface — no Prisma types cross into the service layer.
 type ArticleUpdateFields = Partial<
