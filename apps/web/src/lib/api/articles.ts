@@ -4,6 +4,7 @@ import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT, type PaginationParams } from '@repo/s
 export type ArticleStatus =
   | 'Draft'
   | 'Pending'
+  | 'Approved'
   | 'Published'
   | 'Unpublished'
   | 'Rejected';
