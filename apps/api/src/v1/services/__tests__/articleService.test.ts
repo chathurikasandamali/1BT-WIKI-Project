@@ -7,6 +7,7 @@ import type { CreateNotificationInput } from '@models/notificationTypes.js';
 import type { QuizService } from '@services/quizService.js';
 import type { User, UserRole } from '@/types/userTypes.js';
 import { UserRoleValue } from '@/types/userTypes.js';
+import { HttpStatusCode } from '@/v1/utils/httpStatus.js';
 
 const mockFindActiveByRole = jest
   .fn<(role: UserRole) => Promise<User[]>>()
@@ -139,7 +140,7 @@ const AUTHOR_BOB = { id: 'user-2', name: 'Bob', email: 'bob@example.com' };
 const UNKNOWN_AUTHOR = { authorName: 'Unknown', authorEmail: null, authorImage: null };
 const INVALID_STATUS_FILTER_ERROR = new AppError(
   'Invalid status filter. Allowed: Pending, Published, Unpublished',
-  400
+  HttpStatusCode.BAD_REQUEST
 );
 
 /** Typed builder for repository article rows — override only what a test cares about. */
@@ -158,6 +159,23 @@ const makeArticleRecord = (
   authorName: AUTHOR_ALICE.name,
   ...overrides,
 });
+
+// Valid TipTap body whose meaningful plain-text length exceeds the shared
+// MIN_ARTICLE_CONTENT_LENGTH — required for creation that must succeed.
+const VALID_BODY = {
+  type: 'doc',
+  content: [
+    {
+      type: 'paragraph',
+      content: [
+        {
+          type: 'text',
+          text: 'This is a sufficiently detailed article body containing more than fifty characters of meaningful content for validation.',
+        },
+      ],
+    },
+  ],
+};
 
 describe('ArticleService.createArticle', () => {
   const authorId = 'user-123';
@@ -188,7 +206,7 @@ describe('ArticleService.createArticle', () => {
 
       await expect(
         service.createArticle(input, authorId, images)
-      ).rejects.toThrow(new AppError('Maximum 10 images per article', 400));
+      ).rejects.toThrow(new AppError('Maximum 10 images per article', HttpStatusCode.BAD_REQUEST));
     });
 
     it('should throw AppError if an image exceeds 5MB', async () => {
@@ -202,7 +220,7 @@ describe('ArticleService.createArticle', () => {
 
       await expect(
         service.createArticle(input, authorId, images)
-      ).rejects.toThrow(new AppError('Image size cannot exceed 5MB', 400));
+      ).rejects.toThrow(new AppError('Image size cannot exceed 5MB', HttpStatusCode.BAD_REQUEST));
     });
 
     it('should throw AppError if an image has invalid mimetype', async () => {
@@ -214,21 +232,21 @@ describe('ArticleService.createArticle', () => {
       await expect(
         service.createArticle(input, authorId, images)
       ).rejects.toThrow(
-        new AppError('Only jpeg, png, webp, and gif images are allowed', 400)
+        new AppError('Only jpeg, png, webp, and gif images are allowed', HttpStatusCode.BAD_REQUEST)
       );
     });
 
     it('should throw AppError if title is missing or empty', async () => {
       const input = { title: '   ', body: { type: 'doc' } };
       await expect(service.createArticle(input, authorId)).rejects.toThrow(
-        new AppError('Title is required and cannot be empty', 400)
+        new AppError('Title is required and cannot be empty', HttpStatusCode.BAD_REQUEST)
       );
     });
 
     it('should throw AppError if title exceeds 500 characters', async () => {
       const input = { title: 'a'.repeat(501), body: { type: 'doc' } };
       await expect(service.createArticle(input, authorId)).rejects.toThrow(
-        new AppError('Title cannot exceed 500 characters', 400)
+        new AppError('Title cannot exceed 500 characters', HttpStatusCode.BAD_REQUEST)
       );
     });
 
@@ -240,7 +258,7 @@ describe('ArticleService.createArticle', () => {
       await expect(service.createArticle(input, authorId)).rejects.toThrow(
         new AppError(
           'Body must be valid JSONContent, raw HTML is not allowed',
-          400
+          HttpStatusCode.BAD_REQUEST
         )
       );
     });
@@ -248,7 +266,7 @@ describe('ArticleService.createArticle', () => {
     it('should throw AppError if body is an array', async () => {
       const input = { title: 'Valid Title', body: [] as unknown as never };
       await expect(service.createArticle(input, authorId)).rejects.toThrow(
-        new AppError('Body must be a valid JSON object', 400)
+        new AppError('Body must be a valid JSON object', HttpStatusCode.BAD_REQUEST)
       );
     });
 
@@ -258,8 +276,136 @@ describe('ArticleService.createArticle', () => {
         body: { content: 'hello' } as unknown as never,
       };
       await expect(service.createArticle(input, authorId)).rejects.toThrow(
-        new AppError('Body must have a "type" field', 400)
+        new AppError('Body must have a "type" field', HttpStatusCode.BAD_REQUEST)
       );
+    });
+
+    it('should throw AppError if body is missing or empty', async () => {
+      const input = { title: 'Valid Title', body: undefined };
+      await expect(service.createArticle(input, authorId)).rejects.toThrow(
+        new AppError('Article content is required', HttpStatusCode.BAD_REQUEST)
+      );
+    });
+
+    it('should throw AppError if the TipTap document has no content', async () => {
+      const input = {
+        title: 'Valid Title',
+        body: { type: 'doc', content: [] },
+      };
+      await expect(service.createArticle(input, authorId)).rejects.toThrow(
+        new AppError('Article content is required', HttpStatusCode.BAD_REQUEST)
+      );
+    });
+
+    it('should throw AppError if the TipTap document has only empty paragraphs', async () => {
+      const input = {
+        title: 'Valid Title',
+        body: {
+          type: 'doc',
+          content: [
+            { type: 'paragraph' },
+            { type: 'paragraph' },
+            { type: 'paragraph' },
+          ],
+        },
+      };
+      await expect(service.createArticle(input, authorId)).rejects.toThrow(
+        new AppError('Article content is required', HttpStatusCode.BAD_REQUEST)
+      );
+    });
+
+    it('should throw AppError if the TipTap content is whitespace-only', async () => {
+      const input = {
+        title: 'Valid Title',
+        body: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: '   ' }],
+            },
+          ],
+        },
+      };
+      await expect(service.createArticle(input, authorId)).rejects.toThrow(
+        new AppError('Article content is required', HttpStatusCode.BAD_REQUEST)
+      );
+    });
+
+    it('should throw AppError if the content is below the minimum length', async () => {
+      const input = {
+        title: 'Valid Title',
+        body: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: 'short content' }],
+            },
+          ],
+        },
+      };
+      await expect(service.createArticle(input, authorId)).rejects.toThrow(
+        new AppError(
+          'Article content must be at least 50 characters',
+          HttpStatusCode.BAD_REQUEST
+        )
+      );
+    });
+
+    it('should accept content exactly at the minimum length', async () => {
+      const exactText = 'x'.repeat(50);
+      const input = {
+        title: 'Valid Title',
+        body: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: exactText }],
+            },
+          ],
+        },
+      };
+      mockRepo.create.mockResolvedValue({
+        id: 'article-min',
+        ...input,
+        authorId,
+      } as never);
+
+      await expect(
+        service.createArticle(input, authorId)
+      ).resolves.toBeDefined();
+      expect(mockRepo.create).toHaveBeenCalled();
+    });
+
+    it('should count only meaningful text, not markup', async () => {
+      const input = {
+        title: 'Valid Title',
+        body: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                { type: 'text', text: 'Hello ' },
+                {
+                  type: 'text',
+                  marks: [{ type: 'strong' }],
+                  text: 'world, this is a long formatted paragraph with sufficient length.',
+                },
+              ],
+            },
+          ],
+        },
+      };
+      mockRepo.create.mockResolvedValue({
+        id: 'article-markup',
+        ...input,
+        authorId,
+      } as never);
+
+      await expect(service.createArticle(input, authorId)).resolves.toBeDefined();
     });
   });
 
@@ -267,7 +413,7 @@ describe('ArticleService.createArticle', () => {
     it('should successfully create an article without images', async () => {
       const input = {
         title: 'Valid Title',
-        body: { type: 'doc' },
+        body: VALID_BODY,
         tags: ['test'],
       };
       const createdArticle = { id: 'article-123', ...input, authorId };
@@ -278,7 +424,7 @@ describe('ArticleService.createArticle', () => {
 
       expect(mockRepo.create).toHaveBeenCalledWith({
         title: 'Valid Title',
-        body: { type: 'doc' },
+        body: VALID_BODY,
         tags: ['test'],
         authorId,
       });
@@ -286,7 +432,7 @@ describe('ArticleService.createArticle', () => {
     });
 
     it('should successfully create an article and upload valid images', async () => {
-      const input = { title: 'Valid Title', body: { type: 'doc' } };
+      const input = { title: 'Valid Title', body: VALID_BODY };
       const images = [
         {
           originalname: 'test image.png',
@@ -342,7 +488,7 @@ describe('ArticleService.createArticle', () => {
     });
 
     it('should return warnings if image upload fails', async () => {
-      const input = { title: 'Valid Title', body: { type: 'doc' } };
+      const input = { title: 'Valid Title', body: VALID_BODY };
       const images = [
         {
           originalname: 'fail.png',
@@ -441,7 +587,7 @@ describe('ArticleService.listAllArticles', () => {
   it('should throw 400 for an invalid sort field', async () => {
     await expect(
       service.listAllArticles(1, 20, undefined, undefined, 'hackedField')
-    ).rejects.toThrow(new AppError('Invalid sort field. Allowed: title, createdAt, views', 400));
+    ).rejects.toThrow(new AppError('Invalid sort field. Allowed: title, createdAt, views', HttpStatusCode.BAD_REQUEST));
 
     expect(mockRepo.findByStatus).not.toHaveBeenCalled();
   });
@@ -449,7 +595,7 @@ describe('ArticleService.listAllArticles', () => {
   it('should throw 400 for an invalid order value', async () => {
     await expect(
       service.listAllArticles(1, 20, undefined, undefined, 'createdAt', 'sideways')
-    ).rejects.toThrow(new AppError('Invalid sort order. Allowed: asc, desc', 400));
+    ).rejects.toThrow(new AppError('Invalid sort order. Allowed: asc, desc', HttpStatusCode.BAD_REQUEST));
 
     expect(mockRepo.findByStatus).not.toHaveBeenCalled();
   });
@@ -584,7 +730,7 @@ describe('ArticleService.updateArticle', () => {
     await expect(
       service.updateArticle(articleId, {}, authorId)
     ).rejects.toThrow(
-      new AppError('Only the author can edit this article', 403)
+      new AppError('Only the author can edit this article', HttpStatusCode.FORBIDDEN)
     );
   });
 
@@ -600,7 +746,7 @@ describe('ArticleService.updateArticle', () => {
     await expect(
       service.updateArticle(articleId, {}, authorId)
     ).rejects.toThrow(
-      new AppError('Only Draft or Rejected articles can be edited', 400)
+      new AppError('Only Draft or Rejected articles can be edited', HttpStatusCode.BAD_REQUEST)
     );
   });
 
@@ -742,7 +888,7 @@ describe('ArticleService.submitForReview', () => {
     mockRepo.findById.mockResolvedValue(null);
 
     await expect(service.submitForReview(articleId, authorId)).rejects.toThrow(
-      new AppError('Article not found', 404)
+      new AppError('Article not found', HttpStatusCode.NOT_FOUND)
     );
   });
 
@@ -750,7 +896,7 @@ describe('ArticleService.submitForReview', () => {
     mockRepo.findById.mockResolvedValue({ authorId: 'other-user' } as never);
 
     await expect(service.submitForReview(articleId, authorId)).rejects.toThrow(
-      new AppError('Only the author can edit this article', 403)
+      new AppError('Only the author can edit this article', HttpStatusCode.FORBIDDEN)
     );
   });
 
@@ -761,7 +907,7 @@ describe('ArticleService.submitForReview', () => {
     } as never);
 
     await expect(service.submitForReview(articleId, authorId)).rejects.toThrow(
-      new AppError('Cannot transition from Pending to Pending', 400)
+      new AppError('Cannot transition from Pending to Pending', HttpStatusCode.BAD_REQUEST)
     );
   });
 
@@ -979,7 +1125,7 @@ describe('ArticleService.publishArticle', () => {
     async (role) => {
       await expect(service.publishArticle(articleId, role)).rejects.toMatchObject({
         message: 'Only Admins can publish articles',
-        statusCode: 403,
+        statusCode: HttpStatusCode.FORBIDDEN,
       });
 
       expect(mockRepo.findById).not.toHaveBeenCalled();
@@ -994,7 +1140,7 @@ describe('ArticleService.publishArticle', () => {
       service.publishArticle(articleId, UserRoleValue.Admin)
     ).rejects.toMatchObject({
       message: 'Article not found',
-      statusCode: 404,
+      statusCode: HttpStatusCode.NOT_FOUND,
     });
 
     expect(mockRepo.updateStatus).not.toHaveBeenCalled();
@@ -1016,7 +1162,7 @@ describe('ArticleService.publishArticle', () => {
         service.publishArticle(articleId, UserRoleValue.Admin)
       ).rejects.toMatchObject({
         message: 'Only Approved articles can be published',
-        statusCode: 400,
+        statusCode: HttpStatusCode.BAD_REQUEST,
       });
 
       expect(mockRepo.updateStatus).not.toHaveBeenCalled();
@@ -1192,12 +1338,12 @@ describe('ArticleService.listPublished', () => {
 
   it('should throw AppError 400 when an invalid sort parameter is provided', async () => {
     await expect(service.listPublished(1, 10, undefined, 'invalidField', 'asc'))
-      .rejects.toThrow(new AppError('Invalid sort field. Allowed: title, createdAt, views', 400));
+      .rejects.toThrow(new AppError('Invalid sort field. Allowed: title, createdAt, views', HttpStatusCode.BAD_REQUEST));
   });
 
   it('should throw AppError 400 when an invalid order parameter is provided', async () => {
     await expect(service.listPublished(1, 10, undefined, 'views', 'invalidOrder'))
-      .rejects.toThrow(new AppError('Invalid sort order. Allowed: asc, desc', 400));
+      .rejects.toThrow(new AppError('Invalid sort order. Allowed: asc, desc', HttpStatusCode.BAD_REQUEST));
   });
 
   it('should pass search, sort, and order parameters to repository findByStatus', async () => {
@@ -1291,7 +1437,7 @@ describe('ArticleService.getArticleById', () => {
     mockRepo.findById.mockResolvedValue(null);
 
     await expect(service.getArticleById(articleId)).rejects.toThrow(
-      new AppError('Article not found', 404)
+      new AppError('Article not found', HttpStatusCode.NOT_FOUND)
     );
   });
 
@@ -1303,7 +1449,7 @@ describe('ArticleService.getArticleById', () => {
       );
 
       await expect(service.getArticleById(articleId)).rejects.toThrow(
-        new AppError('Article not available', 403)
+        new AppError('Article not available', HttpStatusCode.FORBIDDEN)
       );
     }
   );
@@ -1366,7 +1512,7 @@ describe('ArticleService.getArticleById', () => {
     );
 
     await expect(service.getArticleById(articleId, authorId)).rejects.toThrow(
-      new AppError('Article not available', 403)
+      new AppError('Article not available', HttpStatusCode.FORBIDDEN)
     );
   });
 
@@ -1376,7 +1522,7 @@ describe('ArticleService.getArticleById', () => {
     );
 
     await expect(service.getArticleById(articleId, null)).rejects.toThrow(
-      new AppError('Article not available', 403)
+      new AppError('Article not available', HttpStatusCode.FORBIDDEN)
     );
   });
 
@@ -1410,7 +1556,7 @@ describe('ArticleService.getArticleById', () => {
 
     await expect(
       service.getArticleById(articleId, authorId, 'Employee' as never)
-    ).rejects.toThrow(new AppError('Article not available', 403));
+    ).rejects.toThrow(new AppError('Article not available', HttpStatusCode.FORBIDDEN));
   });
 
   it('should enrich the article with authorName and authorEmail when the author exists', async () => {
@@ -1472,7 +1618,7 @@ describe('ArticleService.deleteArticle', () => {
       await expect(
         service.deleteArticle(articleId, authorId, 'User')
       ).rejects.toThrow(
-        new AppError('Only Draft articles can be deleted', 400)
+        new AppError('Only Draft articles can be deleted', HttpStatusCode.BAD_REQUEST)
       );
 
       expect(mockRepo.softDelete).not.toHaveBeenCalled();
@@ -1489,7 +1635,7 @@ describe('ArticleService.deleteArticle', () => {
 
     await expect(
       service.deleteArticle(articleId, authorId, 'User')
-    ).rejects.toThrow(new AppError('Not authorized', 403));
+    ).rejects.toThrow(new AppError('Not authorized', HttpStatusCode.FORBIDDEN));
 
     expect(mockRepo.softDelete).not.toHaveBeenCalled();
     expect(mockRepo.hardDelete).not.toHaveBeenCalled();
@@ -1505,7 +1651,7 @@ describe('ArticleService.deleteArticle', () => {
     await expect(
       service.deleteArticle(articleId, authorId, 'User', true)
     ).rejects.toThrow(
-      new AppError('Only Admins can permanently delete articles', 403)
+      new AppError('Only Admins can permanently delete articles', HttpStatusCode.FORBIDDEN)
     );
 
     expect(mockRepo.softDelete).not.toHaveBeenCalled();
@@ -1550,7 +1696,7 @@ describe('ArticleService.deleteArticle', () => {
 
     await expect(
       service.deleteArticle(articleId, authorId, 'User')
-    ).rejects.toThrow(new AppError('Article not found', 404));
+    ).rejects.toThrow(new AppError('Article not found', HttpStatusCode.NOT_FOUND));
 
     expect(mockRepo.softDelete).not.toHaveBeenCalled();
     expect(mockRepo.hardDelete).not.toHaveBeenCalled();

@@ -48,7 +48,7 @@ await jest.unstable_mockModule('@middleware/auth.middleware.js', () => ({
         return;
       }
 
-      res.status(401).json({ success: false, error: 'Authentication required' });
+      res.status(HttpStatusCode.UNAUTHORIZED).json({ success: false, error: 'Authentication required' });
     }
   ),
 }));
@@ -191,7 +191,7 @@ describe('Article Lifecycle Integration', () => {
     const createRes = await request(app)
       .post('/api/v1/articles')
       .set(authorHeaders)
-      .field('data', JSON.stringify({ title: 'Lifecycle Test', body: { type: 'doc', content: [] }, tags: ['test'] }));
+      .field('data', JSON.stringify({ title: 'Lifecycle Test', body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'This lifecycle test article body has more than fifty meaningful characters of content to be valid.' }] }] }, tags: ['test'] }));
 
     expect(createRes.status).toBe(HttpStatusCode.CREATED);
     expect(createRes.body.success).toBe(true);
@@ -241,21 +241,21 @@ describe('Article Lifecycle Integration', () => {
       .get('/api/v1/articles')
       .set(readerHeaders);
 
-    expect(approvedListRes.status).toBe(200);
+    expect(approvedListRes.status).toBe(HttpStatusCode.OK);
     expect(approvedListRes.body.data.articles).toHaveLength(0);
 
     const approvedDetailRes = await request(app)
       .get(`/api/v1/articles/${articleId}`)
       .set(readerHeaders);
 
-    expect(approvedDetailRes.status).toBe(403);
+    expect(approvedDetailRes.status).toBe(HttpStatusCode.FORBIDDEN);
     expect(approvedDetailRes.body.error).toBe('Article not available');
 
     const reviewerPublishRes = await request(app)
       .patch(`/api/v1/admin/articles/${articleId}/publish`)
       .set(reviewerHeaders);
 
-    expect(reviewerPublishRes.status).toBe(403);
+    expect(reviewerPublishRes.status).toBe(HttpStatusCode.FORBIDDEN);
     expect(reviewerPublishRes.body.error).toBe('Insufficient permissions');
     expect(articleStore.get(articleId)?.status).toBe(
       ArticleStatusValue.Approved
@@ -266,7 +266,7 @@ describe('Article Lifecycle Integration', () => {
       .patch(`/api/v1/admin/articles/${articleId}/publish`)
       .set(adminHeaders);
 
-    expect(publishRes.status).toBe(200);
+    expect(publishRes.status).toBe(HttpStatusCode.OK);
     expect(publishRes.body.success).toBe(true);
     expect(publishRes.body.data.status).toBe(ArticleStatusValue.Published);
     expect(publishRes.body.message).toBe('Article published successfully.');
@@ -276,7 +276,7 @@ describe('Article Lifecycle Integration', () => {
       .get('/api/v1/articles')
       .set(readerHeaders);
 
-    expect(publishedListRes.status).toBe(200);
+    expect(publishedListRes.status).toBe(HttpStatusCode.OK);
     expect(publishedListRes.body.data.articles).toHaveLength(1);
     expect(publishedListRes.body.data.articles[0].id).toBe(articleId);
     expect(publishedListRes.body.data.articles[0].status).toBe(
@@ -291,5 +291,102 @@ describe('Article Lifecycle Integration', () => {
     expect(getRes.body.success).toBe(true);
     expect(getRes.body.data.status).toBe(ArticleStatusValue.Published);
     expect(getRes.body.data.id).toBe(articleId);
+  });
+
+  const validBody = {
+    type: 'doc',
+    content: [
+      {
+        type: 'paragraph',
+        content: [
+          {
+            type: 'text',
+            text: 'This article body has far more than fifty meaningful characters of content so that creation succeeds.',
+          },
+        ],
+      },
+    ],
+  };
+
+  it('rejects article creation with an empty title', async () => {
+    const res = await request(app)
+      .post('/api/v1/articles')
+      .set(authorHeaders)
+      .field(
+        'data',
+        JSON.stringify({ title: '   ', body: validBody, tags: ['test'] })
+      );
+
+    expect(res.status).toBe(HttpStatusCode.BAD_REQUEST);
+    expect(res.body.error).toBe('Title is required and cannot be empty');
+  });
+
+  it('rejects article creation with empty TipTap content', async () => {
+    const res = await request(app)
+      .post('/api/v1/articles')
+      .set(authorHeaders)
+      .field(
+        'data',
+        JSON.stringify({
+          title: 'Valid Title',
+          body: { type: 'doc', content: [] },
+          tags: ['test'],
+        })
+      );
+
+    expect(res.status).toBe(HttpStatusCode.BAD_REQUEST);
+    expect(res.body.error).toBe('Article content is required');
+  });
+
+  it('rejects article creation with whitespace-only content', async () => {
+    const res = await request(app)
+      .post('/api/v1/articles')
+      .set(authorHeaders)
+      .field(
+        'data',
+        JSON.stringify({
+          title: 'Valid Title',
+          body: {
+            type: 'doc',
+            content: [
+              {
+                type: 'paragraph',
+                content: [{ type: 'text', text: '   ' }],
+              },
+            ],
+          },
+          tags: ['test'],
+        })
+      );
+
+    expect(res.status).toBe(HttpStatusCode.BAD_REQUEST);
+    expect(res.body.error).toBe('Article content is required');
+  });
+
+  it('rejects article creation with content below the minimum length', async () => {
+    const res = await request(app)
+      .post('/api/v1/articles')
+      .set(authorHeaders)
+      .field(
+        'data',
+        JSON.stringify({
+          title: 'Valid Title',
+          body: {
+            type: 'doc',
+            content: [
+              {
+                type: 'paragraph',
+                content: [{ type: 'text', text: 'short content' }],
+              },
+            ],
+          },
+          tags: ['test'],
+        })
+      );
+
+    expect(res.status).toBe(HttpStatusCode.BAD_REQUEST);
+    expect(res.body.error).toBe(
+      'Article content must be at least 50 characters'
+    );
   });
 });

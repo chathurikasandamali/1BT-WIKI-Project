@@ -18,6 +18,7 @@ const mockSaveDraft = jest.fn();
 const mockSubmitForReview = jest.fn();
 let mockContextState: Record<string, unknown> = {};
 const mockEnsureDraftExists = jest.fn();
+const mockValidate = jest.fn(() => true);
 
 jest.mock('@/components/editor/EditorDraftContext', () => ({
   useEditorDraft: () => ({
@@ -32,6 +33,7 @@ jest.mock('@/components/editor/EditorDraftContext', () => ({
     saveDraft: mockSaveDraft,
     submitForReview: mockSubmitForReview,
     ensureDraftExists: mockEnsureDraftExists,
+    validate: mockValidate,
     ...mockContextState,
   }),
 }));
@@ -165,6 +167,20 @@ describe('EditorHeader', () => {
         expect(mockShowToast).not.toHaveBeenCalled();
       });
     });
+
+    it('blocks saving and shows an error toast when validation fails', async () => {
+      mockValidate.mockReturnValueOnce(false);
+      render(<EditorHeader mode="compose" setMode={jest.fn()} />);
+      
+      const saveBtn = screen.getByRole('button', { name: /save draft/i });
+      await userEvent.click(saveBtn);
+      
+      expect(mockValidate).toHaveBeenCalled();
+      expect(mockSaveDraft).not.toHaveBeenCalled();
+      await waitFor(() => {
+        expect(mockShowToast).toHaveBeenCalledWith('Please fix the highlighted errors before saving.');
+      });
+    });
     
     it('disables save button when saveStatus is saving', () => {
       mockContextState = { saveStatus: 'saving' };
@@ -212,6 +228,20 @@ describe('EditorHeader', () => {
       await waitFor(() => {
         expect(mockShowToast).toHaveBeenCalledWith('Custom error from backend');
         expect(mockRouterPush).not.toHaveBeenCalled(); // Should not redirect on fail
+      });
+    });
+
+    it('blocks submission and shows an error toast when validation fails', async () => {
+      mockValidate.mockReturnValueOnce(false);
+      render(<EditorHeader mode="compose" setMode={jest.fn()} />);
+      
+      const submitBtn = screen.getByRole('button', { name: /submit for review/i });
+      await userEvent.click(submitBtn);
+      
+      expect(mockValidate).toHaveBeenCalled();
+      expect(mockSubmitForReview).not.toHaveBeenCalled();
+      await waitFor(() => {
+        expect(mockShowToast).toHaveBeenCalledWith('Please fix the highlighted errors before submitting.');
       });
     });
 
