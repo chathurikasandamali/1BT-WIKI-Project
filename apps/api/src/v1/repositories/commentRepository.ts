@@ -101,7 +101,7 @@ const findPending = async (
         createdByUser: { select: { name: true, image: true } },
         article: { select: { title: true } },
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'desc' },
       skip: (page - 1) * limit,
       take: limit,
     }),
