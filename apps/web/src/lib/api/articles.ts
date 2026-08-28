@@ -120,6 +120,19 @@ export async function fetchAllArticles(
   return result.data;
 }
 
+export async function publishArticleAsAdmin(
+  articleId: string
+): Promise<ArticleDetail> {
+  const result = await apiFetch<ArticleDetail>(
+    `/admin/articles/${articleId}/publish`,
+    { method: 'PATCH' }
+  );
+  if (!result.success || !result.data) {
+    throw new Error(result.error || 'Failed to publish article');
+  }
+  return result.data;
+}
+
 export type FetchPublishedArticlesOptions = PaginationParams & RequestInit & {
   search?: string;
 };
