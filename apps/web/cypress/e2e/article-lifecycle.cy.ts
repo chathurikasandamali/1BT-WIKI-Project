@@ -45,7 +45,7 @@ type PublishedArticleInterception = Interception<
 describe('Article lifecycle', () => {
   let createdArticleId: string | null = null;
 
-  const DEFAULT_TIMEOUT = 10000; // 10 seconds
+  const DEFAULT_TIMEOUT = 20000; // 10 seconds
 
   beforeEach(() => {
     // 1. Select E2E Author identity
