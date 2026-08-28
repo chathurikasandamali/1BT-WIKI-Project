@@ -89,20 +89,6 @@ describe('Article lifecycle', () => {
         },
       });
     });
-
-    cy.intercept('GET', '**/api/v1/admin/articles*', (req) => {
-      const reqUrl = new URL(req.url);
-      if (
-        reqUrl.searchParams.get('status') === 'Approved' &&
-        reqUrl.searchParams.get('limit') === '12'
-      ) {
-        req.alias = 'getApprovedAdminArticles';
-      }
-    });
-
-    cy.intercept('PATCH', '**/api/v1/admin/articles/*/publish', (req) => {
-      req.alias = 'publishArticleAsAdmin';
-    });
   });
 
   it('moves an article through approval and Admin publication before public access', () => {
