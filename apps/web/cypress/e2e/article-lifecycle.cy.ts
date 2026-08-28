@@ -405,38 +405,12 @@ describe('Article lifecycle', () => {
 
         expect(interception.response?.statusCode).to.eq(200);
         const responseBody = interception.response?.body;
-        if (responseBody?.data?.id === undefined) {
-          throw new Error(
-            `Reviewer article detail interception diagnostic:\n${JSON.stringify(
-              {
-                request: {
-                  url: interception.request.url,
-                  method: interception.request.method,
-                  headers: {
-                    'x-test-user-id':
-                      interception.request.headers['x-test-user-id'],
-                    'x-test-user-email':
-                      interception.request.headers['x-test-user-email'],
-                    'x-test-user-role':
-                      interception.request.headers['x-test-user-role'],
-                  },
-                },
-                response: {
-                  statusCode: interception.response?.statusCode,
-                  body: interception.response?.body,
-                },
-              },
-              null,
-              2
-            )}`
-          );
-        }
         expect(responseBody.success).to.eq(true);
-        expect(responseBody.data.id).to.eq(articleId);
-        expect(responseBody.data.title).to.eq(articleTitle);
-        expect(responseBody.data.status).to.eq('Pending');
+        expect(responseBody.data.article.id).to.eq(articleId);
+        expect(responseBody.data.article.title).to.eq(articleTitle);
+        expect(responseBody.data.article.status).to.eq('Pending');
 
-        const bodyStr = JSON.stringify(responseBody.data.body);
+        const bodyStr = JSON.stringify(responseBody.data.article.body);
         expect(bodyStr).to.include('Cypress article lifecycle test');
       });
 
