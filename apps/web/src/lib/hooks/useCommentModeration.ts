@@ -36,8 +36,8 @@ export function usePendingComments(page = DEFAULT_PAGE, limit = DEFAULT_PAGE_LIM
     setComments((prev) => prev.filter((c) => c.id !== commentId));
   }, []);
 
-  const reject = useCallback(async (commentId: string) => {
-    await rejectComment(commentId);
+  const reject = useCallback(async (commentId: string, reason: string) => {
+    await rejectComment(commentId, reason);
     setComments((prev) => prev.filter((c) => c.id !== commentId));
   }, []);
 

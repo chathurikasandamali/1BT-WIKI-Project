@@ -58,6 +58,7 @@
     "jest-environment-jsdom": "^30.4.1",
     "jest-location-mock": "^4.0.1",
     "start-server-and-test": "^3.0.11",
+    "ts-node": "^10.9.2",
     "typescript": "5.9.2",
     "wait-on": "^8.0.3"
   }

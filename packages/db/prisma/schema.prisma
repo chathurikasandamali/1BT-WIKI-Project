@@ -118,21 +118,21 @@ model session {
 }
 
 model user {
-  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name            String
-  email           String              @unique
-  emailVerified   Boolean
-  image           String?
-  createdAt       DateTime            @default(now()) @db.Timestamptz(6)
-  updatedAt       DateTime            @default(now()) @db.Timestamptz(6)
-  role            String?
-  banned          Boolean?
-  banReason       String?
-  banExpires      DateTime?           @db.Timestamptz(6)
-  account         account[]
-  invitation      invitation[]
-  member          member[]
-  session         session[]
+  id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String
+  email            String              @unique
+  emailVerified    Boolean
+  image            String?
+  createdAt        DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime            @default(now()) @db.Timestamptz(6)
+  role             String?
+  banned           Boolean?
+  banReason        String?
+  banExpires       DateTime?           @db.Timestamptz(6)
+  account          account[]
+  invitation       invitation[]
+  member           member[]
+  session          session[]
   attachments      articleAttachment[]
   comments         comment[]           @relation("comment_created_by")
   commentsReviewed comment[]           @relation("comment_reviewed_by")
@@ -160,27 +160,25 @@ model verification {
 }
 
 model article {
-  id                String        @id @default(uuid()) @db.Uuid
-  title             String        @db.VarChar(500)
-  body              Json          @default("{}")
-  status            ArticleStatus @map("status")
-  authorId          String        @map("author_id") @db.Uuid
-  coverAttachmentId String?       @unique @map("cover_attachment_id") @db.Uuid
-  views             Int           @default(0)
-  tags              String[]      @default([]) @map("article_tags")
-  deletedAt         DateTime?     @map("deleted_at") @db.Timestamptz(6)
-  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  attachments     articleAttachment[] @relation("ArticleAttachments")
-  coverAttachment articleAttachment?  @relation("ArticleCoverAttachment", fields: [coverAttachmentId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  comments        comment[]
-  likes           like[]
-  reviews         articleReview[]
-
-  user             user              @relation(fields: [authorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  quizzes          quiz[]
-  quizFocusAspects quizFocusAspects?
+  id                String              @id @default(uuid()) @db.Uuid
+  title             String              @db.VarChar(500)
+  body              Json                @default("{}")
+  status            ArticleStatus       @map("status")
+  authorId          String              @map("author_id") @db.Uuid
+  views             Int                 @default(0)
+  tags              String[]            @default([]) @map("article_tags")
+  deletedAt         DateTime?           @map("deleted_at") @db.Timestamptz(6)
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  coverAttachmentId String?             @unique @map("cover_attachment_id") @db.Uuid
+  attachments       articleAttachment[] @relation("ArticleAttachments")
+  comments          comment[]
+  likes             like[]
+  reviews           articleReview[]
+  user              user                @relation(fields: [authorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  coverAttachment   articleAttachment?  @relation("ArticleCoverAttachment", fields: [coverAttachmentId], references: [id], onUpdate: NoAction)
+  quizFocusAspects  quizFocusAspects?
+  quizzes           quiz[]
 
   @@index([authorId], map: "idx_articles_author_id")
   @@index([deletedAt], map: "idx_articles_deleted_at")
@@ -190,21 +188,21 @@ model article {
 }
 
 model articleAttachment {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  articleId    String    @map("article_id") @db.Uuid
-  uploadedBy   String    @map("uploaded_by") @db.Uuid
-  fileName     String    @map("file_name")
-  b2FileKey    String    @unique @map("b2_file_key")
-  b2FileId     String    @map("b2_file_id")
-  b2BucketName String    @map("b2_bucket_name")
-  fileUrl      String    @map("file_url")
-  mimeType     String    @map("mime_type")
-  sizeBytes    Int       @map("size_bytes")
-  createdAt    DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
-  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
-  article         article  @relation("ArticleAttachments", fields: [articleId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  coverForArticle article? @relation("ArticleCoverAttachment")
-  user            user     @relation(fields: [uploadedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  articleId       String    @map("article_id") @db.Uuid
+  uploadedBy      String    @map("uploaded_by") @db.Uuid
+  fileName        String    @map("file_name")
+  b2FileKey       String    @unique @map("b2_file_key")
+  b2FileId        String    @map("b2_file_id")
+  b2BucketName    String    @map("b2_bucket_name")
+  fileUrl         String    @map("file_url")
+  mimeType        String    @map("mime_type")
+  sizeBytes       Int       @map("size_bytes")
+  createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
+  article         article   @relation("ArticleAttachments", fields: [articleId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user            user      @relation(fields: [uploadedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  coverForArticle article?  @relation("ArticleCoverAttachment")
 
   @@index([articleId], map: "idx_article_attachments_article_id")
   @@index([uploadedBy], map: "idx_article_attachments_uploaded_by")
@@ -213,19 +211,20 @@ model articleAttachment {
 }
 
 model comment {
-  id         String        @id @default(uuid()) @db.Uuid
-  articleId  String        @map("article_id") @db.Uuid
-  createdBy  String        @map("created_by") @db.Uuid
-  body       String
-  status     CommentStatus @default(Pending) @map("status")
-  reviewedBy String?       @map("reviewed_by") @db.Uuid
-  reviewedAt DateTime?     @map("reviewed_at") @db.Timestamptz(6)
-  deletedAt  DateTime?     @map("deleted_at") @db.Timestamp(6)
-  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt  DateTime      @updatedAt @map("updated_at") @db.Timestamp(6)
-  article        article @relation(fields: [articleId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  createdByUser  user    @relation("comment_created_by", fields: [createdBy], references: [id], onUpdate: NoAction)
-  reviewedByUser user?   @relation("comment_reviewed_by", fields: [reviewedBy], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  id              String        @id @default(uuid()) @db.Uuid
+  articleId       String        @map("article_id") @db.Uuid
+  createdBy       String        @map("created_by") @db.Uuid
+  body            String
+  deletedAt       DateTime?     @map("deleted_at") @db.Timestamp(6)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamp(6)
+  reviewedAt      DateTime?     @map("reviewed_at") @db.Timestamptz(6)
+  reviewedBy      String?       @map("reviewed_by") @db.Uuid
+  status          CommentStatus @default(Pending) @map("status")
+  rejectionReason String?       @map("rejection_reason")
+  article         article       @relation(fields: [articleId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  createdByUser   user          @relation("comment_created_by", fields: [createdBy], references: [id], onUpdate: NoAction)
+  reviewedByUser  user?         @relation("comment_reviewed_by", fields: [reviewedBy], references: [id], onUpdate: NoAction)
 
   @@index([articleId, createdAt], map: "idx_article_comments_active", where: raw("(deleted_at IS NULL)"))
   @@index([articleId], map: "idx_article_comments_article_id")
@@ -301,8 +300,8 @@ model quiz {
   articleId      String   @map("article_id") @db.Uuid
   isFallback     Boolean  @default(false) @map("is_fallback")
   configSnapshot Json     @default("{}") @map("config_snapshot")
-  generatedAt    DateTime @default(now()) @map("generated_at") @db.Timestamptz(6)
   questions      Json     @default("[]")
+  generatedAt    DateTime @default(now()) @map("generated_at") @db.Timestamptz(6)
   article        article  @relation(fields: [articleId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([articleId], map: "idx_quizzes_article_id")

@@ -10,6 +10,7 @@ export interface Comment {
   status: CommentStatus;
   reviewedBy: string | null;
   reviewedAt: string | null;
+  rejectionReason: string | null;
   createdAt: string;
   updatedAt: string;
 }
