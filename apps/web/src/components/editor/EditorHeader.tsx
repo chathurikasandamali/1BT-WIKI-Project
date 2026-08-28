@@ -38,6 +38,7 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
     lastError,
     saveDraft,
     submitForReview,
+    validate,
   } = useEditorDraft();
   const statusDotRef = useRef<HTMLDivElement>(null);
   const {
@@ -104,8 +105,14 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
   }, [saveStatus]);
 
   const handleSaveDraft = async () => {
+    if (!validate()) {
+      setToastType('error');
+      showToast('Please fix the highlighted errors before saving.');
+      return;
+    }
     try {
       await saveDraft();
+      setToastType('success');
       showToast(DRAFT_SAVED_MESSAGE);
     } catch {
       // Error state is already set in context
@@ -113,6 +120,11 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
   };
 
   const handleSubmitForReview = async () => {
+    if (!validate()) {
+      setToastType('error');
+      showToast('Please fix the highlighted errors before submitting.');
+      return;
+    }
     setIsSubmitting(true);
     try {
       await submitForReview();
@@ -127,6 +139,15 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleOpenConfirmModal = () => {
+    if (!validate()) {
+      setToastType('error');
+      showToast('Please fix the highlighted errors before submitting.');
+      return;
+    }
+    setIsConfirmModalOpen(true);
   };
 
   const handleGenerateQuizClick = () => {
@@ -267,7 +288,7 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
           <button
             type="button"
             data-cy="submit-for-review-button"
-            onClick={() => setIsConfirmModalOpen(true)}
+            onClick={handleOpenConfirmModal}
             disabled={isSaving || isPublished}
             className="rounded-lg bg-brand-red px-5 py-2 text-sm font-bold text-white shadow-md hover:bg-brand-red-hover disabled:bg-brand-red-disabled transition-colors"
           >

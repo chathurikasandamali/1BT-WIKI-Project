@@ -4,6 +4,7 @@ import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import type { CreateNotificationInput } from '@models/notificationTypes.js';
 import type { UserRole } from '@/types/userTypes.js';
 import { UserRoleValue } from '@/types/userTypes.js';
+import { HttpStatusCode } from '@/v1/utils/httpStatus.js';
 
 // Mock Prisma DB from @repo/db
 await jest.unstable_mockModule('@repo/db', () => ({
@@ -46,7 +47,7 @@ await jest.unstable_mockModule('@/middleware/auth.middleware.js', () => ({
       }
 
       res
-        .status(401)
+        .status(HttpStatusCode.UNAUTHORIZED)
         .json({ success: false, error: 'Authentication required' });
     }
   ),
@@ -173,7 +174,7 @@ describe('Articles API Integration', () => {
         .patch(articlePath)
         .send({ data: JSON.stringify({ title: 'New Title' }) });
 
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(HttpStatusCode.UNAUTHORIZED);
     });
 
     it('should return 404 if article not found', async () => {
@@ -184,7 +185,7 @@ describe('Articles API Integration', () => {
         .set(userHeaders)
         .field('data', JSON.stringify({ title: 'New Title' }));
 
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(HttpStatusCode.NOT_FOUND);
     });
 
     it('should return 403 if user is not author', async () => {
@@ -199,7 +200,7 @@ describe('Articles API Integration', () => {
         .set(userHeaders)
         .field('data', JSON.stringify({ title: 'New Title' }));
 
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
     });
 
     it('should update article successfully if user is author and article is Draft', async () => {
@@ -219,12 +220,82 @@ describe('Articles API Integration', () => {
         .set(userHeaders)
         .field('data', JSON.stringify({ title: 'New Title' }));
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(HttpStatusCode.OK);
       expect(response.body.success).toBe(true);
       expect(response.body.data.title).toBe('New Title');
       expect(mockUpdate).toHaveBeenCalledWith(articleId, {
         title: 'New Title',
       });
+    });
+
+    it('should return 400 when updating with an empty title', async () => {
+      const existingArticle = {
+        id: articleId,
+        authorId: 'user-123',
+        status: 'Draft',
+        title: 'Old Title',
+      };
+      mockFindById.mockResolvedValueOnce(existingArticle);
+
+      const response = await request(app)
+        .patch(articlePath)
+        .set(userHeaders)
+        .field('data', JSON.stringify({ title: '   ' }));
+
+      expect(response.status).toBe(HttpStatusCode.BAD_REQUEST);
+      expect(mockUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 when updating with an empty TipTap body', async () => {
+      const existingArticle = {
+        id: articleId,
+        authorId: 'user-123',
+        status: 'Draft',
+        title: 'Old Title',
+      };
+      mockFindById.mockResolvedValueOnce(existingArticle);
+
+      const response = await request(app)
+        .patch(articlePath)
+        .set(userHeaders)
+        .field(
+          'data',
+          JSON.stringify({ body: { type: 'doc', content: [] } })
+        );
+
+      expect(response.status).toBe(HttpStatusCode.BAD_REQUEST);
+      expect(mockUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 when updating with content below the minimum length', async () => {
+      const existingArticle = {
+        id: articleId,
+        authorId: 'user-123',
+        status: 'Draft',
+        title: 'Old Title',
+      };
+      mockFindById.mockResolvedValueOnce(existingArticle);
+
+      const response = await request(app)
+        .patch(articlePath)
+        .set(userHeaders)
+        .field(
+          'data',
+          JSON.stringify({
+            body: {
+              type: 'doc',
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [{ type: 'text', text: 'short content' }],
+                },
+              ],
+            },
+          })
+        );
+
+      expect(response.status).toBe(HttpStatusCode.BAD_REQUEST);
+      expect(mockUpdate).not.toHaveBeenCalled();
     });
   });
 
@@ -233,7 +304,7 @@ describe('Articles API Integration', () => {
 
     it('should return 401 if unauthenticated', async () => {
       const response = await request(app).get(listArticlePath);
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(HttpStatusCode.UNAUTHORIZED);
     });
 
     it('should return published articles with default pagination', async () => {
@@ -260,7 +331,7 @@ describe('Articles API Integration', () => {
         .get(listArticlePath)
         .set(userHeaders);
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(HttpStatusCode.OK);
       expect(response.body.success).toBe(true);
       expect(response.body.data.articles).toHaveLength(1);
       expect(response.body.data.articles[0].likeCount).toBe(5);
@@ -290,7 +361,7 @@ describe('Articles API Integration', () => {
         .get(`${listArticlePath}?page=3&limit=5`)
         .set(userHeaders);
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(HttpStatusCode.OK);
       expect(response.body.data.page).toBe(3);
       expect(response.body.data.limit).toBe(5);
 
@@ -315,7 +386,7 @@ describe('Articles API Integration', () => {
         .get(`${listArticlePath}?search=react&sort=views&order=asc&page=1&limit=10`)
         .set(userHeaders);
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(HttpStatusCode.OK);
       expect(response.body.data.page).toBe(1);
       expect(response.body.data.limit).toBe(10);
 
@@ -338,7 +409,7 @@ describe('Articles API Integration', () => {
         .get(`${listArticlePath}?sort=notAField`)
         .set(userHeaders);
 
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(HttpStatusCode.BAD_REQUEST);
     });
 
     it('should return 400 when an invalid sort order is provided', async () => {
@@ -346,7 +417,7 @@ describe('Articles API Integration', () => {
         .get(`${listArticlePath}?sort=views&order=sideways`)
         .set(userHeaders);
 
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(HttpStatusCode.BAD_REQUEST);
     });
   });
 
@@ -357,7 +428,7 @@ describe('Articles API Integration', () => {
 
     it('should return 401 if unauthenticated', async () => {
       const response = await request(app).get(articlePath);
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(HttpStatusCode.UNAUTHORIZED);
     });
 
     it('should return 404 if article not found', async () => {
@@ -367,7 +438,7 @@ describe('Articles API Integration', () => {
         .get(articlePath)
         .set(userHeaders);
 
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(HttpStatusCode.NOT_FOUND);
     });
 
     it('should return 403 if article is not Published and requester is not the author', async () => {
@@ -381,7 +452,7 @@ describe('Articles API Integration', () => {
         .get(articlePath)
         .set(userHeaders);
 
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
     });
 
     it('should return 200 and the article if Published', async () => {
@@ -396,7 +467,7 @@ describe('Articles API Integration', () => {
         .get(articlePath)
         .set(userHeaders);
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(HttpStatusCode.OK);
       expect(response.body.success).toBe(true);
       expect(response.body.data.title).toBe('Test Article');
     });
@@ -418,7 +489,7 @@ describe('Articles API Integration', () => {
         .get(articlePath)
         .set(userHeaders);
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(HttpStatusCode.OK);
       expect(response.body.success).toBe(true);
       expect(response.body.data.title).toBe('My Draft');
       expect(response.body.data.status).toBe('Draft');
@@ -442,7 +513,7 @@ describe('Articles API Integration', () => {
         .get(articlePath)
         .set(userHeaders);
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(HttpStatusCode.OK);
       expect(response.body.success).toBe(true);
       expect(response.body.data.title).toBe('My Rejected');
       expect(response.body.data.status).toBe('Rejected');
@@ -460,7 +531,7 @@ describe('Articles API Integration', () => {
         .get(articlePath)
         .set(userHeaders);
 
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
     });
 
     it('should return 401 for unauthenticated request to a Draft article (blocked by authenticate middleware)', async () => {
@@ -470,7 +541,7 @@ describe('Articles API Integration', () => {
       const response = await request(app)
         .get(articlePath);
 
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(HttpStatusCode.UNAUTHORIZED);
       expect(response.body.success).toBe(false);
       expect(mockFindById).not.toHaveBeenCalled();
     });
@@ -487,7 +558,7 @@ describe('Articles API Integration', () => {
         .get(articlePath)
         .set(adminHeaders);
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(HttpStatusCode.OK);
       expect(response.body.success).toBe(true);
       expect(response.body.data.title).toBe('Oversight Target');
       expect(response.body.data.status).toBe('Draft');
@@ -504,7 +575,7 @@ describe('Articles API Integration', () => {
         .get(articlePath)
         .set(userHeaders);
 
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
     });
   });
 
@@ -512,7 +583,7 @@ describe('Articles API Integration', () => {
     const mineArticlePath = '/api/v1/articles/mine';
     it('should return 401 if unauthenticated', async () => {
       const response = await request(app).get(mineArticlePath);
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(HttpStatusCode.UNAUTHORIZED);
     });
 
     it("should return the authenticated user's own articles across all statuses with default pagination", async () => {
@@ -538,7 +609,7 @@ describe('Articles API Integration', () => {
         .get(mineArticlePath)
         .set(userHeaders);
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(HttpStatusCode.OK);
       expect(response.body.success).toBe(true);
       expect(response.body.data.articles).toHaveLength(1);
       expect(response.body.data.articles[0].status).toBe('Draft');
@@ -586,7 +657,7 @@ describe('Articles API Integration', () => {
         .get(mineArticlePath)
         .set(userHeaders);
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(HttpStatusCode.OK);
       expect(response.body.data.articles).toHaveLength(2);
       expect(response.body.data.articles[0].rejectionFeedback).toBe('Please add more technical details.');
       expect(response.body.data.articles[1].rejectionFeedback).toBeNull();
@@ -599,7 +670,7 @@ describe('Articles API Integration', () => {
         .get(`${mineArticlePath}?page=3&limit=5`)
         .set(userHeaders);
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(HttpStatusCode.OK);
       expect(response.body.data.page).toBe(3);
       expect(response.body.data.limit).toBe(5);
 
@@ -613,7 +684,7 @@ describe('Articles API Integration', () => {
 
     it('should return 401 if unauthenticated', async () => {
       const response = await request(app).post(submitPath);
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(HttpStatusCode.UNAUTHORIZED);
     });
 
     it('should return 404 if article not found', async () => {
@@ -623,7 +694,7 @@ describe('Articles API Integration', () => {
         .post(submitPath)
         .set(userHeaders);
 
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(HttpStatusCode.NOT_FOUND);
     });
 
     it('should return 403 if user is not author', async () => {
@@ -637,7 +708,7 @@ describe('Articles API Integration', () => {
         .post(submitPath)
         .set(userHeaders);
 
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
     });
 
     it('should return 400 if article is not Draft', async () => {
@@ -651,7 +722,7 @@ describe('Articles API Integration', () => {
         .post(submitPath)
         .set(userHeaders);
 
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(HttpStatusCode.BAD_REQUEST);
       expect(response.body.error).toBe(
         'Cannot transition from Pending to Pending'
       );
@@ -675,7 +746,7 @@ describe('Articles API Integration', () => {
         .post(submitPath)
         .set(userHeaders);
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(HttpStatusCode.OK);
       expect(response.body.success).toBe(true);
       expect(response.body.data.status).toBe('Pending');
       expect(mockUpdateStatus).toHaveBeenCalledWith(articleId, 'Pending');
@@ -715,7 +786,7 @@ describe('Articles API Integration', () => {
         .delete(deletePath)
         .set(userHeaders);
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(HttpStatusCode.OK);
       expect(response.body.success).toBe(true);
       expect(response.body.data).toBeNull();
       expect(response.body.message).toBe('Article deleted successfully');
@@ -735,7 +806,7 @@ describe('Articles API Integration', () => {
         .delete(deletePath)
         .set(userHeaders);
 
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(HttpStatusCode.BAD_REQUEST);
       expect(response.body.error).toBe('Only Draft articles can be deleted');
       expect(mockSoftDelete).not.toHaveBeenCalled();
       expect(mockHardDelete).not.toHaveBeenCalled();
@@ -752,7 +823,7 @@ describe('Articles API Integration', () => {
         .delete(deletePath)
         .set(userHeaders);
 
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
       expect(response.body.error).toBe('Not authorized');
       expect(mockSoftDelete).not.toHaveBeenCalled();
       expect(mockHardDelete).not.toHaveBeenCalled();
@@ -774,7 +845,7 @@ describe('Articles API Integration', () => {
         .delete(`${deletePath}?hard=true`)
         .set(adminHeaders);
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(HttpStatusCode.OK);
       expect(response.body.success).toBe(true);
       expect(mockHardDelete).toHaveBeenCalledWith(articleId);
       expect(mockSoftDelete).not.toHaveBeenCalled();
