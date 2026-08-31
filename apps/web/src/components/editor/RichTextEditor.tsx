@@ -172,6 +172,10 @@ export function RichTextEditor({ onOpenImageEmbed }: RichTextEditorProps) {
     handleTitleBlur,
     notifyContentChanged,
     initialBody,
+    titleError,
+    contentError,
+    clearTitleError,
+    clearContentError,
   } = useEditorDraft();
 
   const reportCounts = (ed: Editor) => {
@@ -202,6 +206,7 @@ export function RichTextEditor({ onOpenImageEmbed }: RichTextEditorProps) {
     },
     onUpdate: ({ editor: ed }) => {
       reportCounts(ed);
+      if (contentError) clearContentError();
     },
   });
 
@@ -232,11 +237,22 @@ export function RichTextEditor({ onOpenImageEmbed }: RichTextEditorProps) {
           data-cy="article-title-input"
           type="text"
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => {
+            setTitle(e.target.value);
+            if (titleError) clearTitleError();
+          }}
           onBlur={handleTitleBlur}
           placeholder="Enter an inspiring title..."
-          className="w-full bg-transparent text-4xl font-bold font-display text-brand-text-primary outline-none placeholder:text-gray-400 mb-8"
+          className={cn(
+            'w-full bg-transparent text-4xl font-bold font-display text-brand-text-primary outline-none placeholder:text-gray-400 mb-8',
+            titleError && 'outline-brand-red'
+          )}
         />
+        {titleError && (
+          <p data-cy="title-error" className="mb-8 text-sm font-medium text-brand-red">
+            {titleError}
+          </p>
+        )}
 
         <p className="text-xs font-bold tracking-widest text-brand-text-secondary uppercase mb-3">
           Tags & Classification
@@ -305,6 +321,11 @@ export function RichTextEditor({ onOpenImageEmbed }: RichTextEditorProps) {
         <div className="bg-white">
           <EditorContent editor={editor} />
         </div>
+        {contentError && (
+          <p data-cy="content-error" className="border-t border-brand-border px-8 py-3 text-sm font-medium text-brand-red">
+            {contentError}
+          </p>
+        )}
       </div>
     </div>
   );

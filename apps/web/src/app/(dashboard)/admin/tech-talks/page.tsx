@@ -105,6 +105,7 @@ function TechTalkManagementContent(): React.JSX.Element {
   // Filter / sort / pagination state
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<TechTalkStatus | 'All'>('All');
   const [sortField, setSortField] = useState<SortField>('eventDate');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [page, setPage] = useState(1);
@@ -123,9 +124,10 @@ function TechTalkManagementContent(): React.JSX.Element {
     }, 400);
   };
 
-  const query: Omit<AdminTechTalkListQuery, 'status'> = {
+  const query: AdminTechTalkListQuery = {
     page,
     limit: PAGE_SIZE,
+    status: statusFilter === 'All' ? undefined : statusFilter,
     search: debouncedSearch || undefined,
     sort: sortField,
     order: sortDir,
@@ -445,6 +447,24 @@ function TechTalkManagementContent(): React.JSX.Element {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Status filter */}
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(
+                  e.target.value as TechTalkStatus | 'All'
+                );
+                setPage(1);
+              }}
+              data-testid="techtalk-status-filter"
+              className="text-xs font-medium px-3 py-2 bg-brand-surface border border-brand-border rounded text-brand-text-secondary focus:outline-none focus:border-brand-red transition-colors cursor-pointer"
+            >
+              <option value="All">All Statuses</option>
+              <option value="draft">Draft</option>
+              <option value="published">Published</option>
+              <option value="unpublished">Unpublished</option>
+            </select>
+
             {/* Sort controls */}
             <div className="flex items-center gap-1 border border-brand-border rounded overflow-hidden bg-brand-surface">
               {(['title', 'eventDate'] as SortField[]).map((f) => (
@@ -469,7 +489,7 @@ function TechTalkManagementContent(): React.JSX.Element {
         </div>
 
         {/* Table body */}
-        {loading ? (
+        {loading && (
           <div
             className="py-20 flex flex-col items-center justify-center gap-3"
             data-testid="admin-techtalks-loading"
@@ -479,14 +499,16 @@ function TechTalkManagementContent(): React.JSX.Element {
               Loading Tech Talks…
             </p>
           </div>
-        ) : techTalks.length === 0 ? (
+        )}
+        {!loading && techTalks.length === 0 && (
           <div
             className="py-20 text-center text-sm text-brand-text-secondary"
             data-testid="admin-techtalks-empty"
           >
             No Tech Talks found.
           </div>
-        ) : (
+        )}
+        {!loading && techTalks.length > 0 && (
           <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

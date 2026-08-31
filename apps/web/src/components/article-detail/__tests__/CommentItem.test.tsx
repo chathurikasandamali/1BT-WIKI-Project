@@ -21,6 +21,9 @@ function makeComment(
     articleId: 'a1',
     createdBy: 'test-user-1',
     body: 'Great article!',
+    status: 'Approved',
+    reviewedBy: null,
+    reviewedAt: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     authorName: 'Test User',
@@ -70,6 +73,51 @@ describe('CommentItem', () => {
 
     expect(screen.getByTestId('edit-comment-btn')).toBeInTheDocument();
     expect(screen.getByTestId('delete-comment-btn')).toBeInTheDocument();
+  });
+
+  describe('moderation status badge', () => {
+    it('does not show a status badge for an Approved comment', () => {
+      render(
+        <CommentItem
+          comment={makeComment({ status: 'Approved' })}
+          currentUserId="someone-else"
+          onDelete={jest.fn()}
+          onEdit={jest.fn()}
+        />
+      );
+
+      expect(screen.queryByTestId('comment-status-badge')).not.toBeInTheDocument();
+    });
+
+    it('shows a "Pending approval" badge for a Pending comment', () => {
+      render(
+        <CommentItem
+          comment={makeComment({ status: 'Pending' })}
+          currentUserId="test-user-1"
+          onDelete={jest.fn()}
+          onEdit={jest.fn()}
+        />
+      );
+
+      expect(screen.getByTestId('comment-status-badge')).toHaveTextContent(
+        'Pending approval'
+      );
+    });
+
+    it('shows a "Not approved" badge for a Rejected comment', () => {
+      render(
+        <CommentItem
+          comment={makeComment({ status: 'Rejected' })}
+          currentUserId="test-user-1"
+          onDelete={jest.fn()}
+          onEdit={jest.fn()}
+        />
+      );
+
+      expect(screen.getByTestId('comment-status-badge')).toHaveTextContent(
+        'Not approved'
+      );
+    });
   });
 
   describe('delete flow', () => {

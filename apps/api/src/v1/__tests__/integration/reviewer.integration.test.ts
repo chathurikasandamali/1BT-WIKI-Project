@@ -1,5 +1,6 @@
 // apps/api/src/v1/__tests__/integration/reviewer.integration.test.ts
 
+import { HttpStatusCode } from '@/v1/utils/httpStatus.js';
 import {
   jest,
   describe,
@@ -11,6 +12,9 @@ import {
 
 await jest.unstable_mockModule('@repo/db', () => ({
   TechTalkStatus: { draft: 'draft', published: 'published', unpublished: 'unpublished' },
+  ReviewStatus: { Pending: 'Pending', Approved: 'Approved', Rejected: 'Rejected' },
+  ReviewCommentStatus: { Open: 'Open', Resolved: 'Resolved' },
+  ArticleStatus: { Draft: 'Draft', Pending: 'Pending', Approved: 'Approved', Published: 'Published', Unpublished: 'Unpublished' },
   prisma: {
     user: {
       findFirst: jest.fn(),
@@ -47,7 +51,7 @@ await jest.unstable_mockModule('@middleware/auth.middleware.js', () => ({
       }
 
       res
-        .status(401)
+        .status(HttpStatusCode.UNAUTHORIZED)
         .json({ success: false, error: 'Authentication required' });
     }
   ),
@@ -63,6 +67,9 @@ const MockArticleRepository = {
 
 const MockArticleReviewRepository = {
   create: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
+  findPendingWithComments: jest.fn<() => Promise<unknown>>().mockResolvedValue(null),
+  updateStatus: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
+  findById: jest.fn<() => Promise<unknown>>().mockResolvedValue(null),
 };
 
 const MockUserRepository = {
@@ -88,6 +95,23 @@ await jest.unstable_mockModule(
       .fn()
       .mockImplementation(() => MockArticleReviewRepository),
     default: jest.fn().mockImplementation(() => MockArticleReviewRepository),
+  })
+);
+
+const MockArticleReviewCommentRepository = {
+  findById: jest.fn<() => Promise<unknown>>().mockResolvedValue(null),
+  findByReviewId: jest.fn<() => Promise<unknown>>().mockResolvedValue([]),
+  create: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
+  updateStatus: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
+};
+
+await jest.unstable_mockModule(
+  '@repositories/articleReviewCommentRepository.js',
+  () => ({
+    ArticleReviewCommentRepository: jest
+      .fn()
+      .mockImplementation(() => MockArticleReviewCommentRepository),
+    default: MockArticleReviewCommentRepository,
   })
 );
 
@@ -152,7 +176,7 @@ describe('Reviewer API Integration', () => {
         '/api/v1/reviewer/articles/pending'
       );
 
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(HttpStatusCode.UNAUTHORIZED);
       expect(response.body.success).toBe(false);
     });
 
@@ -161,7 +185,7 @@ describe('Reviewer API Integration', () => {
         .get('/api/v1/reviewer/articles/pending')
         .set(userHeaders);
 
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
       expect(response.body.error).toBe('Insufficient permissions');
       expect(mockFindByStatus).not.toHaveBeenCalled();
     });
@@ -189,7 +213,7 @@ describe('Reviewer API Integration', () => {
         .get('/api/v1/reviewer/articles/pending')
         .set(reviewerHeaders);
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(HttpStatusCode.OK);
       expect(response.body.success).toBe(true);
       expect(response.body.message).toBe(
         'Pending articles retrieved successfully'
@@ -212,14 +236,14 @@ describe('Reviewer API Integration', () => {
     it('should return 401 if unauthenticated', async () => {
       const response = await request(app).patch(approvePath);
 
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(HttpStatusCode.UNAUTHORIZED);
       expect(response.body.success).toBe(false);
     });
 
     it('should return 403 for a non-Reviewer non-Admin role', async () => {
       const response = await request(app).patch(approvePath).set(userHeaders);
 
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
       expect(response.body.error).toBe('Insufficient permissions');
       expect(mockFindById).not.toHaveBeenCalled();
     });
@@ -231,7 +255,7 @@ describe('Reviewer API Integration', () => {
         .patch(approvePath)
         .set(reviewerHeaders);
 
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(HttpStatusCode.NOT_FOUND);
       expect(response.body.error).toBe('Article not found');
       expect(mockUpdateStatus).not.toHaveBeenCalled();
       expect(mockReviewCreate).not.toHaveBeenCalled();
@@ -249,13 +273,13 @@ describe('Reviewer API Integration', () => {
         .patch(approvePath)
         .set(reviewerHeaders);
 
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(HttpStatusCode.BAD_REQUEST);
       expect(response.body.error).toBe('Only Pending articles can be approved');
       expect(mockUpdateStatus).not.toHaveBeenCalled();
       expect(mockReviewCreate).not.toHaveBeenCalled();
     });
 
-    it('should return 200 and publish a Pending article for a Reviewer', async () => {
+    it('should return 200 and approve a Pending article for a Reviewer', async () => {
       const pendingArticle = {
         id: articleId,
         title: 'Pending Article',
@@ -266,10 +290,10 @@ describe('Reviewer API Integration', () => {
         createdAt: mockDate,
         updatedAt: mockDate,
       };
-      const publishedArticle = { ...pendingArticle, status: 'Published' };
+      const approvedArticle = { ...pendingArticle, status: 'Approved' };
 
       mockFindById.mockResolvedValueOnce(pendingArticle);
-      mockUpdateStatus.mockResolvedValueOnce(publishedArticle);
+      mockUpdateStatus.mockResolvedValueOnce(approvedArticle);
       mockReviewCreate.mockResolvedValueOnce({
         id: 'review-1',
         articleId,
@@ -281,11 +305,13 @@ describe('Reviewer API Integration', () => {
         .patch(approvePath)
         .set(reviewerHeaders);
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(HttpStatusCode.OK);
       expect(response.body.success).toBe(true);
-      expect(response.body.message).toBe('Article approved and published');
-      expect(response.body.data.status).toBe('Published');
-      expect(mockUpdateStatus).toHaveBeenCalledWith(articleId, 'Published');
+      expect(response.body.message).toBe(
+        'Article approved and sent for Admin publication.'
+      );
+      expect(response.body.data.status).toBe('Approved');
+      expect(mockUpdateStatus).toHaveBeenCalledWith(articleId, 'Approved');
       expect(mockReviewCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           articleId,
@@ -305,7 +331,7 @@ describe('Reviewer API Integration', () => {
     it('should return 401 if unauthenticated', async () => {
       const response = await request(app).patch(rejectPath);
 
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(HttpStatusCode.UNAUTHORIZED);
       expect(response.body.success).toBe(false);
     });
 
@@ -315,7 +341,7 @@ describe('Reviewer API Integration', () => {
         .set(userHeaders)
         .send({ feedback: 'this is a valid reject feedback' });
 
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
       expect(response.body.error).toBe('Insufficient permissions');
       expect(mockFindById).not.toHaveBeenCalled();
     });
@@ -326,7 +352,7 @@ describe('Reviewer API Integration', () => {
         .set(reviewerHeaders)
         .send({ feedback: 'short' });
 
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(HttpStatusCode.BAD_REQUEST);
       expect(response.body.error).toBe(
         'Rejection feedback must be at least 10 characters'
       );
@@ -341,7 +367,7 @@ describe('Reviewer API Integration', () => {
         .set(reviewerHeaders)
         .send({ feedback: 'this is a valid reject feedback' });
 
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(HttpStatusCode.NOT_FOUND);
       expect(response.body.error).toBe('Article not found');
       expect(mockUpdateStatus).not.toHaveBeenCalled();
       expect(mockReviewCreate).not.toHaveBeenCalled();
@@ -360,7 +386,7 @@ describe('Reviewer API Integration', () => {
         .set(reviewerHeaders)
         .send({ feedback: 'this is a valid reject feedback' });
 
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(HttpStatusCode.BAD_REQUEST);
       expect(response.body.error).toBe('Only Pending articles can be rejected');
       expect(mockUpdateStatus).not.toHaveBeenCalled();
       expect(mockReviewCreate).not.toHaveBeenCalled();
@@ -393,7 +419,7 @@ describe('Reviewer API Integration', () => {
         .set(reviewerHeaders)
         .send({ feedback: 'this is a valid reject feedback' });
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(HttpStatusCode.OK);
       expect(response.body.success).toBe(true);
       expect(response.body.message).toBe('Article rejected');
       expect(response.body.data.status).toBe('Unpublished');
@@ -417,7 +443,7 @@ describe('Reviewer API Integration', () => {
     it('should return 401 if unauthenticated', async () => {
       const response = await request(app).get(viewPath);
 
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(HttpStatusCode.UNAUTHORIZED);
       expect(response.body.success).toBe(false);
     });
 
@@ -426,7 +452,7 @@ describe('Reviewer API Integration', () => {
         .get(viewPath)
         .set(userHeaders);
 
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
       expect(response.body.error).toBe('Insufficient permissions');
       expect(mockFindById).not.toHaveBeenCalled();
     });
@@ -438,7 +464,7 @@ describe('Reviewer API Integration', () => {
         .get(viewPath)
         .set(reviewerHeaders);
 
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(HttpStatusCode.NOT_FOUND);
       expect(response.body.error).toBe('Article not found');
     });
 
@@ -454,7 +480,7 @@ describe('Reviewer API Integration', () => {
         .get(viewPath)
         .set(reviewerHeaders);
 
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(HttpStatusCode.BAD_REQUEST);
       expect(response.body.error).toBe('Only Pending articles can be reviewed');
     });
 
@@ -476,16 +502,16 @@ describe('Reviewer API Integration', () => {
         .get(viewPath)
         .set(reviewerHeaders);
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(HttpStatusCode.OK);
       expect(response.body.success).toBe(true);
       expect(response.body.message).toBe('Article retrieved for review');
-      expect(response.body.data.id).toBe(articleId);
-      expect(response.body.data.title).toBe('Pending Article');
-      expect(response.body.data.body).toEqual(pendingArticle.body);
-      expect(response.body.data.tags).toEqual(['tech', 'wiki']);
-      expect(response.body.data.status).toBe('Pending');
-      expect(response.body.data.authorName).toBe('Author Name');
-      expect(response.body.data.authorEmail).toBe('author@example.com');
+      expect(response.body.data.article.id).toBe(articleId);
+      expect(response.body.data.article.title).toBe('Pending Article');
+      expect(response.body.data.article.body).toEqual(pendingArticle.body);
+      expect(response.body.data.article.tags).toEqual(['tech', 'wiki']);
+      expect(response.body.data.article.status).toBe('Pending');
+      expect(response.body.data.article.authorName).toBe('Author Name');
+      expect(response.body.data.article.authorEmail).toBe('author@example.com');
       expect(mockFindById).toHaveBeenCalledWith(articleId);
     });
   });

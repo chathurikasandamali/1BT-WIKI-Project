@@ -114,6 +114,26 @@ describe('AdminArticlesPage', () => {
     });
   });
 
+  it('refetches with Approved when the Approved filter is selected', async () => {
+    render(<AdminArticlesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('status-filter-select')).toBeInTheDocument();
+    });
+    mockFetchAllArticles.mockClear();
+
+    await userEvent.selectOptions(
+      screen.getByTestId('status-filter-select'),
+      'Approved'
+    );
+
+    await waitFor(() => {
+      expect(mockFetchAllArticles).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'Approved', limit: 12, page: 1 })
+      );
+    });
+  });
+
   it('does not offer Draft as a status filter option', async () => {
     render(<AdminArticlesPage />);
 
@@ -124,7 +144,54 @@ describe('AdminArticlesPage', () => {
     const options = Array.from(
       screen.getByTestId('status-filter-select').querySelectorAll('option')
     ).map((o) => o.getAttribute('value'));
-    expect(options).toEqual(['All', 'Pending', 'Published', 'Unpublished']);
+    expect(options).toEqual([
+      'All',
+      'Pending',
+      'Approved',
+      'Published',
+      'Unpublished',
+    ]);
+  });
+
+  it('displays the backend-provided Approved article count', async () => {
+    mockFetchAllArticles.mockImplementation(
+      (params: { status?: string }) =>
+        Promise.resolve(
+          params.status === 'Approved'
+            ? { ...sampleResult, articles: [], total: 7 }
+            : sampleResult
+        )
+    );
+
+    render(<AdminArticlesPage />);
+
+    expect(await screen.findByTestId('approved-articles-stat')).toHaveTextContent(
+      '7'
+    );
+  });
+
+  it('renders an Approved article with its status badge and no Publish button', async () => {
+    mockFetchAllArticles.mockResolvedValue({
+      ...sampleResult,
+      articles: [
+        {
+          ...sampleArticle,
+          id: 'approved-1',
+          title: 'Approved Article',
+          status: 'Approved',
+        },
+      ],
+    });
+
+    render(<AdminArticlesPage />);
+
+    expect(await screen.findByText('Approved Article')).toBeInTheDocument();
+    expect(screen.getByTestId('article-status-badge')).toHaveTextContent(
+      'Approved'
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Publish' })
+    ).not.toBeInTheDocument();
   });
 
   it('shows an empty state when no articles are returned', async () => {

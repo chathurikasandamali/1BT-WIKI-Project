@@ -143,23 +143,26 @@ export function DraftManagerSidebar({
           {/* Drafts List */}
           <div id="drafts-sidebar-scroll-container" className="flex-1 overflow-y-auto pr-2 -mr-2">
             <div className="flex flex-col space-y-2">
-            {loading ? (
+            {loading && (
               <div data-testid="sidebar-loading" className="flex flex-col items-center justify-center h-32 text-brand-text-secondary">
                 <div className="w-6 h-6 border-2 border-brand-border border-t-brand-text-secondary rounded-full animate-spin mb-2" />
                 <p className="text-xs">Loading drafts...</p>
               </div>
-            ) : error ? (
+            )}
+            {!loading && error && (
               <div className="flex items-center justify-center h-32 text-xs text-brand-red text-center px-4 bg-brand-red/5 rounded-md border border-brand-red/10">
                 {error}
               </div>
-            ) : visibleDrafts.length === 0 ? (
+            )}
+            {!loading && !error && visibleDrafts.length === 0 && (
               <div className="flex flex-col items-center justify-center h-32 text-brand-text-secondary">
                 <FileText className="w-8 h-8 mb-2 opacity-20" />
                 <p className="text-sm text-center px-4">
                   {search.trim() !== '' ? 'No matching drafts found.' : 'No editable drafts found.'}
                 </p>
               </div>
-            ) : (
+            )}
+            {!loading && !error && visibleDrafts.length > 0 && (
               visibleDrafts.map((article) => {
                 const isActive = article.id === currentArticleId;
                 const isRejected = article.status === 'Unpublished';

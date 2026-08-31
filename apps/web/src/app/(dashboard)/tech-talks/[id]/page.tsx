@@ -63,13 +63,13 @@ function TechTalkDetailPageContent(): React.JSX.Element {
     );
   }
 
-  const errorMessage = error
-    ? error.includes('403')
-      ? 'You do not have permission to view this Tech Talk.'
-      : error.includes('404')
-      ? 'Tech Talk not found.'
-      : error
-    : null;
+  const getErrorMessage = (): string | null => {
+    if (!error) return null;
+    if (error.includes('403')) return 'You do not have permission to view this Tech Talk.';
+    if (error.includes('404')) return 'Tech Talk not found.';
+    return error;
+  };
+  const errorMessage = getErrorMessage();
 
   if (errorMessage || !techTalk) {
     return (

@@ -31,11 +31,13 @@ export function NotificationDropdown({ id, onClose }: NotificationDropdownProps)
         <span>Notifications</span>
       </div>
 
-      {isInitialLoading ? (
+      {isInitialLoading && (
         <div className="p-4 text-sm text-brand-text-secondary text-center">Loading...</div>
-      ) : notifications.length === 0 ? (
+      )}
+      {!isInitialLoading && notifications.length === 0 && (
         <div className="p-4 text-sm text-brand-text-secondary text-center">No notifications</div>
-      ) : (
+      )}
+      {!isInitialLoading && notifications.length > 0 && (
         <div className="flex flex-col">
           {notifications.map((notification) => (
             <button

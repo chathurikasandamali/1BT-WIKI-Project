@@ -2,7 +2,19 @@ import { jest } from '@jest/globals';
 import crypto from 'node:crypto';
 import { AppError } from '@errors/AppError.js';
 import type { ArticleRepository, ArticleDetailRecord } from '@repositories/articleRepository.js';
-import type { ArticleStatus } from '@models/article.types.js';
+import { ArticleStatusValue, type ArticleStatus } from '@models/article.types.js';
+import type { CreateNotificationInput } from '@models/notificationTypes.js';
+import type { QuizService } from '@services/quizService.js';
+import type { User, UserRole } from '@/types/userTypes.js';
+import { UserRoleValue } from '@/types/userTypes.js';
+import { HttpStatusCode } from '@/v1/utils/httpStatus.js';
+
+const mockFindActiveByRole = jest
+  .fn<(role: UserRole) => Promise<User[]>>()
+  .mockResolvedValue([]);
+const mockNotificationSend = jest
+  .fn<(payload: CreateNotificationInput) => Promise<void>>()
+  .mockResolvedValue(undefined);
 
 // Side-effect dependencies that aren't injected — still mock via module system
 jest.unstable_mockModule('@repositories/articleRepository.js', () => {
@@ -66,6 +78,13 @@ jest.unstable_mockModule('@repositories/userRepository.js', () => ({
   default: {
     findManyByIds: jest.fn(),
     findById: jest.fn(),
+    findActiveByRole: mockFindActiveByRole,
+  },
+}));
+
+jest.unstable_mockModule('@services/notificationService.js', () => ({
+  default: {
+    send: mockNotificationSend,
   },
 }));
 
@@ -102,6 +121,17 @@ const makeRepo = (): jest.Mocked<
 
 const makeUserRepo = () => ({
   findManyByIds: jest.fn<() => Promise<unknown[]>>(),
+  findActiveByRole: jest
+    .fn<(role: UserRole) => Promise<User[]>>()
+    .mockResolvedValue([]),
+});
+
+const makeQuizService = (): jest.Mocked<
+  Pick<QuizService, 'pregenerateFallbackQuiz'>
+> => ({
+  pregenerateFallbackQuiz: jest
+    .fn<(articleId: string) => Promise<void>>()
+    .mockResolvedValue(undefined),
 });
 
 // Shared fixtures for author enrichment assertions
@@ -109,8 +139,8 @@ const AUTHOR_ALICE = { id: 'user-1', name: 'Alice', email: 'alice@example.com' }
 const AUTHOR_BOB = { id: 'user-2', name: 'Bob', email: 'bob@example.com' };
 const UNKNOWN_AUTHOR = { authorName: 'Unknown', authorEmail: null, authorImage: null };
 const INVALID_STATUS_FILTER_ERROR = new AppError(
-  'Invalid status filter. Allowed: Pending, Published, Unpublished',
-  400
+  'Invalid status filter. Allowed: Pending, Approved, Published, Unpublished',
+  HttpStatusCode.BAD_REQUEST
 );
 
 /** Typed builder for repository article rows — override only what a test cares about. */
@@ -129,6 +159,23 @@ const makeArticleRecord = (
   authorName: AUTHOR_ALICE.name,
   ...overrides,
 });
+
+// Valid TipTap body whose meaningful plain-text length exceeds the shared
+// MIN_ARTICLE_CONTENT_LENGTH — required for creation that must succeed.
+const VALID_BODY = {
+  type: 'doc',
+  content: [
+    {
+      type: 'paragraph',
+      content: [
+        {
+          type: 'text',
+          text: 'This is a sufficiently detailed article body containing more than fifty characters of meaningful content for validation.',
+        },
+      ],
+    },
+  ],
+};
 
 describe('ArticleService.createArticle', () => {
   const authorId = 'user-123';
@@ -159,7 +206,7 @@ describe('ArticleService.createArticle', () => {
 
       await expect(
         service.createArticle(input, authorId, images)
-      ).rejects.toThrow(new AppError('Maximum 10 images per article', 400));
+      ).rejects.toThrow(new AppError('Maximum 10 images per article', HttpStatusCode.BAD_REQUEST));
     });
 
     it('should throw AppError if an image exceeds 5MB', async () => {
@@ -173,7 +220,7 @@ describe('ArticleService.createArticle', () => {
 
       await expect(
         service.createArticle(input, authorId, images)
-      ).rejects.toThrow(new AppError('Image size cannot exceed 5MB', 400));
+      ).rejects.toThrow(new AppError('Image size cannot exceed 5MB', HttpStatusCode.BAD_REQUEST));
     });
 
     it('should throw AppError if an image has invalid mimetype', async () => {
@@ -185,21 +232,21 @@ describe('ArticleService.createArticle', () => {
       await expect(
         service.createArticle(input, authorId, images)
       ).rejects.toThrow(
-        new AppError('Only jpeg, png, webp, and gif images are allowed', 400)
+        new AppError('Only jpeg, png, webp, and gif images are allowed', HttpStatusCode.BAD_REQUEST)
       );
     });
 
     it('should throw AppError if title is missing or empty', async () => {
       const input = { title: '   ', body: { type: 'doc' } };
       await expect(service.createArticle(input, authorId)).rejects.toThrow(
-        new AppError('Title is required and cannot be empty', 400)
+        new AppError('Title is required and cannot be empty', HttpStatusCode.BAD_REQUEST)
       );
     });
 
     it('should throw AppError if title exceeds 500 characters', async () => {
       const input = { title: 'a'.repeat(501), body: { type: 'doc' } };
       await expect(service.createArticle(input, authorId)).rejects.toThrow(
-        new AppError('Title cannot exceed 500 characters', 400)
+        new AppError('Title cannot exceed 500 characters', HttpStatusCode.BAD_REQUEST)
       );
     });
 
@@ -211,7 +258,7 @@ describe('ArticleService.createArticle', () => {
       await expect(service.createArticle(input, authorId)).rejects.toThrow(
         new AppError(
           'Body must be valid JSONContent, raw HTML is not allowed',
-          400
+          HttpStatusCode.BAD_REQUEST
         )
       );
     });
@@ -219,7 +266,7 @@ describe('ArticleService.createArticle', () => {
     it('should throw AppError if body is an array', async () => {
       const input = { title: 'Valid Title', body: [] as unknown as never };
       await expect(service.createArticle(input, authorId)).rejects.toThrow(
-        new AppError('Body must be a valid JSON object', 400)
+        new AppError('Body must be a valid JSON object', HttpStatusCode.BAD_REQUEST)
       );
     });
 
@@ -229,8 +276,136 @@ describe('ArticleService.createArticle', () => {
         body: { content: 'hello' } as unknown as never,
       };
       await expect(service.createArticle(input, authorId)).rejects.toThrow(
-        new AppError('Body must have a "type" field', 400)
+        new AppError('Body must have a "type" field', HttpStatusCode.BAD_REQUEST)
       );
+    });
+
+    it('should throw AppError if body is missing or empty', async () => {
+      const input = { title: 'Valid Title', body: undefined };
+      await expect(service.createArticle(input, authorId)).rejects.toThrow(
+        new AppError('Article content is required', HttpStatusCode.BAD_REQUEST)
+      );
+    });
+
+    it('should throw AppError if the TipTap document has no content', async () => {
+      const input = {
+        title: 'Valid Title',
+        body: { type: 'doc', content: [] },
+      };
+      await expect(service.createArticle(input, authorId)).rejects.toThrow(
+        new AppError('Article content is required', HttpStatusCode.BAD_REQUEST)
+      );
+    });
+
+    it('should throw AppError if the TipTap document has only empty paragraphs', async () => {
+      const input = {
+        title: 'Valid Title',
+        body: {
+          type: 'doc',
+          content: [
+            { type: 'paragraph' },
+            { type: 'paragraph' },
+            { type: 'paragraph' },
+          ],
+        },
+      };
+      await expect(service.createArticle(input, authorId)).rejects.toThrow(
+        new AppError('Article content is required', HttpStatusCode.BAD_REQUEST)
+      );
+    });
+
+    it('should throw AppError if the TipTap content is whitespace-only', async () => {
+      const input = {
+        title: 'Valid Title',
+        body: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: '   ' }],
+            },
+          ],
+        },
+      };
+      await expect(service.createArticle(input, authorId)).rejects.toThrow(
+        new AppError('Article content is required', HttpStatusCode.BAD_REQUEST)
+      );
+    });
+
+    it('should throw AppError if the content is below the minimum length', async () => {
+      const input = {
+        title: 'Valid Title',
+        body: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: 'short content' }],
+            },
+          ],
+        },
+      };
+      await expect(service.createArticle(input, authorId)).rejects.toThrow(
+        new AppError(
+          'Article content must be at least 50 characters',
+          HttpStatusCode.BAD_REQUEST
+        )
+      );
+    });
+
+    it('should accept content exactly at the minimum length', async () => {
+      const exactText = 'x'.repeat(50);
+      const input = {
+        title: 'Valid Title',
+        body: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: exactText }],
+            },
+          ],
+        },
+      };
+      mockRepo.create.mockResolvedValue({
+        id: 'article-min',
+        ...input,
+        authorId,
+      } as never);
+
+      await expect(
+        service.createArticle(input, authorId)
+      ).resolves.toBeDefined();
+      expect(mockRepo.create).toHaveBeenCalled();
+    });
+
+    it('should count only meaningful text, not markup', async () => {
+      const input = {
+        title: 'Valid Title',
+        body: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                { type: 'text', text: 'Hello ' },
+                {
+                  type: 'text',
+                  marks: [{ type: 'strong' }],
+                  text: 'world, this is a long formatted paragraph with sufficient length.',
+                },
+              ],
+            },
+          ],
+        },
+      };
+      mockRepo.create.mockResolvedValue({
+        id: 'article-markup',
+        ...input,
+        authorId,
+      } as never);
+
+      await expect(service.createArticle(input, authorId)).resolves.toBeDefined();
     });
   });
 
@@ -238,7 +413,7 @@ describe('ArticleService.createArticle', () => {
     it('should successfully create an article without images', async () => {
       const input = {
         title: 'Valid Title',
-        body: { type: 'doc' },
+        body: VALID_BODY,
         tags: ['test'],
       };
       const createdArticle = { id: 'article-123', ...input, authorId };
@@ -249,7 +424,7 @@ describe('ArticleService.createArticle', () => {
 
       expect(mockRepo.create).toHaveBeenCalledWith({
         title: 'Valid Title',
-        body: { type: 'doc' },
+        body: VALID_BODY,
         tags: ['test'],
         authorId,
       });
@@ -257,7 +432,7 @@ describe('ArticleService.createArticle', () => {
     });
 
     it('should successfully create an article and upload valid images', async () => {
-      const input = { title: 'Valid Title', body: { type: 'doc' } };
+      const input = { title: 'Valid Title', body: VALID_BODY };
       const images = [
         {
           originalname: 'test image.png',
@@ -313,7 +488,7 @@ describe('ArticleService.createArticle', () => {
     });
 
     it('should return warnings if image upload fails', async () => {
-      const input = { title: 'Valid Title', body: { type: 'doc' } };
+      const input = { title: 'Valid Title', body: VALID_BODY };
       const images = [
         {
           originalname: 'fail.png',
@@ -383,10 +558,10 @@ describe('ArticleService.listAllArticles', () => {
     mockRepo.findByStatus.mockResolvedValue({ articles: [], total: 0 } as never);
     mockUserRepo.findManyByIds.mockResolvedValue([]);
 
-    await service.listAllArticles(1, 20, 'Pending');
+    await service.listAllArticles(1, 20, ArticleStatusValue.Approved);
 
     expect(mockRepo.findByStatus).toHaveBeenCalledWith(
-      'Pending',
+      ArticleStatusValue.Approved,
       1,
       20,
       { includeCounts: true, search: undefined, sort: undefined, order: undefined }
@@ -412,7 +587,7 @@ describe('ArticleService.listAllArticles', () => {
   it('should throw 400 for an invalid sort field', async () => {
     await expect(
       service.listAllArticles(1, 20, undefined, undefined, 'hackedField')
-    ).rejects.toThrow(new AppError('Invalid sort field. Allowed: title, createdAt, views', 400));
+    ).rejects.toThrow(new AppError('Invalid sort field. Allowed: title, createdAt, views', HttpStatusCode.BAD_REQUEST));
 
     expect(mockRepo.findByStatus).not.toHaveBeenCalled();
   });
@@ -420,7 +595,7 @@ describe('ArticleService.listAllArticles', () => {
   it('should throw 400 for an invalid order value', async () => {
     await expect(
       service.listAllArticles(1, 20, undefined, undefined, 'createdAt', 'sideways')
-    ).rejects.toThrow(new AppError('Invalid sort order. Allowed: asc, desc', 400));
+    ).rejects.toThrow(new AppError('Invalid sort order. Allowed: asc, desc', HttpStatusCode.BAD_REQUEST));
 
     expect(mockRepo.findByStatus).not.toHaveBeenCalled();
   });
@@ -515,6 +690,9 @@ describe('ArticleService.listAllArticles', () => {
     mockUserRepo.findManyByIds.mockResolvedValue([]);
 
     await expect(service.listAllArticles(1, 20, 'Pending')).resolves.not.toThrow();
+    await expect(
+      service.listAllArticles(1, 20, ArticleStatusValue.Approved)
+    ).resolves.not.toThrow();
     await expect(service.listAllArticles(1, 20, 'Published')).resolves.not.toThrow();
     await expect(service.listAllArticles(1, 20, 'Unpublished')).resolves.not.toThrow();
   });
@@ -555,7 +733,7 @@ describe('ArticleService.updateArticle', () => {
     await expect(
       service.updateArticle(articleId, {}, authorId)
     ).rejects.toThrow(
-      new AppError('Only the author can edit this article', 403)
+      new AppError('Only the author can edit this article', HttpStatusCode.FORBIDDEN)
     );
   });
 
@@ -571,7 +749,7 @@ describe('ArticleService.updateArticle', () => {
     await expect(
       service.updateArticle(articleId, {}, authorId)
     ).rejects.toThrow(
-      new AppError('Only Draft or Rejected articles can be edited', 400)
+      new AppError('Only Draft or Rejected articles can be edited', HttpStatusCode.BAD_REQUEST)
     );
   });
 
@@ -683,6 +861,19 @@ describe('ArticleService.updateArticle', () => {
 describe('ArticleService.submitForReview', () => {
   const authorId = 'user-123';
   const articleId = 'article-123';
+  const makeReviewer = (id: string): User => ({
+    id,
+    name: `Reviewer ${id}`,
+    email: `${id}@example.com`,
+    emailVerified: true,
+    image: null,
+    createdAt: new Date('2026-07-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-07-01T00:00:00.000Z'),
+    role: UserRoleValue.Reviewer,
+    banned: false,
+    banReason: null,
+    banExpires: null,
+  });
   let mockRepo: ReturnType<typeof makeRepo>;
   let service: InstanceType<typeof ArticleService>;
 
@@ -700,7 +891,7 @@ describe('ArticleService.submitForReview', () => {
     mockRepo.findById.mockResolvedValue(null);
 
     await expect(service.submitForReview(articleId, authorId)).rejects.toThrow(
-      new AppError('Article not found', 404)
+      new AppError('Article not found', HttpStatusCode.NOT_FOUND)
     );
   });
 
@@ -708,7 +899,7 @@ describe('ArticleService.submitForReview', () => {
     mockRepo.findById.mockResolvedValue({ authorId: 'other-user' } as never);
 
     await expect(service.submitForReview(articleId, authorId)).rejects.toThrow(
-      new AppError('Only the author can edit this article', 403)
+      new AppError('Only the author can edit this article', HttpStatusCode.FORBIDDEN)
     );
   });
 
@@ -719,7 +910,7 @@ describe('ArticleService.submitForReview', () => {
     } as never);
 
     await expect(service.submitForReview(articleId, authorId)).rejects.toThrow(
-      new AppError('Cannot transition from Pending to Pending', 400)
+      new AppError('Cannot transition from Pending to Pending', HttpStatusCode.BAD_REQUEST)
     );
   });
 
@@ -734,6 +925,295 @@ describe('ArticleService.submitForReview', () => {
 
     expect(mockRepo.updateStatus).toHaveBeenCalledWith(articleId, 'Pending');
     expect(result).toEqual(updatedArticle);
+  });
+
+  it('should notify an active Reviewer after successful submission', async () => {
+    const reviewer = makeReviewer('reviewer-1');
+    const existingArticle = {
+      id: articleId,
+      authorId,
+      title: 'Notification Test Article',
+      status: 'Draft',
+    };
+    const updatedArticle = { ...existingArticle, status: 'Pending' };
+
+    mockRepo.findById.mockResolvedValue(existingArticle as never);
+    mockRepo.updateStatus.mockResolvedValue(updatedArticle as never);
+    mockFindActiveByRole.mockResolvedValueOnce([reviewer]);
+
+    const result = await service.submitForReview(articleId, authorId);
+
+    expect(result).toEqual(updatedArticle);
+    expect(mockFindActiveByRole).toHaveBeenCalledWith(
+      UserRoleValue.Reviewer
+    );
+    expect(mockNotificationSend).toHaveBeenCalledTimes(1);
+    expect(mockNotificationSend).toHaveBeenCalledWith({
+      recipientId: reviewer.id,
+      notificationReferenceType: 'article',
+      referenceId: articleId,
+      notificationType: 'info',
+      notificationTitle: 'New Article for Review',
+      message: expect.stringContaining(existingArticle.title),
+    });
+    expect(mockRepo.updateStatus.mock.invocationCallOrder[0]).toBeLessThan(
+      mockFindActiveByRole.mock.invocationCallOrder[0]
+    );
+  });
+
+  it('should send one notification to each active Reviewer', async () => {
+    const reviewers = [
+      makeReviewer('reviewer-1'),
+      makeReviewer('reviewer-2'),
+    ];
+    const existingArticle = {
+      id: articleId,
+      authorId,
+      title: 'Multi-reviewer Article',
+      status: 'Draft',
+    };
+    const updatedArticle = { ...existingArticle, status: 'Pending' };
+
+    mockRepo.findById.mockResolvedValue(existingArticle as never);
+    mockRepo.updateStatus.mockResolvedValue(updatedArticle as never);
+    mockFindActiveByRole.mockResolvedValueOnce(reviewers);
+
+    const result = await service.submitForReview(articleId, authorId);
+
+    expect(result).toEqual(updatedArticle);
+    expect(mockNotificationSend).toHaveBeenCalledTimes(reviewers.length);
+    expect(
+      mockNotificationSend.mock.calls.map(([payload]) => payload.recipientId)
+    ).toEqual(reviewers.map((reviewer) => reviewer.id));
+  });
+
+  it('should succeed without sending notifications when there are no active Reviewers', async () => {
+    const existingArticle = {
+      id: articleId,
+      authorId,
+      title: 'No Reviewers Article',
+      status: 'Draft',
+    };
+    const updatedArticle = { ...existingArticle, status: 'Pending' };
+
+    mockRepo.findById.mockResolvedValue(existingArticle as never);
+    mockRepo.updateStatus.mockResolvedValue(updatedArticle as never);
+    mockFindActiveByRole.mockResolvedValueOnce([]);
+
+    const result = await service.submitForReview(articleId, authorId);
+
+    expect(result).toEqual(updatedArticle);
+    expect(mockFindActiveByRole).toHaveBeenCalledWith(
+      UserRoleValue.Reviewer
+    );
+    expect(mockNotificationSend).not.toHaveBeenCalled();
+  });
+
+  it('should succeed when active Reviewer lookup fails', async () => {
+    const consoleErrorSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    const existingArticle = {
+      id: articleId,
+      authorId,
+      title: 'Lookup Failure Article',
+      status: 'Draft',
+    };
+    const updatedArticle = { ...existingArticle, status: 'Pending' };
+
+    mockRepo.findById.mockResolvedValue(existingArticle as never);
+    mockRepo.updateStatus.mockResolvedValue(updatedArticle as never);
+    mockFindActiveByRole.mockRejectedValueOnce(
+      new Error('Reviewer lookup failed')
+    );
+
+    const result = await service.submitForReview(articleId, authorId);
+
+    expect(result).toEqual(updatedArticle);
+    expect(mockNotificationSend).not.toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('should succeed when sending a Reviewer notification fails', async () => {
+    const consoleErrorSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    const reviewer = makeReviewer('reviewer-1');
+    const existingArticle = {
+      id: articleId,
+      authorId,
+      title: 'Send Failure Article',
+      status: 'Draft',
+    };
+    const updatedArticle = { ...existingArticle, status: 'Pending' };
+
+    mockRepo.findById.mockResolvedValue(existingArticle as never);
+    mockRepo.updateStatus.mockResolvedValue(updatedArticle as never);
+    mockFindActiveByRole.mockResolvedValueOnce([reviewer]);
+    mockNotificationSend.mockRejectedValueOnce(
+      new Error('Notification send failed')
+    );
+
+    await expect(
+      service.submitForReview(articleId, authorId)
+    ).resolves.toEqual(updatedArticle);
+    expect(mockNotificationSend).toHaveBeenCalledTimes(1);
+    await Promise.resolve();
+    consoleErrorSpy.mockRestore();
+  });
+});
+
+describe('ArticleService.publishArticle', () => {
+  const articleId = 'article-123';
+  const approvedArticle = makeArticleRecord({
+    id: articleId,
+    title: 'Approved Article',
+    status: ArticleStatusValue.Approved,
+    authorId: AUTHOR_ALICE.id,
+  });
+  const publishedArticle = {
+    ...approvedArticle,
+    status: ArticleStatusValue.Published,
+  };
+  let mockRepo: ReturnType<typeof makeRepo>;
+  let mockQuizService: ReturnType<typeof makeQuizService>;
+  let service: InstanceType<typeof ArticleService>;
+
+  beforeEach(() => {
+    mockRepo = makeRepo();
+    mockQuizService = makeQuizService();
+    service = new ArticleService(
+      mockRepo as unknown as ArticleRepository,
+      undefined,
+      undefined,
+      undefined,
+      mockQuizService as unknown as QuizService
+    );
+    jest.clearAllMocks();
+    mockNotificationSend.mockReset();
+    mockNotificationSend.mockResolvedValue(undefined);
+  });
+
+  it('should allow an Admin to publish an Approved article', async () => {
+    mockRepo.findById.mockResolvedValue(approvedArticle);
+    mockRepo.updateStatus.mockResolvedValue(publishedArticle);
+
+    const result = await service.publishArticle(
+      articleId,
+      UserRoleValue.Admin
+    );
+
+    expect(mockRepo.findById).toHaveBeenCalledWith(articleId);
+    expect(mockRepo.updateStatus).toHaveBeenCalledWith(
+      articleId,
+      ArticleStatusValue.Published
+    );
+    expect(result).toEqual(publishedArticle);
+    expect(result.status).toBe(ArticleStatusValue.Published);
+    expect(mockNotificationSend).toHaveBeenCalledWith({
+      recipientId: approvedArticle.authorId,
+      notificationReferenceType: 'article',
+      referenceId: articleId,
+      notificationType: 'success',
+      notificationTitle: 'Article Published',
+      message: `Your article "${approvedArticle.title}" is now published.`,
+    });
+    expect(mockQuizService.pregenerateFallbackQuiz).toHaveBeenCalledWith(
+      articleId
+    );
+  });
+
+  it.each([UserRoleValue.Reviewer, UserRoleValue.User] as const)(
+    'should forbid the %s role from publishing an Approved article',
+    async (role) => {
+      await expect(service.publishArticle(articleId, role)).rejects.toMatchObject({
+        message: 'Only Admins can publish articles',
+        statusCode: HttpStatusCode.FORBIDDEN,
+      });
+
+      expect(mockRepo.findById).not.toHaveBeenCalled();
+      expect(mockRepo.updateStatus).not.toHaveBeenCalled();
+    }
+  );
+
+  it('should return 404 when an Admin publishes a missing article', async () => {
+    mockRepo.findById.mockResolvedValue(null);
+
+    await expect(
+      service.publishArticle(articleId, UserRoleValue.Admin)
+    ).rejects.toMatchObject({
+      message: 'Article not found',
+      statusCode: HttpStatusCode.NOT_FOUND,
+    });
+
+    expect(mockRepo.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ArticleStatusValue.Draft,
+    ArticleStatusValue.Pending,
+    ArticleStatusValue.Published,
+    ArticleStatusValue.Unpublished,
+  ] as const)(
+    'should reject Admin publication when the article status is %s',
+    async (status) => {
+      mockRepo.findById.mockResolvedValue(
+        makeArticleRecord({ id: articleId, status })
+      );
+
+      await expect(
+        service.publishArticle(articleId, UserRoleValue.Admin)
+      ).rejects.toMatchObject({
+        message: 'Only Approved articles can be published',
+        statusCode: HttpStatusCode.BAD_REQUEST,
+      });
+
+      expect(mockRepo.updateStatus).not.toHaveBeenCalled();
+    }
+  );
+
+  it('should complete publication when the author notification fails', async () => {
+    const consoleErrorSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    mockRepo.findById.mockResolvedValue(approvedArticle);
+    mockRepo.updateStatus.mockResolvedValue(publishedArticle);
+    mockNotificationSend.mockRejectedValueOnce(
+      new Error('Notification failed')
+    );
+
+    await expect(
+      service.publishArticle(articleId, UserRoleValue.Admin)
+    ).resolves.toEqual(publishedArticle);
+    await Promise.resolve();
+
+    expect(mockRepo.updateStatus).toHaveBeenCalledWith(
+      articleId,
+      ArticleStatusValue.Published
+    );
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('should complete publication when fallback quiz generation fails', async () => {
+    const consoleErrorSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    mockRepo.findById.mockResolvedValue(approvedArticle);
+    mockRepo.updateStatus.mockResolvedValue(publishedArticle);
+    mockQuizService.pregenerateFallbackQuiz.mockRejectedValueOnce(
+      new Error('Quiz generation failed')
+    );
+
+    await expect(
+      service.publishArticle(articleId, UserRoleValue.Admin)
+    ).resolves.toEqual(publishedArticle);
+    await Promise.resolve();
+
+    expect(mockRepo.updateStatus).toHaveBeenCalledWith(
+      articleId,
+      ArticleStatusValue.Published
+    );
+    consoleErrorSpy.mockRestore();
   });
 });
 
@@ -861,12 +1341,12 @@ describe('ArticleService.listPublished', () => {
 
   it('should throw AppError 400 when an invalid sort parameter is provided', async () => {
     await expect(service.listPublished(1, 10, undefined, 'invalidField', 'asc'))
-      .rejects.toThrow(new AppError('Invalid sort field. Allowed: title, createdAt, views', 400));
+      .rejects.toThrow(new AppError('Invalid sort field. Allowed: title, createdAt, views', HttpStatusCode.BAD_REQUEST));
   });
 
   it('should throw AppError 400 when an invalid order parameter is provided', async () => {
     await expect(service.listPublished(1, 10, undefined, 'views', 'invalidOrder'))
-      .rejects.toThrow(new AppError('Invalid sort order. Allowed: asc, desc', 400));
+      .rejects.toThrow(new AppError('Invalid sort order. Allowed: asc, desc', HttpStatusCode.BAD_REQUEST));
   });
 
   it('should pass search, sort, and order parameters to repository findByStatus', async () => {
@@ -960,7 +1440,7 @@ describe('ArticleService.getArticleById', () => {
     mockRepo.findById.mockResolvedValue(null);
 
     await expect(service.getArticleById(articleId)).rejects.toThrow(
-      new AppError('Article not found', 404)
+      new AppError('Article not found', HttpStatusCode.NOT_FOUND)
     );
   });
 
@@ -972,7 +1452,7 @@ describe('ArticleService.getArticleById', () => {
       );
 
       await expect(service.getArticleById(articleId)).rejects.toThrow(
-        new AppError('Article not available', 403)
+        new AppError('Article not available', HttpStatusCode.FORBIDDEN)
       );
     }
   );
@@ -1035,7 +1515,7 @@ describe('ArticleService.getArticleById', () => {
     );
 
     await expect(service.getArticleById(articleId, authorId)).rejects.toThrow(
-      new AppError('Article not available', 403)
+      new AppError('Article not available', HttpStatusCode.FORBIDDEN)
     );
   });
 
@@ -1045,7 +1525,7 @@ describe('ArticleService.getArticleById', () => {
     );
 
     await expect(service.getArticleById(articleId, null)).rejects.toThrow(
-      new AppError('Article not available', 403)
+      new AppError('Article not available', HttpStatusCode.FORBIDDEN)
     );
   });
 
@@ -1079,7 +1559,7 @@ describe('ArticleService.getArticleById', () => {
 
     await expect(
       service.getArticleById(articleId, authorId, 'Employee' as never)
-    ).rejects.toThrow(new AppError('Article not available', 403));
+    ).rejects.toThrow(new AppError('Article not available', HttpStatusCode.FORBIDDEN));
   });
 
   it('should enrich the article with authorName and authorEmail when the author exists', async () => {
@@ -1141,7 +1621,7 @@ describe('ArticleService.deleteArticle', () => {
       await expect(
         service.deleteArticle(articleId, authorId, 'User')
       ).rejects.toThrow(
-        new AppError('Only Draft articles can be deleted', 400)
+        new AppError('Only Draft articles can be deleted', HttpStatusCode.BAD_REQUEST)
       );
 
       expect(mockRepo.softDelete).not.toHaveBeenCalled();
@@ -1158,7 +1638,7 @@ describe('ArticleService.deleteArticle', () => {
 
     await expect(
       service.deleteArticle(articleId, authorId, 'User')
-    ).rejects.toThrow(new AppError('Not authorized', 403));
+    ).rejects.toThrow(new AppError('Not authorized', HttpStatusCode.FORBIDDEN));
 
     expect(mockRepo.softDelete).not.toHaveBeenCalled();
     expect(mockRepo.hardDelete).not.toHaveBeenCalled();
@@ -1174,7 +1654,7 @@ describe('ArticleService.deleteArticle', () => {
     await expect(
       service.deleteArticle(articleId, authorId, 'User', true)
     ).rejects.toThrow(
-      new AppError('Only Admins can permanently delete articles', 403)
+      new AppError('Only Admins can permanently delete articles', HttpStatusCode.FORBIDDEN)
     );
 
     expect(mockRepo.softDelete).not.toHaveBeenCalled();
@@ -1219,7 +1699,7 @@ describe('ArticleService.deleteArticle', () => {
 
     await expect(
       service.deleteArticle(articleId, authorId, 'User')
-    ).rejects.toThrow(new AppError('Article not found', 404));
+    ).rejects.toThrow(new AppError('Article not found', HttpStatusCode.NOT_FOUND));
 
     expect(mockRepo.softDelete).not.toHaveBeenCalled();
     expect(mockRepo.hardDelete).not.toHaveBeenCalled();

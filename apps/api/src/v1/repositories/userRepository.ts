@@ -1,5 +1,5 @@
 import { prisma } from '@repo/db';
-import type { User } from '@/types/userTypes.js';
+import type { User, UserRole } from '@/types/userTypes.js';
 
 // ---------------------------------------------------------------------------
 // Prisma select — mirrors the exact columns the service layer expects.
@@ -105,10 +105,26 @@ const findManyByIds = async (userIds: string[]): Promise<User[]> => {
   return users;
 };
 
+/**
+ * Find active users whose role exactly matches the supplied role.
+ * A nullable banned value is treated as active, matching authentication behavior.
+ */
+const findActiveByRole = async (role: UserRole): Promise<User[]> => {
+  const users = await prisma.user.findMany({
+    where: {
+      role,
+      OR: [{ banned: false }, { banned: null }],
+    },
+    select: USER_SELECT,
+  });
+  return users;
+};
+
 export default {
   findByEmail,
   findById,
   findManyByIds,
+  findActiveByRole,
   updateRole,
   updateBanStatus,
   updateById,

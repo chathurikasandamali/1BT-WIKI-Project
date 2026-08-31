@@ -88,7 +88,7 @@ export class ArticleRepository {
         _count: {
           select: {
             likes: true,
-            comments: { where: { deletedAt: null } },
+            comments: { where: { deletedAt: null, status: 'Approved' } },
           },
         },
         ...(requesterId && {
@@ -249,7 +249,7 @@ export class ArticleRepository {
               _count: {
                 select: {
                   likes: true,
-                  comments: { where: { deletedAt: null } },
+                  comments: { where: { deletedAt: null, status: 'Approved' } },
                 },
               },
             }),
@@ -292,7 +292,7 @@ export class ArticleRepository {
           _count: {
             select: {
               likes: true,
-              comments: { where: { deletedAt: null } },
+              comments: { where: { deletedAt: null, status: 'Approved' } },
             },
           },
           reviews: {

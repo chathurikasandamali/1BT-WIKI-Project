@@ -9,15 +9,17 @@ jest.mock('@/components/editor/EditorDraftContext', () => ({
 }));
 
 describe('FeaturedMediaBox', () => {
-  const mockUploadImage = jest.fn();
-  const mockSetFeaturedImageUrl = jest.fn();
+  const mockUploadCoverImage = jest.fn();
+  const mockRemoveCoverImage = jest.fn();
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUploadCoverImage.mockResolvedValue(undefined);
+    mockRemoveCoverImage.mockResolvedValue(undefined);
     (useEditorDraft as jest.Mock).mockReturnValue({
-      uploadImage: mockUploadImage,
+      uploadCoverImage: mockUploadCoverImage,
+      removeCoverImage: mockRemoveCoverImage,
       featuredImageUrl: null,
-      setFeaturedImageUrl: mockSetFeaturedImageUrl,
     });
   });
 
@@ -29,9 +31,9 @@ describe('FeaturedMediaBox', () => {
 
   it('renders featured image when featuredImageUrl is present', () => {
     (useEditorDraft as jest.Mock).mockReturnValue({
-      uploadImage: mockUploadImage,
+      uploadCoverImage: mockUploadCoverImage,
+      removeCoverImage: mockRemoveCoverImage,
       featuredImageUrl: 'https://featured.com/img.png',
-      setFeaturedImageUrl: mockSetFeaturedImageUrl,
     });
     render(<FeaturedMediaBox />);
     const img = screen.getByAltText('Featured');
@@ -40,50 +42,46 @@ describe('FeaturedMediaBox', () => {
   });
 
   it('removes image when remove button is clicked', async () => {
+    mockRemoveCoverImage.mockResolvedValue(undefined);
     (useEditorDraft as jest.Mock).mockReturnValue({
-      uploadImage: mockUploadImage,
+      uploadCoverImage: mockUploadCoverImage,
+      removeCoverImage: mockRemoveCoverImage,
       featuredImageUrl: 'https://featured.com/img.png',
-      setFeaturedImageUrl: mockSetFeaturedImageUrl,
     });
     render(<FeaturedMediaBox />);
-    
+
     const removeBtn = screen.getByTitle('Remove image');
     await userEvent.click(removeBtn);
-    
-    expect(mockSetFeaturedImageUrl).toHaveBeenCalledWith(null);
+
+    expect(mockRemoveCoverImage).toHaveBeenCalledTimes(1);
   });
 
   it('handles successful image upload', async () => {
-    mockUploadImage.mockResolvedValue('https://uploaded.com/featured.png');
     render(<FeaturedMediaBox />);
-    
+
     const file = new File(['dummy'], 'dummy.png', { type: 'image/png' });
     // The input is hidden via sr-only but wrapped in a label
-    // getByLabelText on 'Upload Image' might not work directly if the text is in a span, 
+    // getByLabelText on 'Upload Image' might not work directly if the text is in a span,
     // but there's an input inside the label. We can find the file input directly.
     // Instead of label, we can select the input type file.
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-    
+
     await userEvent.upload(fileInput, file);
-    
-    expect(mockUploadImage).toHaveBeenCalledWith(file);
-    await waitFor(() => {
-      expect(mockSetFeaturedImageUrl).toHaveBeenCalledWith('https://uploaded.com/featured.png');
-    });
+
+    expect(mockUploadCoverImage).toHaveBeenCalledWith(file);
   });
 
   it('handles failed image upload', async () => {
-    mockUploadImage.mockRejectedValue(new Error('Upload failed!'));
+    mockUploadCoverImage.mockRejectedValue(new Error('Upload failed!'));
     render(<FeaturedMediaBox />);
-    
+
     const file = new File(['dummy'], 'dummy.png', { type: 'image/png' });
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-    
+
     await userEvent.upload(fileInput, file);
-    
+
     await waitFor(() => {
       expect(screen.getByText('Upload failed!')).toBeInTheDocument();
-      expect(mockSetFeaturedImageUrl).not.toHaveBeenCalled();
     });
   });
 

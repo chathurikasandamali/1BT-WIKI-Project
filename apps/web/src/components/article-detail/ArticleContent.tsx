@@ -11,6 +11,7 @@ interface ArticleContentProps {
 
 export function ArticleContent({ body }: ArticleContentProps) {
   const editor = useEditor({
+    immediatelyRender: false,
     editable: false,
     content: body,
     extensions: [

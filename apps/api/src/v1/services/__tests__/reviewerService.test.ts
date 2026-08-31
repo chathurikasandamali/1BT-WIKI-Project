@@ -3,7 +3,14 @@ import { AppError } from '@errors/AppError.js';
 import type { ArticleRepository } from '@repositories/articleRepository.js';
 import type { ArticleReviewRepository } from '@repositories/articleReviewRepository.js';
 import type { QuizService } from '@services/quizService.js';
+import { ArticleStatusValue } from '@models/article.types.js';
+import type { CreateNotificationInput } from '@models/notificationTypes.js';
 import { ReviewStatus } from '@repo/db/generated/prisma/index.js';
+import { HttpStatusCode } from '@/v1/utils/httpStatus.js';
+
+const mockNotificationSend = jest
+  .fn<(payload: CreateNotificationInput) => Promise<void>>()
+  .mockResolvedValue(undefined);
 
 jest.unstable_mockModule('@repositories/articleRepository.js', () => ({
   ArticleRepository: jest.fn(),
@@ -18,7 +25,7 @@ jest.unstable_mockModule('@repositories/articleReviewRepository.js', () => ({
 
 jest.unstable_mockModule('@services/notificationService.js', () => ({
   default: {
-    send: jest.fn(() => Promise.resolve()),
+    send: mockNotificationSend,
   },
 }));
 
@@ -39,9 +46,12 @@ const makeMockArticleRepo = (): jest.Mocked<
 });
 
 const makeMockReviewRepo = (): jest.Mocked<
-  Pick<ArticleReviewRepository, 'create'>
+  Pick<ArticleReviewRepository, 'create' | 'findPendingWithComments' | 'updateStatus' | 'findById'>
 > => ({
   create: jest.fn(),
+  findPendingWithComments: jest.fn<any>().mockResolvedValue(null),
+  updateStatus: jest.fn(),
+  findById: jest.fn<any>().mockResolvedValue(null),
 });
 
 const makeMockUserRepo = () => ({
@@ -179,10 +189,13 @@ describe('ReviewerService.approveArticle', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    const publishedArticle = { ...pendingArticle, status: 'Published' };
+    const approvedArticle = {
+      ...pendingArticle,
+      status: ArticleStatusValue.Approved,
+    };
 
     mockArticleRepo.findById.mockResolvedValue(pendingArticle as never);
-    mockArticleRepo.updateStatus.mockResolvedValue(publishedArticle as never);
+    mockArticleRepo.updateStatus.mockResolvedValue(approvedArticle as never);
     mockReviewRepo.create.mockResolvedValue({
       id: 'review-1',
       articleId,
@@ -197,7 +210,7 @@ describe('ReviewerService.approveArticle', () => {
     expect(mockArticleRepo.findById).toHaveBeenCalledWith(articleId);
     expect(mockArticleRepo.updateStatus).toHaveBeenCalledWith(
       articleId,
-      'Published'
+      ArticleStatusValue.Approved
     );
     expect(mockReviewRepo.create).toHaveBeenCalledWith({
       articleId,
@@ -206,7 +219,22 @@ describe('ReviewerService.approveArticle', () => {
       feedback: null,
       createdBy: reviewerId,
     });
-    expect(result).toEqual(publishedArticle);
+    expect(mockNotificationSend).toHaveBeenCalledTimes(1);
+    expect(mockNotificationSend).toHaveBeenCalledWith({
+      recipientId: pendingArticle.authorId,
+      notificationReferenceType: 'article',
+      referenceId: articleId,
+      notificationType: 'success',
+      notificationTitle: 'Article Approved',
+      message: `Your article "${pendingArticle.title}" has been approved and is awaiting Admin publication.`,
+    });
+    expect(mockNotificationSend).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining('now published'),
+      })
+    );
+    expect(mockQuizService.pregenerateFallbackQuiz).not.toHaveBeenCalled();
+    expect(result).toEqual(approvedArticle);
   });
 
   it.each(['Draft', 'Published', 'Rejected'] as const)(
@@ -221,7 +249,7 @@ describe('ReviewerService.approveArticle', () => {
       await expect(
         service.approveArticle(articleId, reviewerId)
       ).rejects.toThrow(
-        new AppError('Only Pending articles can be approved', 400)
+        new AppError('Only Pending articles can be approved', HttpStatusCode.BAD_REQUEST)
       );
 
       expect(mockArticleRepo.updateStatus).not.toHaveBeenCalled();
@@ -233,7 +261,7 @@ describe('ReviewerService.approveArticle', () => {
     mockArticleRepo.findById.mockResolvedValue(null);
 
     await expect(service.approveArticle(articleId, reviewerId)).rejects.toThrow(
-      new AppError('Article not found', 404)
+      new AppError('Article not found', HttpStatusCode.NOT_FOUND)
     );
 
     expect(mockArticleRepo.updateStatus).not.toHaveBeenCalled();
@@ -266,7 +294,7 @@ describe('ReviewerService.rejectArticle', () => {
     await expect(
       service.rejectArticle(articleId, reviewerId, '')
     ).rejects.toThrow(
-      new AppError('Rejection feedback must be at least 10 characters', 400)
+      new AppError('Rejection feedback must be at least 10 characters', HttpStatusCode.BAD_REQUEST)
     );
 
     expect(mockArticleRepo.findById).not.toHaveBeenCalled();
@@ -278,7 +306,7 @@ describe('ReviewerService.rejectArticle', () => {
     await expect(
       service.rejectArticle(articleId, reviewerId, 'too short')
     ).rejects.toThrow(
-      new AppError('Rejection feedback must be at least 10 characters', 400)
+      new AppError('Rejection feedback must be at least 10 characters', HttpStatusCode.BAD_REQUEST)
     );
 
     expect(mockArticleRepo.findById).not.toHaveBeenCalled();
@@ -290,7 +318,7 @@ describe('ReviewerService.rejectArticle', () => {
     await expect(
       service.rejectArticle(articleId, reviewerId, '   short   ')
     ).rejects.toThrow(
-      new AppError('Rejection feedback must be at least 10 characters', 400)
+      new AppError('Rejection feedback must be at least 10 characters', HttpStatusCode.BAD_REQUEST)
     );
 
     expect(mockArticleRepo.findById).not.toHaveBeenCalled();
@@ -332,7 +360,7 @@ describe('ReviewerService.rejectArticle', () => {
 
     await expect(
       service.rejectArticle(articleId, reviewerId, 'valid feedback text')
-    ).rejects.toThrow(new AppError('Article not found', 404));
+    ).rejects.toThrow(new AppError('Article not found', HttpStatusCode.NOT_FOUND));
 
     expect(mockArticleRepo.updateStatus).not.toHaveBeenCalled();
     expect(mockReviewRepo.create).not.toHaveBeenCalled();
@@ -350,7 +378,7 @@ describe('ReviewerService.rejectArticle', () => {
       await expect(
         service.rejectArticle(articleId, reviewerId, 'valid feedback text')
       ).rejects.toThrow(
-        new AppError('Only Pending articles can be rejected', 400)
+        new AppError('Only Pending articles can be rejected', HttpStatusCode.BAD_REQUEST)
       );
 
       expect(mockArticleRepo.updateStatus).not.toHaveBeenCalled();
@@ -442,9 +470,12 @@ describe('ReviewerService.getArticleForReview', () => {
     expect(mockArticleRepo.findById).toHaveBeenCalledWith(articleId);
     expect(mockUserRepo.findById).toHaveBeenCalledWith('user-1');
     expect(result).toEqual({
-      ...pendingArticle,
-      authorName: 'Author Person',
-      authorEmail: 'author@example.com',
+      article: {
+        ...pendingArticle,
+        authorName: 'Author Person',
+        authorEmail: 'author@example.com',
+      },
+      review: null,
     });
   });
 
@@ -462,9 +493,12 @@ describe('ReviewerService.getArticleForReview', () => {
     const result = await service.getArticleForReview(articleId);
 
     expect(result).toEqual({
-      ...pendingArticle,
-      authorName: 'Unknown',
-      authorEmail: null,
+      article: {
+        ...pendingArticle,
+        authorName: 'Unknown',
+        authorEmail: null,
+      },
+      review: null,
     });
   });
 
@@ -472,7 +506,7 @@ describe('ReviewerService.getArticleForReview', () => {
     mockArticleRepo.findById.mockResolvedValue(null);
 
     await expect(service.getArticleForReview(articleId))
-      .rejects.toThrow(new AppError('Article not found', 404));
+      .rejects.toThrow(new AppError('Article not found', HttpStatusCode.NOT_FOUND));
 
     expect(mockArticleRepo.findById).toHaveBeenCalledWith(articleId);
   });
@@ -487,7 +521,7 @@ describe('ReviewerService.getArticleForReview', () => {
       } as never);
 
       await expect(service.getArticleForReview(articleId))
-        .rejects.toThrow(new AppError('Only Pending articles can be reviewed', 400));
+        .rejects.toThrow(new AppError('Only Pending articles can be reviewed', HttpStatusCode.BAD_REQUEST));
     }
   );
 });

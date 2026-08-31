@@ -74,6 +74,16 @@ export function registerE2EApiAuth(): void {
       req.alias = 'getReviewerArticle';
     } else if (req.method === 'PATCH' && /^\/api\/v1\/reviewer\/articles\/[^/]+\/approve\/?$/.test(pathname)) {
       req.alias = 'approveArticle';
+    } else if (req.method === 'GET' && /^\/api\/v1\/admin\/articles\/?$/.test(pathname)) {
+      const searchParams = new URL(req.url).searchParams;
+      if (
+        searchParams.get('status') === 'Approved' &&
+        searchParams.get('limit') === '12'
+      ) {
+        req.alias = 'getApprovedAdminArticles';
+      }
+    } else if (req.method === 'PATCH' && /^\/api\/v1\/admin\/articles\/[^/]+\/publish\/?$/.test(pathname)) {
+      req.alias = 'publishArticleAsAdmin';
     } else if (req.method === 'GET' && /^\/api\/v1\/articles\/?$/.test(pathname)) {
       delete req.headers['if-none-match'];
       delete req.headers['if-modified-since'];

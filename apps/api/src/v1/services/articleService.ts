@@ -4,9 +4,12 @@ import { ArticleAttachmentRepository } from '@repositories/articleAttachmentRepo
 import { ArticleReviewRepository } from '@repositories/articleReviewRepository.js';
 import UserRepository from '@repositories/userRepository.js';
 import b2Client from '@v1/lib/b2Client.js';
+import notificationService from '@services/notificationService.js';
+import defaultQuizService, { type QuizService } from '@services/quizService.js';
+import { NotificationBuilder } from '@v1/lib/NotificationBuilder.js';
 import { AppError } from '@errors/AppError.js';
-import type { UserRole } from '@/types/userTypes.js';
-import { UserRoleValue } from '@/types/userTypes.js';
+import { HttpStatusCode } from '@utils/httpStatus.js';
+import { UserRoleValue, type UserRole } from '@/types/userTypes.js';
 import type {
   Article,
   ArticleDetail,
@@ -22,6 +25,12 @@ import type {
 import { ArticleStatusValue, ARTICLE_SORT_FIELDS } from '@models/article.types.js';
 import { assertValidSort } from '../utils/queryHelpers.js';
 import { MAX_ARTICLE_IMAGE_SIZE_BYTES, MAX_ARTICLE_IMAGES } from '@/constants/upload.constants.js';
+import {
+  MIN_ARTICLE_CONTENT_LENGTH,
+  MAX_ARTICLE_TITLE_LENGTH,
+  type TipTapJsonContent,
+  getArticleContentLength,
+} from '@repo/shared';
 
 // Derives update-field shapes from the app-level Article interface — no Prisma types cross into the service layer.
 type ArticleUpdateFields = Partial<
@@ -84,12 +93,12 @@ const getFirstArticleImageUrl = (body: JSONContent): string | null => {
 
 const validateImages = (images: Express.Multer.File[]) => {
   if (images.length > MAX_ARTICLE_IMAGES) {
-    throw new AppError('Maximum 10 images per article', 400);
+    throw new AppError('Maximum 10 images per article', HttpStatusCode.BAD_REQUEST);
   }
 
   for (const img of images) {
     if (img.size > MAX_ARTICLE_IMAGE_SIZE_BYTES) {
-      throw new AppError('Image size cannot exceed 5MB', 400);
+      throw new AppError('Image size cannot exceed 5MB', HttpStatusCode.BAD_REQUEST);
     }
     const allowedMimeTypes = [
       'image/jpeg',
@@ -100,7 +109,7 @@ const validateImages = (images: Express.Multer.File[]) => {
     if (!allowedMimeTypes.includes(img.mimetype)) {
       throw new AppError(
         'Only jpeg, png, webp, and gif images are allowed',
-        400
+        HttpStatusCode.BAD_REQUEST
       );
     }
   }
@@ -108,11 +117,11 @@ const validateImages = (images: Express.Multer.File[]) => {
 
 const validateTitle = (title: string | undefined): string => {
   if (!title || title.trim() === '') {
-    throw new AppError('Title is required and cannot be empty', 400);
+    throw new AppError('Title is required and cannot be empty', HttpStatusCode.BAD_REQUEST);
   }
 
-  if (title.length > 500) {
-    throw new AppError('Title cannot exceed 500 characters', 400);
+  if (title.length > MAX_ARTICLE_TITLE_LENGTH) {
+    throw new AppError('Title cannot exceed 500 characters', HttpStatusCode.BAD_REQUEST);
   }
 
   return title.trim();
@@ -123,7 +132,7 @@ const validateBody = (body: JSONContent | undefined): JSONContent => {
   if (typeof safeBody === 'string') {
     throw new AppError(
       'Body must be valid JSONContent, raw HTML is not allowed',
-      400
+      HttpStatusCode.BAD_REQUEST
     );
   }
 
@@ -132,11 +141,28 @@ const validateBody = (body: JSONContent | undefined): JSONContent => {
     safeBody === null ||
     Array.isArray(safeBody)
   ) {
-    throw new AppError('Body must be a valid JSON object', 400);
+    throw new AppError('Body must be a valid JSON object', HttpStatusCode.BAD_REQUEST);
   }
 
   if (Object.keys(safeBody).length > 0 && typeof safeBody.type !== 'string') {
-    throw new AppError('Body must have a "type" field', 400);
+    throw new AppError('Body must have a "type" field', HttpStatusCode.BAD_REQUEST);
+  }
+
+  // Measure the actual meaningful plain text inside the TipTap document —
+  // empty paragraphs, whitespace-only text and raw markup must NOT pass.
+  const contentLength = getArticleContentLength(
+    safeBody as TipTapJsonContent
+  );
+
+  if (contentLength === 0) {
+    throw new AppError('Article content is required', HttpStatusCode.BAD_REQUEST);
+  }
+
+  if (contentLength < MIN_ARTICLE_CONTENT_LENGTH) {
+    throw new AppError(
+      `Article content must be at least ${MIN_ARTICLE_CONTENT_LENGTH} characters`,
+      HttpStatusCode.BAD_REQUEST
+    );
   }
 
   return safeBody;
@@ -155,20 +181,26 @@ const assertTransition = (
 
   throw new AppError(
     `Cannot transition from ${currentStatus} to ${targetStatus}`,
-    400
+    HttpStatusCode.BAD_REQUEST
   );
 };
 
 // Draft articles are private to their authors and never appear in the admin
 // oversight list, so 'Draft' is not an accepted filter value.
-const ALLOWED_STATUS_FILTERS = ['Pending', 'Published', 'Unpublished'] as const;
+const ALLOWED_STATUS_FILTERS = [
+  'Pending',
+  ArticleStatusValue.Approved,
+  'Published',
+  'Unpublished',
+] as const;
 
 export class ArticleService {
   constructor(
     private repository: ArticleRepository = new ArticleRepository(),
     private reviewRepository: ArticleReviewRepository = new ArticleReviewRepository(),
     private attachmentRepository: ArticleAttachmentRepository = new ArticleAttachmentRepository(),
-    private userRepository: typeof UserRepository = UserRepository
+    private userRepository: typeof UserRepository = UserRepository,
+    private quizService: QuizService = defaultQuizService
   ) { }
 
   private async uploadArticleImages(
@@ -269,7 +301,7 @@ export class ArticleService {
       const latestReview =
         await this.reviewRepository.findLatestByArticleId(id);
       if (!latestReview || latestReview.reviewStatus !== 'Rejected') {
-        throw new AppError('Only Draft or Rejected articles can be edited', 400);
+        throw new AppError('Only Draft or Rejected articles can be edited', HttpStatusCode.BAD_REQUEST);
       }
       resetToDraft = true;
     }
@@ -283,18 +315,18 @@ export class ArticleService {
       );
 
       if (!coverAttachment) {
-        throw new AppError('Cover attachment not found', 400);
+        throw new AppError('Cover attachment not found', HttpStatusCode.BAD_REQUEST);
       }
 
       if (coverAttachment.articleId !== id) {
         throw new AppError(
           'Cover attachment does not belong to this article',
-          400
+          HttpStatusCode.BAD_REQUEST
         );
       }
 
       if (!coverAttachment.mimeType.startsWith('image/')) {
-        throw new AppError('Cover attachment must be an image', 400);
+        throw new AppError('Cover attachment must be an image', HttpStatusCode.BAD_REQUEST);
       }
     }
 
@@ -344,7 +376,94 @@ export class ArticleService {
 
     assertTransition(article.status, ArticleStatusValue.Pending);
 
-    return this.repository.updateStatus(articleId, ArticleStatusValue.Pending);
+    const updatedArticle = await this.repository.updateStatus(
+      articleId,
+      ArticleStatusValue.Pending
+    );
+
+    try {
+      const reviewers = await this.userRepository.findActiveByRole(
+        UserRoleValue.Reviewer
+      );
+
+      const notificationTasks = reviewers.map(async (reviewer): Promise<void> => {
+        try {
+          const notificationPayload = new NotificationBuilder()
+            .forUser(reviewer.id)
+            .regardingArticle(articleId)
+            .withInfo(
+              'New Article for Review',
+              `The article ${article.title} has been submitted for review.`
+            )
+            .build();
+
+          await notificationService.send(notificationPayload);
+        } catch (error) {
+          console.error(
+            '[NotificationService] Failed to send article review notification:',
+            error
+          );
+          throw error;
+        }
+      });
+
+      void Promise.allSettled(notificationTasks);
+    } catch (error) {
+      console.error(
+        '[ArticleService] Failed to find active Reviewers for article review notification:',
+        error
+      );
+    }
+
+    return updatedArticle;
+  }
+
+  async publishArticle(
+    articleId: string,
+    callerRole: UserRole
+  ): Promise<Article> {
+    if (callerRole !== UserRoleValue.Admin) {
+      throw new AppError('Only Admins can publish articles', HttpStatusCode.FORBIDDEN);
+    }
+
+    const article = await this.repository.findById(articleId);
+    if (!article) {
+      throw new AppError('Article not found', HttpStatusCode.NOT_FOUND);
+    }
+
+    if (article.status !== ArticleStatusValue.Approved) {
+      throw new AppError('Only Approved articles can be published', HttpStatusCode.BAD_REQUEST);
+    }
+
+    const publishedArticle = await this.repository.updateStatus(
+      articleId,
+      ArticleStatusValue.Published
+    );
+
+    const notificationPayload = new NotificationBuilder()
+      .forUser(article.authorId)
+      .regardingArticle(articleId)
+      .withSuccess(
+        'Article Published',
+        `Your article "${article.title}" is now published.`
+      )
+      .build();
+
+    notificationService.send(notificationPayload).catch((error: unknown) => {
+      console.error(
+        '[NotificationService] Failed to send publication notification:',
+        error
+      );
+    });
+
+    this.quizService.pregenerateFallbackQuiz(articleId).catch((error: unknown) => {
+      console.error(
+        '[QuizService] Failed to pre-generate fallback quiz:',
+        error
+      );
+    });
+
+    return publishedArticle;
   }
 
   async listPublished(
@@ -356,7 +475,7 @@ export class ArticleService {
   ): Promise<{ articles: PublishedArticleListItem[]; total: number; page: number; limit: number }> {
     assertValidSort(ARTICLE_SORT_FIELDS, sort);
     if (order !== undefined && order !== 'asc' && order !== 'desc') {
-      throw new AppError('Invalid sort order. Allowed: asc, desc', 400);
+      throw new AppError('Invalid sort order. Allowed: asc, desc', HttpStatusCode.BAD_REQUEST);
     }
 
     const { articles, total } = await this.repository.findByStatus(
@@ -402,11 +521,11 @@ export class ArticleService {
       status !== undefined &&
       !(ALLOWED_STATUS_FILTERS as readonly string[]).includes(status)
     ) {
-      throw new AppError(`Invalid status filter. Allowed: ${ALLOWED_STATUS_FILTERS.join(', ')}`, 400);
+      throw new AppError(`Invalid status filter. Allowed: ${ALLOWED_STATUS_FILTERS.join(', ')}`, HttpStatusCode.BAD_REQUEST);
     }
     assertValidSort(ARTICLE_SORT_FIELDS, sort);
     if (order !== undefined && order !== 'asc' && order !== 'desc') {
-      throw new AppError('Invalid sort order. Allowed: asc, desc', 400);
+      throw new AppError('Invalid sort order. Allowed: asc, desc', HttpStatusCode.BAD_REQUEST);
     }
 
     const { articles, total } = await this.repository.findByStatus(
@@ -459,7 +578,7 @@ export class ArticleService {
     hard: boolean = false
   ): Promise<void> {
     const article = await this.repository.findById(articleId);
-    if (!article) throw new AppError('Article not found', 404);
+    if (!article) throw new AppError('Article not found', HttpStatusCode.NOT_FOUND);
 
     const isAdmin = role === UserRoleValue.Admin;
     const isAuthor = article.authorId === userId;
@@ -469,11 +588,11 @@ export class ArticleService {
     }
 
     if (!isAdmin && article.status !== ArticleStatusValue.Draft) {
-      throw new AppError('Only Draft articles can be deleted', 400);
+      throw new AppError('Only Draft articles can be deleted', HttpStatusCode.BAD_REQUEST);
     }
 
     if (hard && !isAdmin) {
-      throw new AppError('Only Admins can permanently delete articles', 403);
+      throw new AppError('Only Admins can permanently delete articles', HttpStatusCode.FORBIDDEN);
     }
 
     if (hard) {
@@ -490,7 +609,7 @@ export class ArticleService {
   ): Promise<ArticleDetail> {
     const articleRecord = await this.repository.findById(id, requesterId);
     if (!articleRecord) {
-      throw new AppError('Article not found', 404);
+      throw new AppError('Article not found', HttpStatusCode.NOT_FOUND);
     }
 
     // Admins may inspect articles in any status (oversight view).
@@ -500,7 +619,7 @@ export class ArticleService {
       role === UserRoleValue.Admin;
 
     if (!isAvailable) {
-      throw new AppError('Article not available', 403);
+      throw new AppError('Article not available', HttpStatusCode.FORBIDDEN);
     }
 
     const { _count, likes, coverAttachment, ...baseArticle } = articleRecord;
@@ -526,11 +645,11 @@ export class ArticleService {
     const article = await this.repository.findById(articleId);
 
     if (!article) {
-      throw new AppError('Article not found', 404);
+      throw new AppError('Article not found', HttpStatusCode.NOT_FOUND);
     }
 
     if (article.authorId !== userId) {
-      throw new AppError('Only the author can edit this article', 403);
+      throw new AppError('Only the author can edit this article', HttpStatusCode.FORBIDDEN);
     }
 
     return article;

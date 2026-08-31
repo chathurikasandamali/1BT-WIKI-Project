@@ -109,7 +109,12 @@ export function CommentsSection({ articleId }: CommentsSectionProps) {
     setComments((prev) =>
       prev.map((c) =>
         c.id === id
-          ? { ...c, body: updated.body, updatedAt: updated.updatedAt }
+          ? {
+              ...c,
+              body: updated.body,
+              status: updated.status,
+              updatedAt: updated.updatedAt,
+            }
           : c
       )
     );
@@ -199,7 +204,11 @@ export function CommentsSection({ articleId }: CommentsSectionProps) {
         </div>
       )}
 
-      <Toast visible={toastVisible} message="Comment posted" type="success" />
+      <Toast
+        visible={toastVisible}
+        message="Comment posted — pending approval"
+        type="success"
+      />
       <Toast
         visible={!!errorToastMessage}
         message={errorToastMessage || ''}

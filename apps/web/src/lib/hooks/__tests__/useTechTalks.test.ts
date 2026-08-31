@@ -300,4 +300,38 @@ describe('useAllTechTalks', () => {
     expect(result.current.total).toBe(1);
     expect(mockListAll.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
+
+  it('passes status to listAll', async () => {
+    mockListAll.mockResolvedValue(MOCK_ALL_PAGE);
+
+    const { result } = renderHook(() =>
+      useAllTechTalks({ page: 1, limit: 12, status: 'draft' })
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(mockListAll).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 1, limit: 12, status: 'draft' })
+    );
+  });
+
+  it('re-fetches when status changes', async () => {
+    mockListAll.mockResolvedValue({ techTalks: [], total: 0, page: 1, limit: 12 });
+
+    const { rerender, result } = renderHook(
+      ({ status }: { status?: 'draft' | 'published' | 'unpublished' }) =>
+        useAllTechTalks({ page: 1, limit: 12, status }),
+      { initialProps: { status: undefined as 'draft' | 'published' | 'unpublished' | undefined } }
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(mockListAll).toHaveBeenCalledWith({ page: 1, limit: 12, status: undefined });
+
+    mockListAll.mockClear();
+
+    rerender({ status: 'published' });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(mockListAll).toHaveBeenCalledWith({ page: 1, limit: 12, status: 'published' });
+  });
 });

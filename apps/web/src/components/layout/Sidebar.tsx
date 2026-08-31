@@ -28,6 +28,7 @@ import { BookOpenIcon } from '@/components/shared/icons/BookOpenIcon';
 import { SettingsIcon } from '@/components/shared/icons/SettingsIcon';
 import { LogoutIcon } from '@/components/shared/icons/LogoutIcon';
 import { UsersIcon } from '@/components/shared/icons/UsersIcon';
+import { CommentIcon } from '@/components/shared/icons/CommentIcon';
 
 const mainNavItems: NavItem[] = [
   {
@@ -306,6 +307,22 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
               <TechTalkIcon className="w-4 h-4 relative z-10" />
               {!isCollapsed && <span className="relative z-10">Tech Talk Management</span>}
               <Tooltip text="Tech Talk Management" />
+            </Link>
+            <Link
+              href="/admin/comments"
+              className={cn(
+                itemClasses('/admin/comments'),
+                isCollapsed ? 'pl-[31px] gap-0' : 'pl-[20px] gap-[16px]'
+              )}
+              data-testid="nav-admin-comments"
+              aria-label={isCollapsed ? "Comment Moderation" : undefined}
+            >
+              {isActive('/admin/comments') && (
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-3/4 bg-brand-red active-indicator rounded-r-full" />
+              )}
+              <CommentIcon className="w-4 h-4 relative z-10" />
+              {!isCollapsed && <span className="relative z-10">Comment Moderation</span>}
+              <Tooltip text="Comment Moderation" />
             </Link>
           </nav>
         </>

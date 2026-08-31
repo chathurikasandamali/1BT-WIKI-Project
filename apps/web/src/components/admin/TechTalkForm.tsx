@@ -21,7 +21,26 @@ interface TechTalkFormProps {
     initialData?: TechTalkDetail;
 }
 
+type TechTalkFormField = 'title' | 'presenters' | 'eventDate' | 'youtubeVideoId';
 
+type TechTalkFormErrors = Partial<Record<TechTalkFormField, string>>;
+
+interface FieldErrorProps {
+    fieldId: TechTalkFormField;
+    message: string;
+}
+
+function FieldError({ fieldId, message }: FieldErrorProps): React.JSX.Element {
+    return (
+        <p
+            id={`${fieldId}-error`}
+            data-testid={`${fieldId}-error`}
+            className="mt-1.5 text-xs text-brand-red"
+        >
+            {message}
+        </p>
+    );
+}
 
 export function TechTalkForm({
     initialData,
@@ -50,7 +69,7 @@ export function TechTalkForm({
 
     const [slidesFile, setSlidesFile] = useState<File | null>(null);
     const [isSaving, setIsSaving] = useState(false);
-    const [validationError, setValidationError] = useState<string | null>(null);
+    const [fieldErrors, setFieldErrors] = useState<TechTalkFormErrors>({});
     const { toast, showToast } = useToast();
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
     const [isPublishing, setIsPublishing] = useState(false);
@@ -80,35 +99,51 @@ export function TechTalkForm({
         setTags(tags.filter((tag) => tag !== tagToRemove));
     };
 
-    const validateForm = (): string | null => {
+    const clearFieldError = (field: TechTalkFormField): void => {
+        setFieldErrors((prev) => {
+            if (!(field in prev)) {
+                return prev;
+            }
+
+            const next = { ...prev };
+            delete next[field];
+            return next;
+        });
+    };
+
+    const validateForm = (): TechTalkFormErrors => {
+        const errors: TechTalkFormErrors = {};
+
         if (!title.trim()) {
-            return 'Title is required';
+            errors.title = 'Title is required';
         }
 
         if (presenters.length === 0) {
-            return 'At least one presenter is required';
+            errors.presenters = 'At least one presenter is required';
         }
 
         if (!eventDate) {
-            return 'Event date is required';
+            errors.eventDate = 'Event date is required';
         }
 
-        if (youtubeVideoId.trim() && !/^[a-zA-Z0-9_-]{11}$/.test(youtubeVideoId.trim())) {
-            return 'Enter a valid 11-character YouTube Video ID';
+        if (!youtubeVideoId.trim()) {
+            errors.youtubeVideoId = 'YouTube Video ID is required';
+        } else if (!/^[a-zA-Z0-9_-]{11}$/.test(youtubeVideoId.trim())) {
+            errors.youtubeVideoId = 'Enter a valid 11-character YouTube Video ID';
         }
 
-        return null;
+        return errors;
     };
 
     const handleSaveDraft = async () => {
-        const error = validateForm();
+        const errors = validateForm();
 
-        if (error) {
-            setValidationError(error);
+        if (Object.keys(errors).length > 0) {
+            setFieldErrors(errors);
             return;
         }
 
-        setValidationError(null);
+        setFieldErrors({});
         setIsSaving(true);
 
         try {
@@ -155,14 +190,14 @@ export function TechTalkForm({
     };
 
     const handleOpenPublishModal = () => {
-        const error = validateForm();
+        const errors = validateForm();
 
-        if (error) {
-            setValidationError(error);
+        if (Object.keys(errors).length > 0) {
+            setFieldErrors(errors);
             return;
         }
 
-        setValidationError(null);
+        setFieldErrors({});
         setIsConfirmModalOpen(true);
     };
 
@@ -221,12 +256,6 @@ export function TechTalkForm({
     return (
         <>
             <div className="bg-brand-surface border border-brand-border rounded shadow-sm p-6">
-                {validationError && (
-                    <div className="mb-6 p-4 bg-brand-red/10 border border-brand-red/20 rounded text-brand-red text-sm">
-                        {validationError}
-                    </div>
-                )}
-
                 <form className="space-y-6">
                     <div>
                         <label htmlFor="title" className="block text-sm font-medium text-brand-text-primary mb-2">Title</label>
@@ -234,10 +263,18 @@ export function TechTalkForm({
                             id="title"
                             type="text"
                             value={title}
-                            onChange={(e) => setTitle(e.target.value)}
+                            onChange={(e) => {
+                                setTitle(e.target.value);
+                                clearFieldError('title');
+                            }}
+                            aria-invalid={Boolean(fieldErrors.title)}
+                            aria-describedby={fieldErrors.title ? 'title-error' : undefined}
                             className="w-full px-3 py-2 bg-brand-bg border border-brand-border rounded text-brand-text-primary focus:outline-none focus:border-brand-red transition-colors text-sm"
                             placeholder="Enter Tech Talk title"
                         />
+                        {fieldErrors.title && (
+                            <FieldError fieldId="title" message={fieldErrors.title} />
+                        )}
                     </div>
 
                     <div>
@@ -275,6 +312,8 @@ export function TechTalkForm({
                             id="presenters"
                             type="text"
                             placeholder="Type and press Enter to add presenter..."
+                            aria-invalid={Boolean(fieldErrors.presenters)}
+                            aria-describedby={fieldErrors.presenters ? 'presenters-error' : undefined}
                             className="w-full px-3 py-2 bg-brand-bg border border-brand-border rounded text-brand-text-primary focus:outline-none focus:border-brand-red transition-colors text-sm"
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && e.currentTarget.value.trim() !== '') {
@@ -284,6 +323,9 @@ export function TechTalkForm({
                                 }
                             }}
                         />
+                        {fieldErrors.presenters && (
+                            <FieldError fieldId="presenters" message={fieldErrors.presenters} />
+                        )}
                     </div>
 
                     <div>
@@ -327,9 +369,17 @@ export function TechTalkForm({
                                 id="eventDate"
                                 type="datetime-local"
                                 value={eventDate}
-                                onChange={(e) => setEventDate(e.target.value)}
+                                onChange={(e) => {
+                                    setEventDate(e.target.value);
+                                    clearFieldError('eventDate');
+                                }}
+                                aria-invalid={Boolean(fieldErrors.eventDate)}
+                                aria-describedby={fieldErrors.eventDate ? 'eventDate-error' : undefined}
                                 className="w-full px-3 py-2 bg-brand-bg border border-brand-border rounded text-brand-text-primary focus:outline-none focus:border-brand-red transition-colors text-sm"
                             />
+                            {fieldErrors.eventDate && (
+                                <FieldError fieldId="eventDate" message={fieldErrors.eventDate} />
+                            )}
                         </div>
 
                         <div>
@@ -338,10 +388,18 @@ export function TechTalkForm({
                                 id="youtubeVideoId"
                                 type="text"
                                 value={youtubeVideoId}
-                                onChange={(e) => setYoutubeVideoId(e.target.value)}
+                                onChange={(e) => {
+                                    setYoutubeVideoId(e.target.value);
+                                    clearFieldError('youtubeVideoId');
+                                }}
                                 placeholder="Enter 11-character ID"
+                                aria-invalid={Boolean(fieldErrors.youtubeVideoId)}
+                                aria-describedby={fieldErrors.youtubeVideoId ? 'youtubeVideoId-error' : undefined}
                                 className="w-full px-3 py-2 bg-brand-bg border border-brand-border rounded text-brand-text-primary focus:outline-none focus:border-brand-red transition-colors text-sm"
                             />
+                            {fieldErrors.youtubeVideoId && (
+                                <FieldError fieldId="youtubeVideoId" message={fieldErrors.youtubeVideoId} />
+                            )}
                         </div>
                     </div>
 

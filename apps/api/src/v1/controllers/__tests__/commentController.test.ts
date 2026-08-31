@@ -8,6 +8,9 @@ jest.unstable_mockModule('@services/commentService.js', () => ({
     listComments: jest.fn(),
     updateComment: jest.fn(),
     deleteComment: jest.fn(),
+    listPendingComments: jest.fn(),
+    approveComment: jest.fn(),
+    rejectComment: jest.fn(),
   },
 }));
 
@@ -257,6 +260,156 @@ describe('CommentController.remove', () => {
     );
 
     await controller.remove(req as Request, res as Response, next);
+
+    expect(next).toHaveBeenCalledWith(error);
+  });
+});
+
+describe('CommentController.listPending', () => {
+  let req: Partial<Request>;
+  let res: Partial<Response>;
+  let next: jest.Mock<any>;
+
+  beforeEach(() => {
+    req = {
+      query: {},
+      user: { userId: 'admin-1' } as any,
+    };
+    res = {
+      status: jest.fn().mockReturnThis() as any,
+      json: jest.fn() as any,
+    };
+    next = jest.fn();
+    jest.clearAllMocks();
+  });
+
+  it('should call CommentService.listPendingComments with default pagination and return 200', async () => {
+    const result = { comments: [], total: 0, page: 1, limit: 20 };
+    (
+      mockCommentService.listPendingComments as jest.Mock<any>
+    ).mockResolvedValue(result);
+
+    await controller.listPending(req as Request, res as Response, next);
+
+    expect(mockCommentService.listPendingComments).toHaveBeenCalledWith(1, 20);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: result,
+      message: 'Pending comments retrieved successfully',
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('should pass errors from CommentService to next', async () => {
+    const error = new AppError('Something went wrong', 500);
+    (
+      mockCommentService.listPendingComments as jest.Mock<any>
+    ).mockRejectedValue(error);
+
+    await controller.listPending(req as Request, res as Response, next);
+
+    expect(next).toHaveBeenCalledWith(error);
+  });
+});
+
+describe('CommentController.approve', () => {
+  let req: Partial<Request>;
+  let res: Partial<Response>;
+  let next: jest.Mock<any>;
+
+  beforeEach(() => {
+    req = {
+      params: { commentId: 'comment-123' },
+      user: { userId: 'admin-1' } as any,
+    };
+    res = {
+      status: jest.fn().mockReturnThis() as any,
+      json: jest.fn() as any,
+    };
+    next = jest.fn();
+    jest.clearAllMocks();
+  });
+
+  it('should call CommentService.approveComment and return 200', async () => {
+    const approvedComment = { id: 'comment-123', status: 'Approved' };
+    (mockCommentService.approveComment as jest.Mock<any>).mockResolvedValue(
+      approvedComment
+    );
+
+    await controller.approve(req as Request, res as Response, next);
+
+    expect(mockCommentService.approveComment).toHaveBeenCalledWith(
+      'comment-123',
+      'admin-1'
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: approvedComment,
+      message: 'Comment approved',
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('should pass errors from CommentService to next', async () => {
+    const error = new AppError('Only Pending comments can be approved', 400);
+    (mockCommentService.approveComment as jest.Mock<any>).mockRejectedValue(
+      error
+    );
+
+    await controller.approve(req as Request, res as Response, next);
+
+    expect(next).toHaveBeenCalledWith(error);
+  });
+});
+
+describe('CommentController.reject', () => {
+  let req: Partial<Request>;
+  let res: Partial<Response>;
+  let next: jest.Mock<any>;
+
+  beforeEach(() => {
+    req = {
+      params: { commentId: 'comment-123' },
+      user: { userId: 'admin-1' } as any,
+    };
+    res = {
+      status: jest.fn().mockReturnThis() as any,
+      json: jest.fn() as any,
+    };
+    next = jest.fn();
+    jest.clearAllMocks();
+  });
+
+  it('should call CommentService.rejectComment and return 200', async () => {
+    const rejectedComment = { id: 'comment-123', status: 'Rejected' };
+    (mockCommentService.rejectComment as jest.Mock<any>).mockResolvedValue(
+      rejectedComment
+    );
+
+    await controller.reject(req as Request, res as Response, next);
+
+    expect(mockCommentService.rejectComment).toHaveBeenCalledWith(
+      'comment-123',
+      'admin-1'
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: rejectedComment,
+      message: 'Comment rejected',
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('should pass errors from CommentService to next', async () => {
+    const error = new AppError('Only Pending comments can be rejected', 400);
+    (mockCommentService.rejectComment as jest.Mock<any>).mockRejectedValue(
+      error
+    );
+
+    await controller.reject(req as Request, res as Response, next);
 
     expect(next).toHaveBeenCalledWith(error);
   });

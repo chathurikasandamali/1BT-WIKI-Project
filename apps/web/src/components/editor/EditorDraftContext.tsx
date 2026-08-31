@@ -12,6 +12,10 @@ import React, {
 import type { Editor } from '@tiptap/react';
 import { apiFetch } from '@/lib/api/client';
 import type { ArticleUpdateInput } from '@/lib/api/articles';
+import {
+  validateArticleTitle,
+  validateArticleContent,
+} from '@/lib/utils/articleValidation';
 
 // ── Frontend types matching backend response shape ──────────────────────────
 
@@ -66,9 +70,18 @@ interface EditorDraftContextValue {
   initialBody: Record<string, unknown> | null;
   initialStatus: string | null;
 
+  // Validation state
+  titleError: string | null;
+  contentError: string | null;
+
   // Setters
   setTitle: (title: string) => void;
   setTags: (tags: string[]) => void;
+
+  // Validation
+  validate: () => boolean;
+  clearTitleError: () => void;
+  clearContentError: () => void;
 
   // Editor registration
   registerEditor: (editor: Editor | null) => void;
@@ -136,6 +149,8 @@ export function EditorDraftProvider({
   const [wordCount, setWordCount] = useState(0);
   const [charCount, setCharCount] = useState(0);
   const [contentChangeCounter, setContentChangeCounter] = useState(0);
+  const [titleError, setTitleError] = useState<string | null>(null);
+  const [contentError, setContentError] = useState<string | null>(null);
 
   // ── Mirror refs (for reading current values in async callbacks without
   //    stale closures — state setters from useState are stable, but the
@@ -186,6 +201,26 @@ export function EditorDraftProvider({
     setWordCount(words);
     setCharCount(chars);
     setContentChangeCounter((c) => c + 1);
+  }, []);
+
+  // ── Frontend validation ────────────────────────────────────────────────
+  //
+  // Mirrors the backend rules (shared constants/helpers in @repo/shared).
+  // Runs before save/submit so invalid articles never reach the API. Errors
+  // are cleared as the user fixes each field.
+
+  const clearTitleError = useCallback(() => setTitleError(null), []);
+  const clearContentError = useCallback(() => setContentError(null), []);
+
+  const validate = useCallback((): boolean => {
+    const titleErr = validateArticleTitle(titleRef.current);
+    setTitleError(titleErr);
+
+    const body = editorRef.current?.getJSON() ?? {};
+    const contentErr = validateArticleContent(body).error;
+    setContentError(contentErr);
+
+    return titleErr === null && contentErr === null;
   }, []);
 
   // ── Request serialization lock (Correction 2) ─────────────────────────
@@ -629,8 +664,13 @@ export function EditorDraftProvider({
     attachments,
     wordCount,
     charCount,
+    titleError,
+    contentError,
     setTitle,
     setTags,
+    validate,
+    clearTitleError,
+    clearContentError,
     registerEditor,
     ensureDraftExists,
     saveDraft,

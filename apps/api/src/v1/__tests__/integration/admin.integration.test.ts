@@ -7,11 +7,16 @@ import {
   expect,
   beforeEach,
 } from '@jest/globals';
+import { ArticleStatusValue, type ArticleStatus } from '@models/article.types.js';
+import { UserRoleValue } from '@/types/userTypes.js';
 
 // ─── Module mocks (must precede all dynamic imports) ─────────────────────────
 
 await jest.unstable_mockModule('@repo/db', () => ({
   TechTalkStatus: { draft: 'draft', published: 'published', unpublished: 'unpublished' },
+  ReviewStatus: { Pending: 'Pending', Approved: 'Approved', Rejected: 'Rejected' },
+  ReviewCommentStatus: { Open: 'Open', Resolved: 'Resolved' },
+  ArticleStatus: { Draft: 'Draft', Pending: 'Pending', Published: 'Published', Unpublished: 'Unpublished' },
   prisma: {
     user: {
       findFirst: jest.fn(),
@@ -56,8 +61,10 @@ const MockArticleRepository = {
   findByStatus: jest
     .fn<() => Promise<unknown>>()
     .mockResolvedValue({ articles: [], total: 0 }),
-  findById: jest.fn<() => Promise<unknown>>().mockResolvedValue(null),
-  updateStatus: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
+  findById: jest.fn<(id: string) => Promise<unknown>>().mockResolvedValue(null),
+  updateStatus: jest
+    .fn<(id: string, status: ArticleStatus) => Promise<unknown>>()
+    .mockResolvedValue({}),
   create: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
   update: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
   softDelete: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
@@ -104,6 +111,26 @@ await jest.unstable_mockModule('@repositories/userRepository.js', () => ({
   default: MockUserRepositoryImpl,
 }));
 
+const mockNotificationSend = jest
+  .fn<() => Promise<void>>()
+  .mockResolvedValue(undefined);
+
+await jest.unstable_mockModule('@services/notificationService.js', () => ({
+  default: {
+    send: mockNotificationSend,
+  },
+}));
+
+const mockPregenerateFallbackQuiz = jest
+  .fn<() => Promise<void>>()
+  .mockResolvedValue(undefined);
+
+await jest.unstable_mockModule('@services/quizService.js', () => ({
+  default: {
+    pregenerateFallbackQuiz: mockPregenerateFallbackQuiz,
+  },
+}));
+
 // AdminController / UserController are also loaded by adminRoutes — stub minimally.
 await jest.unstable_mockModule('@controllers/adminController.js', () => ({
   default: {
@@ -143,6 +170,8 @@ const { default: request } = await import('supertest');
 // ─── Typed handles to mock functions ─────────────────────────────────────────
 
 const mockFindByStatus = MockArticleRepository.findByStatus as jest.Mock<any>;
+const mockFindById = MockArticleRepository.findById;
+const mockUpdateStatus = MockArticleRepository.updateStatus;
 const mockUserFindManyByIds = MockUserRepository.findManyByIds as jest.Mock<any>;
 
 const mockDate = new Date().toISOString();
@@ -157,19 +186,19 @@ const mockAuthor = {
 const adminHeaders = {
   'x-test-user-id': 'admin-1',
   'x-test-user-email': 'admin@example.com',
-  'x-test-user-role': 'Admin',
+  'x-test-user-role': UserRoleValue.Admin,
 };
 
 const reviewerHeaders = {
   'x-test-user-id': 'reviewer-1',
   'x-test-user-email': 'reviewer@example.com',
-  'x-test-user-role': 'Reviewer',
+  'x-test-user-role': UserRoleValue.Reviewer,
 };
 
 const userHeaders = {
   'x-test-user-id': 'user-1',
   'x-test-user-email': 'user@example.com',
-  'x-test-user-role': 'User',
+  'x-test-user-role': UserRoleValue.User,
 };
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -252,12 +281,17 @@ describe('Admin API Integration', () => {
       );
     });
 
-    it('should return 200 filtered by ?status=Pending for Admin', async () => {
-      const pendingArticles = [
+    it.each([
+      ArticleStatusValue.Pending,
+      ArticleStatusValue.Approved,
+      ArticleStatusValue.Published,
+      ArticleStatusValue.Unpublished,
+    ] as const)('should return 200 filtered by ?status=%s for Admin', async (status) => {
+      const filteredArticles = [
         {
           id: 'article-3',
-          title: 'My Pending',
-          status: 'Pending',
+          title: `My ${status}`,
+          status,
           authorId: 'user-1',
           tags: [],
           createdAt: mockDate,
@@ -265,18 +299,18 @@ describe('Admin API Integration', () => {
         },
       ];
 
-      mockFindByStatus.mockResolvedValueOnce({ articles: pendingArticles, total: 1 });
+      mockFindByStatus.mockResolvedValueOnce({ articles: filteredArticles, total: 1 });
       mockUserFindManyByIds.mockResolvedValueOnce([mockAuthor]);
 
       const response = await request(app)
-        .get('/api/v1/admin/articles?status=Pending')
+        .get(`/api/v1/admin/articles?status=${status}`)
         .set(adminHeaders);
 
       expect(response.status).toBe(200);
       expect(response.body.data.articles).toHaveLength(1);
-      expect(response.body.data.articles[0].status).toBe('Pending');
+      expect(response.body.data.articles[0].status).toBe(status);
       expect(mockFindByStatus).toHaveBeenCalledWith(
-        'Pending',
+        status,
         1,
         20,
         expect.objectContaining({ includeCounts: true })
@@ -290,7 +324,7 @@ describe('Admin API Integration', () => {
 
       expect(response.status).toBe(400);
       expect(response.body.error).toBe(
-        'Invalid status filter. Allowed: Pending, Published, Unpublished'
+        'Invalid status filter. Allowed: Pending, Approved, Published, Unpublished'
       );
       expect(mockFindByStatus).not.toHaveBeenCalled();
     });
@@ -302,7 +336,7 @@ describe('Admin API Integration', () => {
 
       expect(response.status).toBe(400);
       expect(response.body.error).toBe(
-        'Invalid status filter. Allowed: Pending, Published, Unpublished'
+        'Invalid status filter. Allowed: Pending, Approved, Published, Unpublished'
       );
       expect(mockFindByStatus).not.toHaveBeenCalled();
     });
@@ -362,6 +396,87 @@ describe('Admin API Integration', () => {
       expect(row.likeCount).toBe(4);
       expect(row.commentCount).toBe(1);
       expect(row.views).toBe(12);
+    });
+  });
+
+  describe('PATCH /api/v1/admin/articles/:id/publish', () => {
+    const articleId = 'article-123';
+    const publishPath = `/api/v1/admin/articles/${articleId}/publish`;
+
+    it('should publish an Approved article for an Admin', async () => {
+      const approvedArticle = {
+        id: articleId,
+        title: 'Approved Article',
+        status: 'Approved',
+        authorId: 'user-1',
+      };
+      const publishedArticle = {
+        ...approvedArticle,
+        status: 'Published',
+      };
+      mockFindById.mockResolvedValueOnce(approvedArticle);
+      mockUpdateStatus.mockResolvedValueOnce(publishedArticle);
+
+      const response = await request(app)
+        .patch(publishPath)
+        .set(adminHeaders);
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.status).toBe('Published');
+      expect(response.body.message).toBe('Article published successfully.');
+      expect(mockFindById).toHaveBeenCalledWith(articleId);
+      expect(mockUpdateStatus).toHaveBeenCalledWith(articleId, 'Published');
+    });
+
+    it('should return 403 for a Reviewer without running publication', async () => {
+      const response = await request(app)
+        .patch(publishPath)
+        .set(reviewerHeaders);
+
+      expect(response.status).toBe(403);
+      expect(response.body.error).toBe('Insufficient permissions');
+      expect(mockFindById).not.toHaveBeenCalled();
+      expect(mockUpdateStatus).not.toHaveBeenCalled();
+    });
+
+    it('should return 403 for a User without running publication', async () => {
+      const response = await request(app)
+        .patch(publishPath)
+        .set(userHeaders);
+
+      expect(response.status).toBe(403);
+      expect(response.body.error).toBe('Insufficient permissions');
+      expect(mockFindById).not.toHaveBeenCalled();
+      expect(mockUpdateStatus).not.toHaveBeenCalled();
+    });
+
+    it('should return 401 when unauthenticated', async () => {
+      const response = await request(app).patch(publishPath);
+
+      expect(response.status).toBe(401);
+      expect(response.body.success).toBe(false);
+      expect(mockFindById).not.toHaveBeenCalled();
+      expect(mockUpdateStatus).not.toHaveBeenCalled();
+    });
+
+    it('should reject Admin publication of a Pending article', async () => {
+      mockFindById.mockResolvedValueOnce({
+        id: articleId,
+        title: 'Pending Article',
+        status: 'Pending',
+        authorId: 'user-1',
+      });
+
+      const response = await request(app)
+        .patch(publishPath)
+        .set(adminHeaders);
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe(
+        'Only Approved articles can be published'
+      );
+      expect(mockUpdateStatus).not.toHaveBeenCalled();
     });
   });
 });

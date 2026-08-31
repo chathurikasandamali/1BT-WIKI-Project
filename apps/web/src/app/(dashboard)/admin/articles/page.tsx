@@ -26,6 +26,7 @@ type SortDir = 'asc' | 'desc';
 
 const STATUS_FILTERS: AdminArticleStatusFilter[] = [
   'Pending',
+  'Approved',
   'Published',
   'Unpublished',
 ];
@@ -61,7 +62,7 @@ function ArticleManagementContent(): React.JSX.Element {
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [page, setPage] = useState(1);
   const [statusCounts, setStatusCounts] = useState<Record<
-    'All' | 'Published' | 'Pending' | 'Unpublished',
+    'All' | 'Published' | 'Pending' | 'Approved' | 'Unpublished',
     number
   > | null>(null);
 
@@ -107,16 +108,19 @@ function ArticleManagementContent(): React.JSX.Element {
 
   const loadStatusCounts = useCallback(async () => {
     try {
-      const [all, published, pending, unpublished] = await Promise.all([
-        fetchAllArticles({ page: 1, limit: 1 }),
-        fetchAllArticles({ page: 1, limit: 1, status: 'Published' }),
-        fetchAllArticles({ page: 1, limit: 1, status: 'Pending' }),
-        fetchAllArticles({ page: 1, limit: 1, status: 'Unpublished' }),
-      ]);
+      const [all, published, pending, approved, unpublished] =
+        await Promise.all([
+          fetchAllArticles({ page: 1, limit: 1 }),
+          fetchAllArticles({ page: 1, limit: 1, status: 'Published' }),
+          fetchAllArticles({ page: 1, limit: 1, status: 'Pending' }),
+          fetchAllArticles({ page: 1, limit: 1, status: 'Approved' }),
+          fetchAllArticles({ page: 1, limit: 1, status: 'Unpublished' }),
+        ]);
       setStatusCounts({
         All: all.total,
         Published: published.total,
         Pending: pending.total,
+        Approved: approved.total,
         Unpublished: unpublished.total,
       });
     } catch {
@@ -207,7 +211,7 @@ function ArticleManagementContent(): React.JSX.Element {
 
       {/* Summary */}
       {showSummaryStats && (
-        <div className="page-header grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        <div className="page-header grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
           {[
             {
               label: 'Total Articles',
@@ -226,6 +230,12 @@ function ArticleManagementContent(): React.JSX.Element {
               value: statusCounts.Pending,
               color: 'text-amber-600',
               testId: 'pending-articles-stat',
+            },
+            {
+              label: 'Approved',
+              value: statusCounts.Approved,
+              color: 'text-blue-600',
+              testId: 'approved-articles-stat',
             },
             {
               label: 'Unpublished',
@@ -329,7 +339,7 @@ function ArticleManagementContent(): React.JSX.Element {
         </div>
 
         {/* Table body */}
-        {loading ? (
+        {loading && (
           <div
             className="py-20 flex flex-col items-center justify-center gap-3"
             data-testid="loading-state"
@@ -339,14 +349,16 @@ function ArticleManagementContent(): React.JSX.Element {
               Loading articles…
             </p>
           </div>
-        ) : articles.length === 0 ? (
+        )}
+        {!loading && articles.length === 0 && (
           <div
             className="py-20 text-center text-sm text-brand-text-secondary"
             data-testid="empty-state"
           >
             No articles found.
           </div>
-        ) : (
+        )}
+        {!loading && articles.length > 0 && (
           <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -437,6 +449,7 @@ function ArticleManagementContent(): React.JSX.Element {
           </>
         )}
       </div>
+
     </div>
   );
 }

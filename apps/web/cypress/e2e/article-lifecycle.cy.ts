@@ -3,6 +3,7 @@
 // natively support tsconfig paths without additional preprocessor dependencies, so
 // adding a custom @e2e alias merely to hide this cross-workspace dependency is unwarranted.
 import { E2E_AUTHOR, E2E_REVIEWER } from '../../../api/scripts/e2e-identities.js';
+import type { Interception } from 'cypress/types/net-stubbing';
 import {
   setE2EIdentity,
   registerE2EApiAuth,
@@ -11,12 +12,53 @@ import {
   SESSION_TOKEN_COOKIE,
 } from '../support/e2e-auth';
 
+type E2EIdentity = NonNullable<Parameters<typeof setE2EIdentity>[0]>;
+
+const E2E_ADMIN = {
+  id: '00000000-0000-4000-8000-000000000103',
+  email: 'e2e-admin@1billiontech.com',
+  role: 'Admin',
+} as unknown as E2EIdentity;
+
+interface PendingArticle {
+  id: string;
+}
+
+interface PendingArticlesResponse {
+  success: boolean;
+  data: {
+    articles: PendingArticle[];
+  };
+}
+
+interface PublishedArticleResponse {
+  success: boolean;
+  data: {
+    id: string;
+    status: string;
+    body: unknown;
+  };
+}
+
+type PendingArticlesInterception = Interception<
+  unknown,
+  PendingArticlesResponse
+>;
+
+type PublishedArticleInterception = Interception<
+  unknown,
+  PublishedArticleResponse
+>;
+
 describe('Article lifecycle', () => {
   let createdArticleId: string | null = null;
+  let useAdminProfile = false;
 
   const DEFAULT_TIMEOUT = 10000; // 10 seconds
 
   beforeEach(() => {
+    useAdminProfile = false;
+
     // 1. Select E2E Author identity
     cy.then(() => setE2EIdentity(E2E_AUTHOR));
 
@@ -26,9 +68,30 @@ describe('Article lifecycle', () => {
 
     // 3. Register required Neon Auth infrastructure stubs
     registerE2EFrontendAuthStubs();
+
+    cy.intercept('GET', '**/api/v1/users/me', (req) => {
+      if (!useAdminProfile) return;
+
+      req.alias = 'getAdminUser';
+      req.reply({
+        statusCode: 200,
+        body: {
+          success: true,
+          data: {
+            id: E2E_ADMIN.id,
+            name: 'E2E Admin',
+            email: E2E_ADMIN.email,
+            avatarUrl: null,
+            role: 'Admin',
+            isActive: true,
+            createdAt: new Date().toISOString(),
+          },
+        },
+      });
+    });
   });
 
-  it('authenticates the author, creates a draft, and updates content', () => {
+  it('moves an article through approval and Admin publication before public access', () => {
     // 4. Create or restore the frontend session using cy.session()
     cy.session(
       ['e2e-author', E2E_AUTHOR.id],
@@ -77,10 +140,14 @@ describe('Article lifecycle', () => {
       expect(interception.response?.body.data.role).to.eq(E2E_AUTHOR.role);
     });
 
-    // 9. Assert the authenticated UI
-    cy.get('[data-cy="user-avatar-name"]')
+    // 9. Assert the authenticated UI through the compact user account menu
+    cy.get('[data-testid="user-account-trigger"]')
       .should('be.visible')
-      .and('contain.text', 'E2E Author');
+      .click();
+    cy.get('[data-testid="user-account-dropdown"]')
+      .should('be.visible')
+      .and('contain.text', 'E2E Author')
+      .and('contain.text', E2E_AUTHOR.email);
 
     // 10. Open new editor
     cy.visit('/editor');
@@ -88,9 +155,31 @@ describe('Article lifecycle', () => {
 
     // 11. Create the draft
     const articleTitle = `Cypress Draft ${Date.now()}`;
-    const articleContent = 'This draft was created by the Cypress article lifecycle test.';
+    // Realistic, meaningful body whose plain text is well above
+    // MIN_ARTICLE_CONTENT_LENGTH (50 chars). It must also keep the
+    // "Cypress article lifecycle test" substring asserted later in the flow.
+    const articleContent =
+      'This draft provides a realistic article body for the Cypress article lifecycle test, covering the complete review, approval, and publication workflow.';
 
-    // Type the unique title and trigger the real blur behaviour
+    // Register the PATCH autosave alias before interacting so it is ready when
+    // the debounced autosave fires right after the create request resolves.
+    cy.intercept('PATCH', '**/api/v1/articles/*', (req) => {
+      const bodyString = typeof req.body === 'string'
+        ? req.body
+        : JSON.stringify(req.body);
+      if (bodyString.includes(articleContent)) {
+        req.alias = 'finalArticleAutosave';
+      }
+    });
+
+    // Type the article content FIRST so the create request already carries at
+    // least MIN_ARTICLE_CONTENT_LENGTH meaningful characters — the backend
+    // rejects articles that are created with empty content.
+    cy.get('[data-cy="article-content-editor"]')
+      .click()
+      .type(articleContent, { delay: 0 });
+
+    // Type the unique title and trigger the real blur behaviour (fires the create POST)
     cy.get('[data-cy="article-title-input"]').type(articleTitle, { delay: 0 }).blur();
 
     // Wait for the real POST request
@@ -113,21 +202,8 @@ describe('Article lifecycle', () => {
     // 12. Verify exactly one creation request occurred
     cy.get('@createArticle.all').should('have.length', 1);
 
-    // 13. Update content
-    cy.intercept('PATCH', '**/api/v1/articles/*', (req) => {
-      const bodyString = typeof req.body === 'string' 
-        ? req.body 
-        : JSON.stringify(req.body);
-      if (bodyString.includes(articleContent)) {
-        req.alias = 'finalArticleAutosave';
-      }
-    });
-
-    cy.get('[data-cy="article-content-editor"]')
-      .click()
-      .type(articleContent, { delay: 0 });
-
-    // 14. Wait for the real PATCH autosave request
+    // 13. Wait for the real PATCH autosave request (the editor already contains
+    // the content from step 11, so this is the debounced autosave of it)
     // The application has a 3000ms debounce, so we must allow a slightly longer timeout
     cy.wait('@finalArticleAutosave', { timeout: DEFAULT_TIMEOUT }).then((interception) => {
       // Assert PATCH URL contains createdArticleId
@@ -325,11 +401,11 @@ describe('Article lifecycle', () => {
         expect(interception.response?.statusCode).to.eq(200);
         const responseBody = interception.response?.body;
         expect(responseBody.success).to.eq(true);
-        expect(responseBody.data.id).to.eq(articleId);
-        expect(responseBody.data.title).to.eq(articleTitle);
-        expect(responseBody.data.status).to.eq('Pending');
+        expect(responseBody.data.article.id).to.eq(articleId);
+        expect(responseBody.data.article.title).to.eq(articleTitle);
+        expect(responseBody.data.article.status).to.eq('Pending');
 
-        const bodyStr = JSON.stringify(responseBody.data.body);
+        const bodyStr = JSON.stringify(responseBody.data.article.body);
         expect(bodyStr).to.include('Cypress article lifecycle test');
       });
 
@@ -341,14 +417,21 @@ describe('Article lifecycle', () => {
       cy.get('[data-testid="article-status-badge"]').should('contain.text', 'Pending');
       cy.get('[data-testid="review-article-content"]').should('contain.text', 'Cypress article lifecycle test');
 
-      cy.get('[data-testid="approve-button"]').should('be.visible');
+      cy.get('[data-testid="approve-button"]')
+        .should('be.visible')
+        .and('contain.text', 'Approve & Send to Admin');
       cy.get('[data-testid="reject-button"]').should('exist');
+      cy.get('[data-testid="review-article-page"]')
+        .contains('button', /^Publish$/)
+        .should('not.exist');
 
       // 31. Approval modal flow
       cy.get('[data-testid="approve-button"]').click();
       cy.get('[data-cy="confirmation-modal"]')
         .filter(':visible')
-        .should('contain.text', 'Approve & Publish Article');
+        .should('contain.text', 'Approve Article')
+        .and('contain.text', 'sent to Admin for publication')
+        .and('contain.text', 'not be published immediately');
 
       cy.get('[data-cy="confirmation-modal"]')
         .filter(':visible')
@@ -376,7 +459,8 @@ describe('Article lifecycle', () => {
         const responseBody = interception.response?.body;
         expect(responseBody.success).to.eq(true);
         expect(responseBody.data.id).to.eq(articleId);
-        expect(responseBody.data.status).to.eq('Published');
+        expect(responseBody.data.status).to.eq('Approved');
+        expect(responseBody.data.status).not.to.eq('Published');
       });
 
       // 33. Assert exactly one approval request
@@ -392,27 +476,29 @@ describe('Article lifecycle', () => {
 
       // Now wait for the background revalidation request to complete before inspecting it
       cy.get('@getPendingArticles.all').should((interceptions) => {
-        const completedInterceptions = (interceptions as import('cypress/types/net-stubbing').Interception[]).filter(i => i.response);
-        expect(completedInterceptions.length).to.be.greaterThan(0, 'No completed getPendingArticles requests found');
-        
-        const lastInterception = completedInterceptions[completedInterceptions.length - 1];
-        expect(lastInterception.response?.statusCode).to.eq(200);
-        
-        const responseBody = lastInterception.response?.body;
+        const completedInterceptions = (
+          interceptions as PendingArticlesInterception[]
+        ).filter(
+          (interception: PendingArticlesInterception): boolean =>
+            interception.response !== undefined
+        );
+        const lastInterception = completedInterceptions.at(-1);
+
+        if (!lastInterception?.response) {
+          throw new Error('No completed getPendingArticles requests found');
+        }
+
+        expect(lastInterception.response.statusCode).to.eq(200);
+
+        const responseBody = lastInterception.response.body;
         expect(responseBody.success).to.eq(true);
         expect(responseBody.data.articles).to.be.an('array');
 
-        interface PendingArticle {
-          id: string;
-        }
-
-        const hasApprovedArticle = responseBody.data.articles.some((a: PendingArticle) => a.id === articleId);
+        const hasApprovedArticle = responseBody.data.articles.some(
+          (article: PendingArticle): boolean => article.id === articleId
+        );
         expect(hasApprovedArticle).to.eq(false, 'The approved article should no longer be in the pending list');
       });
-
-      // ---------------------------------------------------------
-      // AUTHOR PHASE - PUBLISHED ARTICLE VERIFICATION
-      // ---------------------------------------------------------
 
       cy.then(() => {
         setE2EIdentity(E2E_AUTHOR);
@@ -480,6 +566,191 @@ describe('Article lifecycle', () => {
           status: string;
         }
 
+        const approvedArticle = responseBody.data.articles.find(
+          (article: PublishedArticle) => article.id === articleId
+        );
+        expect(approvedArticle).to.eq(undefined);
+      });
+
+      cy.get(`[data-testid="article-card-${articleId}"]`).should('not.exist');
+
+      cy.then(() => {
+        useAdminProfile = true;
+        setE2EIdentity(E2E_ADMIN);
+      });
+
+      cy.session(
+        ['e2e-admin', E2E_ADMIN.id],
+        () => {
+          mintE2EFrontendSession(E2E_ADMIN);
+        },
+        {
+          validate: () => {
+            cy.getCookie(SESSION_TOKEN_COOKIE).should('exist');
+          },
+        }
+      );
+
+      cy.visit('/admin/articles');
+
+      cy.wait('@getAdminUser', { timeout: DEFAULT_TIMEOUT }).then(
+        (interception) => {
+          expect(interception.response?.statusCode).to.eq(200);
+          expect(interception.response?.body.success).to.eq(true);
+          expect(interception.response?.body.data.id).to.eq(E2E_ADMIN.id);
+          expect(interception.response?.body.data.role).to.eq('Admin');
+        }
+      );
+
+      cy.get('[data-testid="status-filter-select"]').select('Approved');
+
+      cy.wait('@getApprovedAdminArticles', {
+        timeout: DEFAULT_TIMEOUT,
+      }).then((interception) => {
+        expect(interception.request.method).to.eq('GET');
+        const reqUrl = new URL(interception.request.url);
+        expect(reqUrl.pathname).to.eq('/api/v1/admin/articles');
+        expect(reqUrl.searchParams.get('status')).to.eq('Approved');
+
+        expect(interception.request.headers['x-test-user-id']).to.eq(
+          E2E_ADMIN.id
+        );
+        expect(interception.request.headers['x-test-user-email']).to.eq(
+          E2E_ADMIN.email
+        );
+        expect(interception.request.headers['x-test-user-role']).to.eq('Admin');
+
+        expect(interception.response?.statusCode).to.eq(200);
+        const responseBody = interception.response?.body;
+        expect(responseBody.success).to.eq(true);
+        expect(responseBody.data.articles).to.be.an('array');
+
+        interface ApprovedArticle {
+          id: string;
+          title: string;
+          status: string;
+        }
+
+        const approvedArticle = responseBody.data.articles.find(
+          (article: ApprovedArticle) => article.id === articleId
+        );
+        if (!approvedArticle) {
+          throw new Error('Article was not found in the Approved queue');
+        }
+
+        expect(approvedArticle.title).to.eq(articleTitle);
+        expect(approvedArticle.status).to.eq('Approved');
+      });
+
+      cy.get(`[data-testid="article-link-${articleId}"]`)
+        .should('be.visible')
+        .and('contain.text', articleTitle)
+        .closest('tr')
+        .should('contain.text', 'Approved');
+
+      cy.get(`[data-testid="article-link-${articleId}"]`).click();
+
+      cy.wait('@getPublishedArticleDetail', {
+        timeout: DEFAULT_TIMEOUT,
+      }).then((interception) => {
+        expect(interception.request.method).to.eq('GET');
+        const reqUrl = new URL(interception.request.url);
+        expect(reqUrl.pathname).to.eq(`/api/v1/articles/${articleId}`);
+        expect(interception.request.headers['x-test-user-id']).to.eq(
+          E2E_ADMIN.id
+        );
+        expect(interception.request.headers['x-test-user-role']).to.eq('Admin');
+        expect(interception.response?.statusCode).to.eq(200);
+        expect(interception.response?.body.data.id).to.eq(articleId);
+        expect(interception.response?.body.data.status).to.eq('Approved');
+      });
+
+      cy.get('[data-testid="article-status-badge"]').should(
+        'contain.text',
+        'Approved'
+      );
+      cy.get('[data-testid="back-link"]')
+        .parent()
+        .contains('button', /^Publish$/)
+        .should('be.visible')
+        .click();
+
+      cy.get('[data-cy="confirmation-modal"]')
+        .filter(':visible')
+        .should('contain.text', 'publicly visible immediately')
+        .within(() => {
+          cy.get('[data-cy="confirm-submit-button"]').click();
+        });
+
+      cy.wait('@publishArticleAsAdmin', {
+        timeout: DEFAULT_TIMEOUT,
+      }).then((interception) => {
+        expect(interception.request.method).to.eq('PATCH');
+        const reqUrl = new URL(interception.request.url);
+        expect(reqUrl.pathname).to.eq(
+          `/api/v1/admin/articles/${articleId}/publish`
+        );
+        expect(interception.request.headers['x-test-user-id']).to.eq(
+          E2E_ADMIN.id
+        );
+        expect(interception.request.headers['x-test-user-role']).to.eq('Admin');
+        expect(interception.response?.statusCode).to.eq(200);
+        expect(interception.response?.body.success).to.eq(true);
+        expect(interception.response?.body.data.id).to.eq(articleId);
+        expect(interception.response?.body.data.status).to.eq('Published');
+        expect(interception.response?.body.message).to.eq(
+          'Article published successfully.'
+        );
+      });
+
+      cy.get('[data-testid="success-toast"]')
+        .should('be.visible')
+        .and('contain.text', 'Article published successfully');
+      cy.get('[data-testid="article-status-badge"]').should(
+        'contain.text',
+        'Published'
+      );
+      cy.get('[data-testid="back-link"]')
+        .parent()
+        .contains('button', /^Publish$/)
+        .should('not.exist');
+
+      cy.then(() => {
+        useAdminProfile = false;
+        setE2EIdentity(E2E_AUTHOR);
+      });
+
+      cy.session(
+        ['e2e-author-published-check', E2E_AUTHOR.id],
+        () => {
+          mintE2EFrontendSession(E2E_AUTHOR);
+        },
+        {
+          validate: () => {
+            cy.getCookie(SESSION_TOKEN_COOKIE).should('exist');
+          },
+        }
+      );
+
+      cy.visit('/articles');
+      cy.wait('@getCurrentUser', { timeout: DEFAULT_TIMEOUT });
+      cy.get(
+        '[data-testid="search-input"][placeholder="Search by title..."]'
+      ).type(articleTitle, { delay: 0 });
+
+      cy.wait('@searchPublishedArticles', {
+        timeout: DEFAULT_TIMEOUT,
+      }).then((interception) => {
+        expect(interception.response?.statusCode).to.eq(200);
+        const responseBody = interception.response?.body;
+        expect(responseBody.success).to.eq(true);
+
+        interface PublishedArticle {
+          id: string;
+          title: string;
+          status: string;
+        }
+
         const publishedArticle = responseBody.data.articles.find(
           (article: PublishedArticle) => article.id === articleId
         );
@@ -524,22 +795,26 @@ describe('Article lifecycle', () => {
       cy.get('[data-testid="article-content"]').should('contain.text', articleContent);
 
       cy.get('@getPublishedArticleDetail.all').then((interceptions) => {
-        expect(interceptions.length).to.be.greaterThan(0);
+        const publishedArticleInterceptions =
+          interceptions as PublishedArticleInterception[];
+        expect(publishedArticleInterceptions.length).to.be.greaterThan(0);
 
-        const successfulRequest = interceptions.find((interception) => {
-          const response = interception.response;
+        const successfulRequest = publishedArticleInterceptions.find(
+          (interception: PublishedArticleInterception): boolean => {
+            const response = interception.response;
 
-          if (
-            response?.statusCode === 200 &&
-            response.body?.success === true &&
-            response.body?.data?.id === articleId &&
-            response.body?.data?.status === 'Published'
-          ) {
-            const bodyStr = JSON.stringify(response.body?.data?.body);
-            return bodyStr.includes(articleContent);
+            if (
+              response?.statusCode === 200 &&
+              response.body.success &&
+              response.body.data.id === articleId &&
+              response.body.data.status === 'Published'
+            ) {
+              const bodyStr = JSON.stringify(response.body.data.body);
+              return bodyStr.includes(articleContent);
+            }
+            return false;
           }
-          return false;
-        });
+        );
 
         expect(successfulRequest).to.not.equal(undefined);
       });

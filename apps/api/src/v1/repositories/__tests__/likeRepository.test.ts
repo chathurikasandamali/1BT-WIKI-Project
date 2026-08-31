@@ -7,6 +7,7 @@ jest.unstable_mockModule('@repo/db', () => ({
       create: jest.fn(),
       findUnique: jest.fn(),
       deleteMany: jest.fn(),
+      findMany: jest.fn(),
     },
   },
   Prisma: {
@@ -102,6 +103,67 @@ describe('LikeRepository', () => {
       expect(prisma.like.deleteMany).toHaveBeenCalledWith({
         where: { articleId, userId },
       });
+    });
+  });
+
+  describe('findByArticleId', () => {
+    it('should return likers mapped from user relation, ordered by most recent', async () => {
+      prismaMock.like.findMany.mockResolvedValue([
+        {
+          id: 'like-2',
+          articleId,
+          userId: 'user-2',
+          createdAt: new Date('2026-01-02'),
+          user: { name: 'Bob', image: null },
+        },
+        {
+          id: 'like-1',
+          articleId,
+          userId: 'user-1',
+          createdAt: new Date('2026-01-01'),
+          user: { name: 'Alice', image: 'https://img.com/alice.png' },
+        },
+      ] as any);
+
+      const result = await LikeRepository.findByArticleId(articleId);
+
+      expect(prisma.like.findMany).toHaveBeenCalledWith({
+        where: { articleId },
+        select: {
+          id: true,
+          articleId: true,
+          userId: true,
+          createdAt: true,
+          user: { select: { name: true, image: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      expect(result).toEqual([
+        {
+          id: 'like-2',
+          articleId,
+          userId: 'user-2',
+          createdAt: new Date('2026-01-02'),
+          userName: 'Bob',
+          userImage: null,
+        },
+        {
+          id: 'like-1',
+          articleId,
+          userId: 'user-1',
+          createdAt: new Date('2026-01-01'),
+          userName: 'Alice',
+          userImage: 'https://img.com/alice.png',
+        },
+      ]);
+    });
+
+    it('should return an empty array when nobody liked the article', async () => {
+      prismaMock.like.findMany.mockResolvedValue([]);
+
+      const result = await LikeRepository.findByArticleId(articleId);
+
+      expect(result).toEqual([]);
     });
   });
 });

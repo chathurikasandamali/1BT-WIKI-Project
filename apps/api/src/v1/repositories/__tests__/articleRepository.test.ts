@@ -108,7 +108,7 @@ describe('ArticleRepository.findByStatus', () => {
       _count: {
         select: {
           likes: true,
-          comments: { where: { deletedAt: null } },
+          comments: { where: { deletedAt: null, status: 'Approved' } },
         },
       },
     });
@@ -264,7 +264,7 @@ describe('ArticleRepository.findByAuthor', () => {
       _count: {
         select: {
           likes: true,
-          comments: { where: { deletedAt: null } },
+          comments: { where: { deletedAt: null, status: 'Approved' } },
         },
       },
       reviews: {

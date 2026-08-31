@@ -4,3 +4,8 @@ export interface Like {
   userId: string;
   createdAt: Date;
 }
+
+export interface LikeWithUser extends Like {
+  userName: string;
+  userImage: string | null;
+}

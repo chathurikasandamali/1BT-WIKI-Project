@@ -7,10 +7,12 @@ import reviewerRoutes from './reviewerRoutes.js';
 import pusherRoutes from './pusherRoutes.js';
 import e2eRoutes from './e2eRoutes.js';
 import techTalksRoutes from './techTalksRoutes.js';
+import commentModerationRoutes from './commentModerationRoutes.js';
 
 const router = Router();
 router.use('/users', userRoutes);
 router.use('/admin', adminRoutes);
+router.use('/admin/comments', commentModerationRoutes);
 router.use('/articles', articlesRoutes);
 router.use('/notifications', notificationsRoutes);
 router.use('/reviewer', reviewerRoutes);

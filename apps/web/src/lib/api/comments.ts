@@ -1,10 +1,15 @@
 import { apiFetch } from '@/lib/api/client';
 
+export type CommentStatus = 'Pending' | 'Approved' | 'Rejected';
+
 export interface Comment {
   id: string;
   articleId: string;
   createdBy: string;
   body: string;
+  status: CommentStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
