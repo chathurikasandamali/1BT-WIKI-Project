@@ -2,26 +2,51 @@
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
   "tasks": {
+    "generate": {
+      "cache": false,
+      "outputs": ["src/generated/prisma/**"],
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
     "build": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^generate", "^build", "generate"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "!.next/dev/**",
+        "dist/**",
+        "src/generated/**"
+      ],
       "env": [
         "VERCEL_NEON_AUTH_BASE_URL",
         "VERCEL_NEON_AUTH_COOKIE_SECRET",
         "DATABASE_URL",
+        "CYPRESS_API_URL",
         "PORT"
-      ]
+      ],
+      "cache": false
     },
     "lint": {
-      "dependsOn": ["^lint"]
+      "dependsOn": ["^lint", "^build"]
     },
     "check-types": {
-      "dependsOn": ["^check-types"]
+      "dependsOn": ["^check-types", "^build"]
     },
     "dev": {
       "cache": false,
       "persistent": true
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"],
+      "cache": false
+    },
+    "sonar": {
+      "dependsOn": ["test"],
+      "cache": false,
+      "outputs": []
     }
   }
 }

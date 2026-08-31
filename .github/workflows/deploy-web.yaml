@@ -2,15 +2,13 @@ name: Web CI
 
 on:
   pull_request:
-    branches:
-      - main
-      - dev
     paths:
       - 'apps/web/**'
 
   push:
     branches:
       - dev
+      - main
     paths:
       - 'apps/web/**'
 
@@ -43,14 +41,74 @@ jobs:
       - name: Build Web
         run: pnpm --filter web build
 
+      - name: Run Jest Unit Tests
+        run: pnpm --filter web exec jest --ci
+
+      - name: Verify E2E database secret
+        # Fail before DB build if isolated secret is absent.
+        env:
+          E2E_DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+        run: |
+          if [ -z "$E2E_DATABASE_URL" ]; then
+            echo "E2E_DATABASE_URL is required and must point to the isolated E2E database."
+            exit 1
+          fi
+          echo "E2E database secret is configured."
+
+      - name: Build DB Package
+        # Requires DATABASE_URL for Prisma Neon HTTP adapter initialization.
+        env:
+          DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+        run: pnpm --filter @repo/db build
+
+      - name: Run Prisma Migrations
+        # Applies pending migrations to the isolated E2E database so the
+        # generated Prisma Client (built above from the current schema)
+        # matches the actual table columns before any queries run.
+        env:
+          DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+        run: pnpm --filter @repo/db migrate:deploy
+
+      - name: Seed E2E database
+        # Upsert E2E users into isolated DB. Both DB env vars must be isolated.
+        env:
+          DATABASE_URL:           ${{ secrets.E2E_DATABASE_URL }}
+          VERCEL_DATABASE_URL:    ${{ secrets.E2E_DATABASE_URL }}
+          NODE_ENV:               test
+          E2E_TEST_MODE:          "true"
+          E2E_DATABASE_CONFIRMED: "true"
+        run: |
+          # Run directly to avoid local .env.e2e overrides.
+          pnpm --filter api exec tsx scripts/seed-e2e.ts
+
       - name: Run Cypress E2E
         env:
-          VERCEL_DATABASE_URL: ${{ secrets.VERCEL_DATABASE_URL }}
+          # Both database connections must use the same isolated DB.
+          VERCEL_DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+          DATABASE_URL:        ${{ secrets.E2E_DATABASE_URL }}
+
+          # Activate test-header bypass and E2E cleanup route.
+          NODE_ENV:               test
+          E2E_TEST_MODE:          "true"
+          E2E_DATABASE_CONFIRMED: "true"
+
+          # Shared deterministic cookie secret.
+          VERCEL_NEON_AUTH_COOKIE_SECRET: "ci-only-e2e-cookie-secret-1bt-wiki-32c"
+
+          # Explicit API URL for CI.
+          CYPRESS_API_URL: "http://localhost:5000/api/v1"
+
         run: |
+          # Start API on port 5000.
           PORT=5000 pnpm --filter api dev &
+
+          # Start Next.js server.
           pnpm --filter web start &
+
+          # Wait for both servers to accept connections.
           pnpm --filter web exec wait-on \
             http://localhost:3000 \
             http://localhost:5000/api/v1/health \
             --timeout 60000
+
           pnpm --filter web cypress:ci

@@ -1,225 +1,258 @@
 ---
-description: Database conventions for Neon PostgreSQL — schema, migrations, queries, and connection pooling
-globs: ["src/db/**/*.ts", "src/repositories/**/*.ts", "src/db/migrations/**/*.sql"]
+description: Database conventions for Neon PostgreSQL via Prisma ORM — schema, migrations, and queries
+globs: ["prisma/**/*", "src/db/**/*.ts", "src/repositories/**/*.ts"]
 alwaysApply: false
 ---
 
-# Database Conventions — Neon PostgreSQL
+# Database Conventions — Neon PostgreSQL via Prisma ORM
+
+> **Prisma is the project's ORM.** All database access goes through Prisma Client. This supersedes any earlier raw-SQL/`pg`-pool convention — if you see raw `pool.query(...)` code anywhere in older docs or code, treat it as stale and port it to Prisma.
 
 ## Connection
-- Use `@neondatabase/serverless` with connection pooling
-- Pool configured in `src/db/index.ts` — import `pool` from there; never create new connections elsewhere
+- Use `@prisma/client`, generated from `prisma/schema.prisma`
+- A single `PrismaClient` instance is exported from `src/db/prisma.ts` — import `prisma` from there; never call `new PrismaClient()` anywhere else (each instance opens its own connection pool)
 
 ```typescript
-// src/config/db.ts
-import { Pool } from '@neondatabase/serverless';
+// src/db/prisma.ts
+import { PrismaClient } from '@prisma/client';
 
-export const pool = new Pool({
-  connectionString: process.env.VERCEL_DATABASE_URL,
-  max: 10,
-  idleTimeoutMillis: 30000,
-});
+const globalForPrisma = global as unknown as { prisma: PrismaClient };
+
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    datasources: { db: { url: process.env.DATABASE_URL } },
+  });
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 ```
 
-## SQL Rules (security-critical)
-- **Always** use parameterized queries — `$1`, `$2`, etc.
-- **Never** use string interpolation in SQL — this causes SQL injection
-- **Never** use ORMs for this project (no Prisma, Drizzle, TypeORM) — raw SQL only
+## Query Rules (security-critical)
+- **Always** use Prisma Client's query builder (`findUnique`, `findMany`, `create`, `update`, `upsert`, `delete`, ...) — this parameterizes automatically.
+- **Never** build SQL strings by hand for normal CRUD.
+- If a query truly can't be expressed through Prisma's API (rare — complex multi-table aggregation), use `prisma.$queryRaw` with a **tagged template literal** only. Never `prisma.$queryRawUnsafe` and never string concatenation/interpolation into a raw query.
 
 ```typescript
-// ✅ Safe — parameterized
-const result = await pool.query(
-  'SELECT * FROM articles WHERE id = $1 AND status = $2',
-  [articleId, 'Published']
-);
+// ✅ Correct — Prisma query builder
+const article = await prisma.article.findFirst({
+  where: { id: articleId, status: 'Published' },
+});
 
-// ❌ DANGEROUS — SQL injection risk — never do this
-const result = await pool.query(
+// ✅ Acceptable when the query builder genuinely can't express it — tagged template, still parameterized
+const rows = await prisma.$queryRaw`
+  SELECT * FROM articles WHERE id = ${articleId} AND status = ${'Published'}
+`;
+
+// ❌ DANGEROUS — never do this, defeats Prisma's protection entirely
+const rows = await prisma.$queryRawUnsafe(
   `SELECT * FROM articles WHERE id = '${articleId}'`
 );
 ```
 
-## Schema Naming
+## Schema Naming (`prisma/schema.prisma`)
 | Element | Convention | Example |
 |---------|------------|---------|
-| Tables | `snake_case` plural | `articles`, `tech_talks`, `quiz_attempts` |
-| Columns | `snake_case` | `created_at`, `author_id`, `read_status` |
-| Primary keys | `id UUID DEFAULT gen_random_uuid()` | always UUID |
-| Foreign keys | `[table_singular]_id` | `article_id`, `user_id` |
-| Timestamps | `created_at`, `updated_at`, `deleted_at` | always present |
-| Indexes | `idx_[table]_[column]` | `idx_articles_author_id` |
+| Models | `PascalCase` singular | `Article`, `TechTalk`, `QuizAttempt` |
+| Fields | `camelCase` in Prisma schema, mapped to `snake_case` columns via `@map` | `createdAt` → `@map("created_at")` |
+| Tables (DB) | `snake_case` plural, set via `@@map` | `@@map("articles")` |
+| Primary keys | `id String @id @default(uuid()) @db.Uuid` | always UUID |
+| Foreign keys | `[modelSingular]Id` | `articleId`, `userId` |
+| Timestamps | `createdAt`, `updatedAt`, `deletedAt` | always present, via `@default(now())` / `@updatedAt` |
+| Indexes | `@@index([field])`, named implicitly by Prisma | index on `authorId` etc. |
 
-## Core Schema (reference — do not alter without migration)
+## Core Schema (reference — do not alter without a migration)
 
-```sql
-## Neon Auth — User Sync Table
-Neon Auth automatically maintains the `neon_auth.users` table. **Never create or manually manage a `users` table** — Neon Auth owns that schema.
+> Neon Auth automatically maintains the `neon_auth.users` table. **Never model or manage a `User` table yourselves** — Neon Auth owns that schema. Reference it in relations via the raw `neon_auth.user(id)` foreign key using `@relation(fields: ..., references: ...)` against an unmanaged/external table (see Prisma's `previewFeatures = ["multiSchema"]` if the project spans schemas).
 
+```prisma
+// prisma/schema.prisma
 
--- Articles
-CREATE TYPE article_status AS ENUM (
-    'Draft', 
-    'Pending', 
-    'Published',
-    'Unpublished'
-);
+generator client {
+  provider = "prisma-client-js"
+}
 
-CREATE TABLE IF NOT EXISTS articles (
-  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title               VARCHAR(500) NOT NULL,
-  body                JSONB NOT NULL DEFAULT '{}',
-  article_status      article_status NOT NULL,
-  author_id           UUID NOT NULL REFERENCES neon_auth.user(id),
-  article_tags        TEXT[] DEFAULT '{}',
-  created_by          UUID             NOT NULL REFERENCES neon_auth.user(id) ON DELETE RESTRICT,
-  deleted_at          TIMESTAMPTZ,
-  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
 
--- Comments
-CREATE TABLE article_comments (
-    id          UUID      PRIMARY KEY DEFAULT gen_random_uuid(),
-    article_id  UUID      NOT NULL REFERENCES articles (id) ON DELETE CASCADE,
-    created_by  UUID      NOT NULL REFERENCES neon_auth.user(id) ON DELETE RESTRICT,
-    body        TEXT      NOT NULL,
-    deleted_at  TIMESTAMP,                                  -- soft delete for owner/admin removal
-    created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
-);
+enum ArticleStatus {
+  Draft
+  Pending
+  Published
+  Unpublished
+}
 
--- Likes (unique constraint prevents duplicates)
-CREATE TABLE article_likes (
-    id          UUID      PRIMARY KEY DEFAULT gen_random_uuid(),
-    article_id  UUID      NOT NULL REFERENCES articles (id) ON DELETE CASCADE,
-    user_id     UUID      NOT NULL REFERENCES neon_auth.user(id)    ON DELETE CASCADE,
-    created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+model Article {
+  id          String        @id @default(uuid()) @db.Uuid
+  title       String        @db.VarChar(500)
+  body        Json          @default("{}")
+  status      ArticleStatus @map("article_status")
+  authorId    String        @map("author_id") @db.Uuid
+  tags        String[]      @map("article_tags") @default([])
+  createdBy   String        @map("created_by") @db.Uuid
+  deletedAt   DateTime?     @map("deleted_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
 
-    CONSTRAINT uq_article_likes UNIQUE (article_id, user_id)
-);
+  comments    Comment[]
+  likes       Like[]
+  reviews     Review[]
 
--- Notifications
-CREATE TYPE notification_reference_type AS ENUM (
-    'article',
-    'tech_talk',
-    'comment',
-    'like',
-    'review'
-);
+  @@map("articles")
+  @@index([authorId])
+  @@index([status])
+}
 
-CREATE TYPE notification_type AS ENUM (
-    'success',
-    'failure',
-    'info'
-);
+model Comment {
+  id        String    @id @default(uuid()) @db.Uuid
+  articleId String    @map("article_id") @db.Uuid
+  createdBy String    @map("created_by") @db.Uuid
+  body      String
+  deletedAt DateTime? @map("deleted_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
 
-CREATE TABLE notifications (
-    id              UUID                       PRIMARY KEY DEFAULT gen_random_uuid(),
-    recipient_id    UUID                       NOT NULL REFERENCES neon_auth.user(id) ON DELETE CASCADE,
-    notification_title varchar(255) NOT NULL,
-    notification_reference_type  notification_reference_type NOT NULL,
-    reference_id    UUID                       NOT NULL,   -- polymorphic FK (article / tech_talk / comment id)
-    notification_type notification_type NOT NULL,
-    message         TEXT                       NOT NULL,
-    is_read         BOOLEAN                    NOT NULL DEFAULT FALSE,
-    read_at         TIMESTAMP                  NOT NULL, -- Null should be allowed
-    deleted_at          TIMESTAMP,                          -- soft delete
-    created_at          TIMESTAMP        NOT NULL DEFAULT NOW()
-);
+  article   Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
 
--- Tech Talks
-CREATE TYPE tech_talk_status AS ENUM ('draft', 'published', 'unpublished');
+  @@map("article_comments")
+}
 
-CREATE TABLE tech_talks (
-    id                  UUID             PRIMARY KEY DEFAULT gen_random_uuid(),
-    title               VARCHAR(500)     NOT NULL,
-    description         TEXT,
-    presenters          TEXT[]           NOT NULL DEFAULT '{}',
-    event_date          TIMESTAMP        NOT NULL,
-    slides_url          TEXT,
-    youtube_iframe_url  TEXT,
-    tech_talks_status   tech_talk_status NOT NULL DEFAULT 'draft',
-    created_by          UUID             NOT NULL REFERENCES neon_auth.user(id) ON DELETE RESTRICT,
-    deleted_at          TIMESTAMP,                          -- soft delete
-    created_at          TIMESTAMP        NOT NULL DEFAULT NOW(),
-    updated_at          TIMESTAMP        NOT NULL DEFAULT NOW()
-);
+model Like {
+  id        String   @id @default(uuid()) @db.Uuid
+  articleId String   @map("article_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
 
--- Reviews
-CREATE TYPE review_status AS ENUM (
-    'Pending', 
-    'Approved', 
-    'Rejected'
-);
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
 
-CREATE TABLE article_reviews (
-    id                  UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-    article_id          UUID          NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
-    reviewer_id         UUID          NOT NULL REFERENCES neon_auth.user(id),
-    review_feedback     TEXT,
-    review_status       review_status NOT NULL,
-    created_by          UUID             NOT NULL REFERENCES neon_auth.user(id) ON DELETE RESTRICT,
-    deleted_at          TIMESTAMP,                          -- soft delete
-    created_at          TIMESTAMP        NOT NULL DEFAULT NOW(),
-    updated_at          TIMESTAMP        NOT NULL DEFAULT NOW(),
+  @@map("article_likes")
+  @@unique([articleId, userId], name: "uq_article_likes")
+}
 
-    CONSTRAINT chk_review_feedback CHECK (
-        (review_status = 'Rejected' AND review_feedback IS NOT NULL)
-        OR (review_status <> 'Rejected')
-    )
-);
+enum NotificationReferenceType {
+  article
+  tech_talk
+  comment
+  like
+  review
+}
 
--- Quiz Attempts 
--- CREATE TABLE quiz_attempts (
---   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
---   user_id       UUID NOT NULL REFERENCES neon_auth.users(id),
---   article_id    UUID NOT NULL REFERENCES articles(id),
---   questions     JSONB NOT NULL,           -- generated questions
---   answers       JSONB NOT NULL,           -- user's submitted answers
---   score         INTEGER,
---   total         INTEGER,
---   score_percent DECIMAL(5,2),
---   submitted_at  TIMESTAMPTZ DEFAULT NOW()
--- );
+enum NotificationType {
+  success
+  failure
+  info
+}
+
+model Notification {
+  id                  String                     @id @default(uuid()) @db.Uuid
+  recipientId         String                     @map("recipient_id") @db.Uuid
+  title               String                     @map("notification_title") @db.VarChar(255)
+  referenceType       NotificationReferenceType  @map("notification_reference_type")
+  referenceId         String                     @map("reference_id") @db.Uuid
+  type                NotificationType           @map("notification_type")
+  message             String
+  isRead              Boolean                    @default(false) @map("is_read")
+  readAt              DateTime?                  @map("read_at")
+  deletedAt           DateTime?                  @map("deleted_at")
+  createdAt           DateTime                   @default(now()) @map("created_at")
+
+  @@map("notifications")
+  @@index([recipientId])
+}
+
+enum TechTalkStatus {
+  draft
+  published
+  unpublished
+}
+
+model TechTalk {
+  id                String         @id @default(uuid()) @db.Uuid
+  title             String         @db.VarChar(500)
+  description       String?
+  presenters        String[]       @default([])
+  eventDate         DateTime       @map("event_date")
+  slidesUrl         String?        @map("slides_url")
+  youtubeIframeUrl  String?        @map("youtube_iframe_url")
+  status            TechTalkStatus @default(draft) @map("tech_talks_status")
+  createdBy         String         @map("created_by") @db.Uuid
+  deletedAt         DateTime?      @map("deleted_at")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  @@map("tech_talks")
+}
+
+enum ReviewStatus {
+  Pending
+  Approved
+  Rejected
+}
+
+model Review {
+  id              String       @id @default(uuid()) @db.Uuid
+  articleId       String       @map("article_id") @db.Uuid
+  reviewerId      String       @map("reviewer_id") @db.Uuid
+  feedback        String?      @map("review_feedback")
+  status          ReviewStatus @map("review_status")
+  createdBy       String       @map("created_by") @db.Uuid
+  deletedAt       DateTime?    @map("deleted_at")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  article         Article      @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@map("article_reviews")
+  // Feedback required on rejection — enforce in ReviewService (Prisma has no native
+  // conditional CHECK constraint equivalent; add a raw migration CHECK constraint
+  // via prisma/migrations if you need it enforced at the DB layer too)
+}
+
+model QuizAttempt {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  articleId     String   @map("article_id") @db.Uuid
+  questions     Json
+  answers       Json
+  score         Int?
+  total         Int?
+  scorePercent  Decimal? @map("score_percent") @db.Decimal(5, 2)
+  submittedAt   DateTime @default(now()) @map("submitted_at")
+
+  @@map("quiz_attempts")
+}
 ```
 
 ## Migration Rules
-- One file per migration, never edit existing migrations
-- File naming: `YYYYMMDDHHMMSS_description.sql`
-- Always include a rollback comment at the top
-- Run migrations in order; track with a `schema_migrations` table
-
-```sql
--- File: 20260601120000_create_articles.sql
--- Rollback: DROP TABLE IF EXISTS articles;
-
-CREATE TABLE articles (
-  ...
-);
-
-CREATE INDEX idx_articles_author_id ON articles(author_id);
-CREATE INDEX idx_articles_status ON articles(status);
-```
+- Use `npx prisma migrate dev --name [description]` locally — never hand-write migration SQL unless adding a constraint Prisma's schema language can't express (e.g. a conditional `CHECK`).
+- Never edit a migration file that has already been applied/committed — create a new migration instead.
+- Migrations are generated under `prisma/migrations/[timestamp]_[description]/migration.sql` — treat these as generated artifacts, reviewed but not hand-edited except for the rare raw-SQL addition (documented with a comment explaining why).
+- Run `npx prisma migrate deploy` in CI/production — never `migrate dev` outside local development.
+- After any schema change, run `npx prisma generate` to refresh the typed client.
 
 ## Soft Delete Pattern
-- Tables with `deleted_at` use soft delete — never hard delete from `articles`, `reviews`, `notifications`, `comments` and `tech_talks`
-- All queries on soft-delete tables must include `AND deleted_at IS NULL`
-- Admin hard-delete: `UPDATE articles SET deleted_at = NOW() WHERE id = $1`
+- Models with `deletedAt` use soft delete — never hard delete `Article`, `Review`, `Notification`, `Comment`, or `TechTalk` rows.
+- All reads on soft-delete models must include `deletedAt: null` in the `where` clause.
+- Admin hard-delete (Article only, Admin role) uses Prisma's `.delete()`; everything else uses `.update({ data: { deletedAt: new Date() } })`.
 
-## Aggregation Queries (avoid N+1 — use JOINs)
-```sql
--- ✅ Single query with aggregation (for article listings)
-SELECT 
-  a.*,
-  u.name AS author_name,
-  u.avatar_url AS author_avatar,
-  COUNT(DISTINCT l.user_id) AS like_count,
-  COUNT(DISTINCT c.id) AS comment_count
-FROM articles a
-JOIN neon_auth.users u ON u.id = a.author_id
-LEFT JOIN likes l ON l.article_id = a.id
-LEFT JOIN comments c ON c.article_id = a.id
-WHERE a.status = 'Published' AND a.deleted_at IS NULL
-GROUP BY a.id, u.name, u.avatar_url
-ORDER BY a.created_at DESC;
+```typescript
+// Admin soft-delete
+await prisma.article.update({
+  where: { id: articleId },
+  data: { deletedAt: new Date() },
+});
 ```
+
+## Aggregation Queries (avoid N+1 — use `include`/`_count`, not per-row queries)
+```typescript
+// ✅ Single query with aggregation (for article listings)
+const articles = await prisma.article.findMany({
+  where: { status: 'Published', deletedAt: null },
+  include: {
+    _count: { select: { likes: true, comments: true } },
+  },
+  orderBy: { createdAt: 'desc' },
+});
+```
+For cross-table aggregations that don't map cleanly to Prisma's relational API (e.g. the admin dashboard's single-query summary across unrelated tables), use `prisma.$queryRaw` with a tagged template — see `analytics-dashboard-engineer`'s rules.

@@ -1,0 +1,53 @@
+---
+description: SEO conventions for public-facing pages — homepage, article/tech-talk listing and detail pages
+globs: ["src/app/page.tsx", "src/app/(dashboard)/articles/**/*.tsx", "src/app/(dashboard)/techTalks/**/*.tsx"]
+alwaysApply: false
+---
+
+# Role: seo-optimizer
+
+> **Owns:** Nothing exclusively — this is a cross-cutting lens applied to the public-facing surfaces of 1BT WIKI (homepage feed, article listing/detail, tech-talk listing/detail), which are owned by `analytics-dashboard-engineer`, `content-authoring-engineer`, and `content-publishing-engineer` respectively.
+> This file supplements those roles' rules — it doesn't replace their ownership of the underlying pages.
+
+## Role Charter
+1BT WIKI's articles and tech talks are internal knowledge content, but discoverability still matters for internal search and any future public exposure. Whoever is touching a public-facing page listed in the globs above should apply these conventions; this is not a standalone owned feature.
+
+## Conventions
+
+### Metadata (Next.js App Router)
+- Every page under the globs above must export a `generateMetadata` (dynamic) or `metadata` (static) object — never leave Next.js defaults on a content page.
+- Title format: `"{Page Title} · 1BT WIKI"`, kept under ~60 characters.
+- Description: derived from the article/tech-talk's own description or the first ~155 characters of plain-text body (use `content-authoring-engineer`'s `extractTextFromTipTap()` utility — don't re-implement text extraction).
+
+```typescript
+// src/app/(dashboard)/articles/[id]/page.tsx
+export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+  const article = await articleApi.getById(params.id);
+  return {
+    title: `${article.title} · 1BT WIKI`,
+    description: extractTextFromTipTap(article.body).slice(0, 155),
+  };
+}
+```
+
+### Structured Data
+- Article detail pages should emit `Article` JSON-LD (headline, author, datePublished, dateModified).
+- Tech Talk detail pages should emit `Event` JSON-LD (name, startDate, description) when `event_date` is set.
+- Only emit structured data for **Published** content — never for Draft/Pending/Rejected.
+
+### Semantic HTML & Accessibility (SEO-adjacent)
+- One `<h1>` per page, matching the article/tech-talk title.
+- Images (including TipTap-embedded images) must have meaningful `alt` text — never leave `alt=""` on content images.
+- Internal links between related articles/techTalks use `<Link>` (Next.js), not full-page `<a>` reloads.
+
+### URLs
+- Article and tech talk URLs stay stable once published (`/articles/[id]`, `/techTalks/[id]`) — do not introduce slug changes on edit, since that breaks existing links/bookmarks.
+
+### Sitemap
+- `analytics-dashboard-engineer` should ensure published articles and tech talks are included in a generated `sitemap.xml` (Next.js `app/sitemap.ts`), excluding Draft/Pending/Rejected/soft-deleted content.
+
+## Non-Goals
+- No SEO changes to authenticated-only surfaces (admin dashboard, reviewer approvals, profile, notifications) — these are never indexed and don't need metadata beyond the app default.
+
+## How to use this file
+If your PR touches a file matched by the globs above, apply these conventions in addition to whichever feature role's rules already govern that file (`content-authoring-engineer`, `content-publishing-engineer`, or `analytics-dashboard-engineer`).

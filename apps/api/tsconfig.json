@@ -11,7 +11,21 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "types": ["jest", "node"]
+    "sourceMap": true,
+    "types": ["jest", "node"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@v1/*": ["src/v1/*"],
+      "@errors/*": ["src/errors/*"],
+      "@repositories/*": ["src/v1/repositories/*"],
+      "@controllers/*": ["src/v1/controllers/*"],
+      "@routes/*": ["src/v1/routes/*"],
+      "@services/*": ["src/v1/services/*"],
+      "@models/*": ["src/v1/types/*"],
+      "@middleware/*": ["src/middleware/*"],
+      "@utils/*": ["src/v1/utils/*"]
+    }
   },
   "include": ["src/**/*"]
 }

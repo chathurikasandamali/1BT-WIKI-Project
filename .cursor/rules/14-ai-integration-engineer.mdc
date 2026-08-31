@@ -1,0 +1,113 @@
+---
+description: Role rules for ai-integration-engineer — AI Quiz Generator (LLM API integration)
+globs: ["**/quiz/**"]
+alwaysApply: false
+---
+
+# Role: ai-integration-engineer
+
+> **Owns:** The AI Quiz Generator — LLM API integration, server-side scoring, submission rules, and the quiz UI states.
+> Do not create or modify files outside the Owned Paths below without a PR reviewed by someone currently holding this role.
+
+## Role Charter
+This is the one role that talks to an external LLM API. The core discipline is: never trust the client for scoring, never generate quizzes for unpublished content, and keep the prompt/response contract tight and validated.
+
+## Owned Paths
+```
+src/controllers/quizController.ts
+src/services/quizService.ts
+src/repositories/quizRepository.ts
+src/routes/quizRoutes.ts
+src/app/(dashboard)/articles/[id]/quiz/
+src/components/quiz/
+src/hooks/useQuiz.ts
+src/lib/api/quiz.api.ts
+```
+
+## Project Context
+- Stack: Next.js + TypeScript (FE), Express + TypeScript (BE), Neon PostgreSQL
+- AI: use the Gemini SDK (`import { GoogleGenerativeAI } from '@google/generative-ai'`), key from `process.env.GEMINI_API_KEY` — this is the project's confirmed AI provider (see `00-global.mdc` tech stack table).
+- Auth: import `authenticate` from `authentication-engineer`'s middleware — never rewrite it
+- API prefix: `/api/v1/`
+
+## Strict Rules
+1. Quiz generation only on **Published** articles.
+2. Score calculated server-side — never trust a client-submitted score.
+3. All questions must be answered before submission — block empty submission.
+4. After submission, answers cannot be modified; no re-submission of the same quiz attempt.
+5. Use `content-authoring-engineer`'s `extractTextFromTipTap()` utility to get plain text from an article body — do not re-implement TipTap parsing here.
+
+```typescript
+// src/services/quizService.ts
+import { GoogleGenerativeAI } from '@google/generative-ai';
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+
+async generateQuiz(articleId: string): Promise<QuizQuestion[]> {
+  const article = await articleRepository.findById(articleId);
+  if (!article) throw new AppError('Article not found', 404);
+  if (article.status !== 'Published') {
+    throw new AppError('Quiz can only be generated for Published articles', 400);
+  }
+
+  const prompt = `
+    Generate 5 multiple-choice quiz questions based on this article.
+    Article Title: ${article.title}
+    Article Content: ${extractTextFromTipTap(article.body)}
+
+    Return ONLY a JSON array with this exact structure (no markdown, no explanation):
+    [
+      {
+        "question": "Question text",
+        "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
+        "correctIndex": 0,
+        "explanation": "Brief explanation of correct answer"
+      }
+    ]
+  `;
+
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+  const result = await model.generateContent(prompt);
+  const text = result.response.text();
+  return JSON.parse(text) as QuizQuestion[];
+}
+```
+
+```typescript
+async submitQuiz(attemptData: QuizAttemptInput, userId: string): Promise<QuizResult> {
+  const { articleId, questions, answers } = attemptData;
+
+  if (answers.length !== questions.length) {
+    throw new AppError('All questions must be answered before submission', 400);
+  }
+
+  let correct = 0;
+  questions.forEach((q, i) => { if (answers[i] === q.correctIndex) correct++; });
+  const scorePercent = (correct / questions.length) * 100;
+
+  return quizRepository.saveAttempt({
+    userId, articleId, questions, answers,
+    score: correct, total: questions.length, scorePercent,
+  });
+}
+```
+
+## Quiz UI States (frontend)
+1. **Initial** — "Generate Quiz" button (visible on Published articles)
+2. **Loading** — spinner while the LLM generates
+3. **Active** — MCQ questions, answer selection
+4. **Confirming** — `<ConfirmationModal>` before submit
+5. **Submitted** — result screen (total / correct / incorrect / score % / correct answers revealed)
+- "Regenerate Quiz" available before submission.
+- After submission: all inputs disabled, result shown.
+
+## Code Generation Rules
+See `00-global.mdc` and `01-backend-architecture.mdc` for shared conventions.
+
+## Quick Reference
+| Task | File |
+|------|------|
+| Quiz generation | `src/services/quizService.ts` |
+| Quiz pages | `src/app/(dashboard)/articles/[id]/quiz/` |
+
+## Required Tests
+See `05-testing-conventions.mdc` → "Required unit tests per role" → `ai-integration-engineer`.

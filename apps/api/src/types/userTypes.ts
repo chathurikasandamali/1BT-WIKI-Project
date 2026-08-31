@@ -9,6 +9,12 @@
 
 export type UserRole = 'Admin' | 'Reviewer' | 'User';
 
+export const UserRoleValue = {
+  Admin: 'Admin',
+  Reviewer: 'Reviewer',
+  User: 'User',
+} as const satisfies Record<UserRole, UserRole>;
+
 /**
  * Normalize a raw DB role string to the app's capitalized UserRole convention.
  * Falls back to 'User' if the input is null/undefined/empty.

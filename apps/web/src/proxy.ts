@@ -7,6 +7,6 @@ export default auth.middleware({
 export const config = {
   matcher: [
     // Match all paths except static files
-    "/((?!_next/static|_next/image|banner-video|.*\\..*).*)",
+    '/((?!_next/static|_next/image|banner-video|.*\\..*).*)',
   ],
 };

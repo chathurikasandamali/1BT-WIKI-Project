@@ -119,7 +119,7 @@ src/
         [id]/page.tsx         ← detail
         create/page.tsx       ← creation
         [id]/edit/page.tsx    ← editing
-      tech-talks/
+      techTalks/
         page.tsx
         [id]/page.tsx
       profile/page.tsx
@@ -156,10 +156,16 @@ src/
       auth.api.ts
       notifications.api.ts
       quiz.api.ts
-      tech-talks.api.ts
+      techTalks.api.ts
   types/
     index.ts
 ```
+
+## Shared Cross-Role Components
+These live outside any single feature role and are maintained collectively. Whoever touches them must notify all roles that consume them via the PR description:
+- `src/components/ui/ConfirmationModal.tsx` — used for all destructive actions across the app
+- `src/app/(dashboard)/layout.tsx` — global shell: nav, sidebar, notification bell slot
+- `src/components/articles/ArticleStatusBadge.tsx` — owned by `content-authoring-engineer`, but also rendered inside `content-moderation-engineer`'s reviewer views — coordinate changes
 
 ## Confirmation Modals (required for these actions)
 Always use `<ConfirmationModal>` before executing:
@@ -197,4 +203,22 @@ const statusColors: Record<ArticleStatus, string> = {
   Published: 'bg-green-100 text-green-700',
   Rejected: 'bg-red-100 text-red-700',
 };
+```
+
+## Long className strings
+
+When a className attribute mixes static classes with a conditional (ternary or `${}` template literal) and the resulting line becomes hard to read, use the `cn()` utility (`clsx` + `tailwind-merge`) available at `apps/web/src/lib/utils.ts`, e.g.:
+
+```tsx
+// ✅ Correct
+<div 
+  className={cn(
+    'w-5 h-5 rounded flex items-center justify-center transition-colors border',
+    checked
+      ? 'bg-[#CC0000] border-[#CC0000]'
+      : 'bg-white border-[#E5E7EB] group-hover:border-[#CC0000]/50'
+  )}
+>
+  {/* ... */}
+</div>
 ```

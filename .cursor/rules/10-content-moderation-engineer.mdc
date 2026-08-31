@@ -1,0 +1,109 @@
+---
+description: Role rules for content-moderation-engineer — article review/approve/reject workflow
+globs: ["**/reviewer/**"]
+alwaysApply: false
+---
+
+# Role: content-moderation-engineer
+
+> **Owns:** The content review workflow — list pending articles, approve, reject with feedback, reviewer dashboard.
+> Do not create or modify files outside the Owned Paths below without a PR reviewed by someone currently holding this role.
+
+## Role Charter
+You make the Pending → Published/Rejected decision and record it. You do **not** own the rest of the article status machine (Draft → Pending, Rejected → Draft on edit) — that belongs to `content-authoring-engineer`; you call their `articleRepository.updateStatus()` method rather than duplicating the transition logic.
+
+## Owned Paths
+```
+src/controllers/reviewerController.ts
+src/services/reviewerService.ts
+src/routes/reviewerRoutes.ts
+src/app/(dashboard)/reviewer/approvals/page.tsx
+src/components/reviewer/RejectModal.tsx
+```
+
+## Project Context
+- Stack: Next.js + TypeScript (FE), Express + TypeScript (BE), Neon PostgreSQL
+- Auth: import `authenticate` and `requireRole` from `authentication-engineer` / `authorization-engineer` — never rewrite them
+- API prefix: `/api/v1/`
+
+## Article Status Machine (context — you only own the Pending exit transitions)
+```
+     [Draft] ──submit──→ [Pending] ──approve──→ [Published]
+       ↑                     |
+       └──(author edits)─── reject ──→ [Rejected]
+```
+
+## Strict Rules
+1. Only **Reviewer** or **Admin** can approve/reject.
+2. Rejection **requires** feedback text — validate minimum 10 characters.
+3. When an author edits a Rejected article, status automatically resets to Draft — that reset lives in `content-authoring-engineer`'s `ArticleService`; do not duplicate it here. Your `ReviewService` only handles `Pending → Published/Rejected`.
+4. On approve: send notification to article author.
+5. On reject: send notification to article author with the feedback text.
+6. On submit (Pending): send notification to all users with Reviewer role.
+7. To trigger any notification, call `notificationService.send()` / `sendToRole()` — do not implement notification storage yourself; that's `notification-engineer`'s.
+8. Never touch article CRUD, article ownership checks, or the Draft/Pending/Rejected-on-edit transitions (`content-authoring-engineer`'s domain).
+
+```typescript
+// src/services/reviewerService.ts
+async approveArticle(articleId: string, reviewId: string, reviewerId: string): Promise<Article> {
+  const article = await articleRepository.findById(articleId);
+  if (!article) throw new AppError('Article not found', 404);
+  if (article.status !== 'Pending') {
+    throw new AppError('Only Pending articles can be approved', 400);
+  }
+
+  const approved = await articleRepository.updateStatus(articleId, 'Published');
+
+  notificationService.send({
+    recipient_id: article.authorId,
+    type: 'success',
+    notification_reference_type: 'article',
+    notification_title: 'Your review request has been approved',
+    message: `Your article "${article.title}" has been approved and published!`,
+    reference_id: articleId,
+  }).catch(err => logger.error('Notification failed', { err }));
+
+  return approved;
+}
+
+async rejectArticle(articleId: string, reviewId: string, reviewerId: string, feedback: string): Promise<Article> {
+  if (!feedback || feedback.trim().length < 10) {
+    throw new AppError('Rejection feedback must be at least 10 characters', 400);
+  }
+
+  const article = await articleRepository.findById(articleId);
+  if (!article) throw new AppError('Article not found', 404);
+  if (article.status !== 'Pending') {
+    throw new AppError('Only Pending articles can be rejected', 400);
+  }
+
+  const rejected = await articleRepository.rejectWithFeedback(articleId, feedback);
+
+  notificationService.send({
+    recipient_id: article.authorId,
+    type: 'failure',
+    notification_reference_type: 'review',
+    notification_title: 'Your review request has been rejected',
+    message: `Your article "${article.title}" was rejected. Feedback: ${feedback}`,
+    reference_id: reviewId,
+  }).catch(err => logger.error('Notification failed', { err }));
+
+  return rejected;
+}
+```
+
+## Confirmation Modals
+Reviewer approve/reject actions must use `<ConfirmationModal>` (shared component, see `03-frontend-conventions.mdc`) before executing.
+
+## Code Generation Rules
+See `00-global.mdc` and `01-backend-architecture.mdc` for shared conventions.
+
+## Quick Reference
+| Task | File |
+|------|------|
+| Review approve/reject | `src/services/reviewerService.ts` |
+| Reviewer approvals page | `src/app/(dashboard)/reviewer/approvals/page.tsx` |
+| Reject modal | `src/components/reviewer/RejectModal.tsx` |
+
+## Required Tests
+See `05-testing-conventions.mdc` → "Required unit tests per role" → `content-moderation-engineer`.

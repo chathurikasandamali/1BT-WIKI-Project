@@ -24,7 +24,7 @@ CREATE TABLE notifications (
     notification_type notification_type NOT NULL,
     message         TEXT                       NOT NULL,
     is_read         BOOLEAN                    NOT NULL DEFAULT FALSE,
-    read_at         TIMESTAMP                  NOT NULL,
+    read_at         TIMESTAMP,
     deleted_at          TIMESTAMP,                          -- soft delete
     created_at          TIMESTAMP        NOT NULL DEFAULT NOW()
 );

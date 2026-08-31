@@ -1,0 +1,98 @@
+---
+description: Role rules for content-publishing-engineer — Tech Talk management (admin-authored content)
+globs: ["**/techTalks/**"]
+alwaysApply: false
+---
+
+# Role: content-publishing-engineer
+
+> **Owns:** Tech Talk Management — Admin create, publish, edit (→ resets to Draft), republish, delete; plus the public Tech Talk listing/detail pages and admin form.
+> Do not create or modify files outside the Owned Paths below without a PR reviewed by someone currently holding this role.
+
+## Role Charter
+Tech Talks are admin-authored content with their own, simpler publish cycle (Draft ⇄ Published), distinct from the author/reviewer article workflow. You own this pipeline end to end, backend and frontend both.
+
+## Owned Paths
+```
+src/controllers/techTalkController.ts
+src/services/techTalkService.ts
+src/repositories/techTalkRepository.ts
+src/routes/techTalksRoutes.ts
+src/app/(dashboard)/techTalks/page.tsx
+src/app/(dashboard)/techTalks/[id]/page.tsx
+src/app/(dashboard)/admin/techTalks/page.tsx
+src/components/techTalks/
+```
+
+## Project Context
+- Stack: Next.js + TypeScript (FE), Express + TypeScript (BE), Neon PostgreSQL
+- Auth: import `authenticate` and `requireRole` from `authentication-engineer` / `authorization-engineer` — never rewrite them
+- API prefix: `/api/v1/`
+
+## Status Machine
+```
+[Draft] ──publish──→ [Published]
+   ↑
+   └─── (Admin edits) ──→ [Draft]  (editing resets to Draft automatically)
+```
+
+## Strict Rules
+1. Only **Admin** can create, edit, publish, republish, or delete Tech Talks.
+2. Editing a Published Tech Talk automatically resets status to `Draft`.
+3. Republish = explicit action to re-publish after editing (`POST /republish`).
+4. Delete requires a `<ConfirmationModal>` (shared component).
+5. Soft delete: set `deleted_at`, never hard delete.
+6. Published Tech Talks sorted by `event_date DESC` by default; support title search, date sort, title sort.
+7. `analytics-dashboard-engineer`'s homepage feed calls your repository for published tech talks — don't let them re-implement that query; keep the interface stable.
+
+```typescript
+// src/services/techTalkService.ts
+async update(id: string, updates: TechTalkUpdateInput, adminId: string): Promise<TechTalk> {
+  const existing = await techTalkRepository.findById(id);
+  if (!existing) throw new AppError('Tech Talk not found', 404);
+  return techTalkRepository.update(id, {
+    ...updates,
+    status: 'Draft',
+    updatedAt: new Date(),
+  });
+}
+
+async publish(id: string): Promise<TechTalk> {
+  const talk = await techTalkRepository.findById(id);
+  if (!talk) throw new AppError('Tech Talk not found', 404);
+  if (talk.status === 'Published') throw new AppError('Already published', 400);
+  return techTalkRepository.updateStatus(id, 'Published');
+}
+```
+
+```typescript
+interface TechTalk {
+  id: string;
+  title: string;
+  description: string;
+  presenters: string[];
+  tags: string[];
+  eventDate: Date;
+  slidesUrl: string | null;
+  youtubeUrl: string | null;
+  status: 'Draft' | 'Published';
+  createdBy: string;
+  deletedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+## Code Generation Rules
+See `00-global.mdc` and `01-backend-architecture.mdc` for shared conventions.
+
+## Quick Reference
+| Task | File |
+|------|------|
+| Tech Talk CRUD | `src/services/techTalkService.ts` |
+| Tech talks listing | `src/app/(dashboard)/techTalks/page.tsx` |
+| Tech talk detail | `src/app/(dashboard)/techTalks/[id]/page.tsx` |
+| Admin tech talk form | `src/app/(dashboard)/admin/techTalks/page.tsx` |
+
+## Required Tests
+See `05-testing-conventions.mdc` → "Required unit tests per role" → `content-publishing-engineer`.

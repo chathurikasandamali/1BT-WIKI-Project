@@ -2,13 +2,12 @@ name: API CI
 
 on:
   pull_request:
-    branches:
-      - main
-      - dev
-
+    paths:
+      - 'apps/api/**'
   push:
       branches:
         - dev
+        - main
       paths:
         - 'apps/api/**'
 
@@ -30,7 +29,10 @@ jobs:
           cache: pnpm
 
       - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Build DB Package       
+        run: pnpm --filter db build
 
       - name: Lint API
         run: pnpm --filter api lint
@@ -40,3 +42,5 @@ jobs:
 
       - name: Build API
         run: pnpm --filter api build
+    env:
+      DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}   
