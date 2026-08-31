@@ -14,6 +14,13 @@ export const TechTalkStatus = {
 /** TypeScript type derived from the TechTalkStatus const. */
 export type TechTalkStatus = (typeof TechTalkStatus)[keyof typeof TechTalkStatus];
 
+export const ReviewCommentStatus = {
+  open: 'Open',
+  resolved: 'Resolved',
+} as const;
+
+export type ReviewCommentStatus = (typeof ReviewCommentStatus)[keyof typeof ReviewCommentStatus];
+
 // ---------------------------------------------------------------------------
 
 export interface PaginationParams {

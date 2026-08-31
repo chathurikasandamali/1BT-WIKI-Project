@@ -27,6 +27,7 @@
     "@repo/ui": "workspace:*",
     "@tailwindcss/postcss": "^4.3.1",
     "@tiptap/extension-image": "^3.27.4",
+    "@tiptap/pm": "^3.27.4",
     "@tiptap/react": "^3.27.4",
     "@tiptap/starter-kit": "^3.27.4",
     "clsx": "^2.1.1",
