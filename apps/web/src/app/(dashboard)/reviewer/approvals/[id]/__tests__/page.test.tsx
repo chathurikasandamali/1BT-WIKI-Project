@@ -44,7 +44,7 @@ jest.mock('@/components/article-detail/ArticleContent', () => ({
     onSelectionChange?: (range: { from: number; to: number }, text: string) => void;
     onClickHighlight?: (commentId: string) => void;
   }) => (
-    <div data-testid="review-article-content">
+    <div data-testid="mock-article-content">
       <button
         type="button"
         data-testid="mock-trigger-selection"

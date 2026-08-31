@@ -258,7 +258,7 @@ function ReviewArticleDetailContent(): React.JSX.Element {
             ) : null}
           </div>
 
-          <div className="p-6 md:p-10 bg-white">
+          <div className="p-6 md:p-10 bg-white" data-testid="review-article-content">
             <ArticleContent
               body={article.body}
               comments={highlights}
