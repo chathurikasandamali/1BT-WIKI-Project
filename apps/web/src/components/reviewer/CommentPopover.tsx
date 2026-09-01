@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { cn } from '@/lib/utils';
 
 interface CommentPopoverProps {
   isOpen: boolean;
@@ -62,14 +63,15 @@ export function CommentPopover({
     <div
       ref={popoverRef}
       style={{
-        position: 'absolute',
         top: `${coords.top}px`,
         left: `${coords.left}px`,
         transform: coords.positionBelow ? 'translate(-50%, 0)' : 'translate(-50%, -100%)',
         marginTop: coords.positionBelow ? '8px' : '-8px',
       }}
       data-testid="comment-popover"
-      className="z-50 w-80 rounded-lg border border-brand-border bg-white p-4 shadow-xl animate-fade-in"
+      className={cn(
+        'absolute z-50 w-80 rounded-lg border border-brand-border bg-white p-4 shadow-xl animate-fade-in'
+      )}
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <div>

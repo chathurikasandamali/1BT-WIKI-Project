@@ -346,8 +346,8 @@ describe('ReviewArticleDetailPage', () => {
     // Open popover and verify popover style
     await user.click(addFeedbackBtn);
     const popover = screen.getByTestId('comment-popover');
+    expect(popover).toHaveClass('absolute');
     expect(popover).toHaveStyle({
-      position: 'absolute',
       top: '250px',
       left: '460px',
       transform: 'translate(-50%, -100%)',
@@ -388,8 +388,8 @@ describe('ReviewArticleDetailPage', () => {
     // Open popover and verify popover style
     await user.click(addFeedbackBtnTop);
     const popoverTop = screen.getByTestId('comment-popover');
+    expect(popoverTop).toHaveClass('absolute');
     expect(popoverTop).toHaveStyle({
-      position: 'absolute',
       top: '70px',
       left: '350px',
       transform: 'translate(-50%, 0)',

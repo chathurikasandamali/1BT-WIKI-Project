@@ -141,6 +141,32 @@ function ReviewArticleDetailContent(): React.JSX.Element {
     }
   };
 
+  const handleCommentSubmit = useCallback(
+    async (commentText: string) => {
+      if (!activeSelectionRange) return;
+      try {
+        await addComment(commentText, activeSelectedText, activeSelectionRange);
+        showToast('Feedback comment added successfully', 'success');
+        setIsCommentPopoverOpen(false);
+        setShowAddFeedbackButton(false);
+        setActiveSelectionRange(null);
+        setActiveSelectedText('');
+        setPopoverCoords(null);
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : String(err), 'error');
+      }
+    },
+    [activeSelectionRange, activeSelectedText, addComment, showToast]
+  );
+
+  const handleCommentCancel = useCallback(() => {
+    setIsCommentPopoverOpen(false);
+    setShowAddFeedbackButton(false);
+    setActiveSelectionRange(null);
+    setActiveSelectedText('');
+    setPopoverCoords(null);
+  }, []);
+
   const hasError = Boolean(error);
   const isArticleMissing = !article;
   const showErrorMessage = hasError || isArticleMissing;
@@ -310,27 +336,8 @@ function ReviewArticleDetailContent(): React.JSX.Element {
         isOpen={isCommentPopoverOpen}
         selectedText={activeSelectedText}
         coords={popoverCoords}
-        onSubmit={async (commentText) => {
-          try {
-            if (!activeSelectionRange) return;
-            await addComment(commentText, activeSelectedText, activeSelectionRange);
-            showToast('Feedback comment added successfully', 'success');
-            setIsCommentPopoverOpen(false);
-            setShowAddFeedbackButton(false);
-            setActiveSelectionRange(null);
-            setActiveSelectedText('');
-            setPopoverCoords(null);
-          } catch (err) {
-            showToast(err instanceof Error ? err.message : String(err), 'error');
-          }
-        }}
-        onCancel={() => {
-          setIsCommentPopoverOpen(false);
-          setShowAddFeedbackButton(false);
-          setActiveSelectionRange(null);
-          setActiveSelectedText('');
-          setPopoverCoords(null);
-        }}
+        onSubmit={handleCommentSubmit}
+        onCancel={handleCommentCancel}
       />
 
       <ConfirmationModal
