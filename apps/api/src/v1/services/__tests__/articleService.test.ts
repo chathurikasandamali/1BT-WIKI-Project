@@ -819,6 +819,25 @@ describe('ArticleService.updateArticle', () => {
     expect(result).toEqual(existingArticle);
   });
 
+  it('should not reset status to Draft when a Rejected article is updated with an empty input', async () => {
+    const existingArticle = {
+      id: articleId,
+      authorId,
+      status: 'Unpublished',
+      title: 'Old Title',
+    };
+    mockRepo.findById.mockResolvedValue(existingArticle as never);
+    (
+      ArticleReviewRepository.findLatestByArticleId as jest.Mock<any>
+    ).mockResolvedValue({ reviewStatus: 'Rejected' });
+
+    const result = await service.updateArticle(articleId, {}, authorId);
+
+    expect(mockRepo.update).not.toHaveBeenCalled();
+    expect(result).toEqual(existingArticle);
+    expect(result.status).toBe('Unpublished');
+  });
+
   it('should successfully upload new images', async () => {
     const existingArticle = {
       id: articleId,
