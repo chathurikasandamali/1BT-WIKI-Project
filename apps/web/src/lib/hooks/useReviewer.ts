@@ -6,10 +6,13 @@ import {
   approve,
   reject,
   getArticleForReview,
+  createReviewComment,
+  updateCommentStatus as updateCommentStatusApi,
   type PendingArticleListItem,
   type ArticleDetail,
+  type ReviewComment,
 } from '@/lib/api/reviewer.api';
-import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT } from '@repo/shared';
+import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT, ReviewCommentStatus } from '@repo/shared';
 
 export function usePendingArticles(page = DEFAULT_PAGE, limit = DEFAULT_PAGE_LIMIT) {
   const [articles, setArticles] = useState<PendingArticleListItem[]>([]);
@@ -79,6 +82,8 @@ export function usePendingArticles(page = DEFAULT_PAGE, limit = DEFAULT_PAGE_LIM
 
 export function useArticleForReview(articleId: string) {
   const [article, setArticle] = useState<ArticleDetail | null>(null);
+  const [comments, setComments] = useState<ReviewComment[]>([]);
+  const [reviewId, setReviewId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -90,7 +95,9 @@ export function useArticleForReview(articleId: string) {
     getArticleForReview(articleId)
       .then((data) => {
         if (!cancelled) {
-          setArticle(data);
+          setArticle(data.article);
+          setComments(data.review?.comments || []);
+          setReviewId(data.review?.id || null);
         }
       })
       .catch((err) => {
@@ -109,7 +116,44 @@ export function useArticleForReview(articleId: string) {
     };
   }, [articleId]);
 
-  return { article, isLoading, error };
+  const addComment = useCallback(
+    async (commentText: string, selectedText: string | null, anchorData: { from: number; to: number }) => {
+      if (!articleId) return;
+      const newComment = await createReviewComment(articleId, {
+        comment: commentText,
+        selectedText,
+        anchorData,
+      });
+      setComments((prev) => [...prev, newComment]);
+      if (newComment.reviewId && !reviewId) {
+        setReviewId(newComment.reviewId);
+      }
+      return newComment;
+    },
+    [articleId, reviewId]
+  );
+
+  const updateComment = useCallback(
+    async (commentId: string, status: ReviewCommentStatus) => {
+      if (!articleId) return;
+      const updated = await updateCommentStatusApi(articleId, commentId, status);
+      setComments((prev) =>
+        prev.map((c) => (c.id === commentId ? updated : c))
+      );
+      return updated;
+    },
+    [articleId]
+  );
+
+  return {
+    article,
+    comments,
+    reviewId,
+    isLoading,
+    error,
+    addComment,
+    updateComment,
+  };
 }
 
 export async function approveArticle(articleId: string): Promise<void> {
