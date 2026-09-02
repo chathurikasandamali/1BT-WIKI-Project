@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { ArticleRepository } from '@repositories/articleRepository.js';
 import { ArticleAttachmentRepository } from '@repositories/articleAttachmentRepository.js';
 import { ArticleReviewRepository } from '@repositories/articleReviewRepository.js';
+import defaultArticleReviewCommentRepository, { ArticleReviewCommentRepository } from '@repositories/articleReviewCommentRepository.js';
 import UserRepository from '@repositories/userRepository.js';
 import b2Client from '@v1/lib/b2Client.js';
 import notificationService from '@services/notificationService.js';
@@ -30,6 +31,7 @@ import {
   MAX_ARTICLE_TITLE_LENGTH,
   type TipTapJsonContent,
   getArticleContentLength,
+  ArticleReviewStatus,
 } from '@repo/shared';
 
 // Derives update-field shapes from the app-level Article interface — no Prisma types cross into the service layer.
@@ -200,7 +202,8 @@ export class ArticleService {
     private reviewRepository: ArticleReviewRepository = new ArticleReviewRepository(),
     private attachmentRepository: ArticleAttachmentRepository = new ArticleAttachmentRepository(),
     private userRepository: typeof UserRepository = UserRepository,
-    private quizService: QuizService = defaultQuizService
+    private quizService: QuizService = defaultQuizService,
+    private reviewCommentRepository: ArticleReviewCommentRepository = defaultArticleReviewCommentRepository
   ) { }
 
   private async uploadArticleImages(
@@ -689,6 +692,44 @@ export class ArticleService {
     }));
 
     return { articles: mappedArticles, total, page, limit };
+  }
+
+  async getReviewFeedback(
+    articleId: string,
+    requesterId: string
+  ): Promise<{
+    overallFeedback: string | null;
+    comments: Array<{
+      id: string;
+      comment: string;
+      selectedText: string | null;
+      createdAt: Date;
+    }>;
+  }> {
+    const [article, latestReview] = await Promise.all([
+      this.repository.findById(articleId),
+      this.reviewRepository.findLatestWithComments(articleId),
+    ]);
+
+    if (!article) {
+      throw new AppError('Article not found', HttpStatusCode.NOT_FOUND);
+    }
+    if (article.authorId !== requesterId) {
+      throw new AppError('Not authorized', HttpStatusCode.FORBIDDEN);
+    }
+    if (!latestReview || latestReview.reviewStatus !== ArticleReviewStatus.Rejected) {
+      throw new AppError('No rejection feedback available for this article', HttpStatusCode.NOT_FOUND);
+    }
+
+    return {
+      overallFeedback: latestReview.feedback ?? null,
+      comments: latestReview.comments.map((c) => ({
+        id: c.id,
+        comment: c.comment,
+        selectedText: c.selectedText,
+        createdAt: c.createdAt,
+      })),
+    };
   }
 }
 
