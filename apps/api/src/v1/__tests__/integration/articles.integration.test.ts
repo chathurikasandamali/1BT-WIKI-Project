@@ -89,11 +89,36 @@ await jest.unstable_mockModule(
     const mockFindLatest = jest
       .fn<() => Promise<unknown>>()
       .mockResolvedValue(null);
+    const mockFindLatestWithComments = jest
+      .fn<() => Promise<unknown>>()
+      .mockResolvedValue(null);
     return {
-      default: { findLatestByArticleId: mockFindLatest },
+      default: {
+        findLatestByArticleId: mockFindLatest,
+        findLatestWithComments: mockFindLatestWithComments,
+      },
       ArticleReviewRepository: jest
         .fn()
-        .mockImplementation(() => ({ findLatestByArticleId: mockFindLatest })),
+        .mockImplementation(() => ({
+          findLatestByArticleId: mockFindLatest,
+          findLatestWithComments: mockFindLatestWithComments,
+        })),
+    };
+  }
+);
+
+const mockFindByReviewId = jest
+  .fn<(reviewId: string) => Promise<unknown[]>>()
+  .mockResolvedValue([]);
+
+await jest.unstable_mockModule(
+  '@repositories/articleReviewCommentRepository.js',
+  () => {
+    return {
+      default: { findByReviewId: mockFindByReviewId },
+      ArticleReviewCommentRepository: jest
+        .fn()
+        .mockImplementation(() => ({ findByReviewId: mockFindByReviewId })),
     };
   }
 );
@@ -147,6 +172,8 @@ const mockHardDelete = MockArticleRepository.hardDelete as jest.Mock<any>;
 const mockFindByAuthor = MockArticleRepository.findByAuthor as jest.Mock<any>;
 const mockFindLatestByArticleId =
   ArticleReviewRepository.findLatestByArticleId as jest.Mock<any>;
+const mockFindLatestWithComments =
+  ArticleReviewRepository.findLatestWithComments as jest.Mock<any>;
 
 const userHeaders = {
   'x-test-user-id': 'user-123',
@@ -852,6 +879,105 @@ describe('Articles API Integration', () => {
 
       const afterDelete = await mockFindById(articleId);
       expect(afterDelete).toBeNull();
+    });
+  });
+
+  describe('GET /api/v1/articles/:id/review-feedback', () => {
+    const articleId = 'article-123';
+    const feedbackPath = `/api/v1/articles/${articleId}/review-feedback`;
+
+    it('should return 401 if unauthenticated', async () => {
+      const response = await request(app).get(feedbackPath);
+      expect(response.status).toBe(HttpStatusCode.UNAUTHORIZED);
+    });
+
+    it('should return 404 if article not found', async () => {
+      mockFindById.mockResolvedValueOnce(null);
+
+      const response = await request(app)
+        .get(feedbackPath)
+        .set(userHeaders);
+
+      expect(response.status).toBe(HttpStatusCode.NOT_FOUND);
+      expect(response.body.error).toBe('Article not found');
+    });
+
+    it('should return 403 if requester is not the author of the article', async () => {
+      mockFindById.mockResolvedValueOnce({
+        id: articleId,
+        authorId: 'other-user',
+        status: 'Unpublished',
+      });
+
+      const response = await request(app)
+        .get(feedbackPath)
+        .set(userHeaders);
+
+      expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
+      expect(response.body.error).toBe('Not authorized');
+    });
+
+    it('should return 404 if article has no rejection review history', async () => {
+      mockFindById.mockResolvedValueOnce({
+        id: articleId,
+        authorId: 'user-123',
+        status: 'Draft',
+      });
+      mockFindLatestWithComments.mockResolvedValueOnce(null);
+
+      const response = await request(app)
+        .get(feedbackPath)
+        .set(userHeaders);
+
+      expect(response.status).toBe(HttpStatusCode.NOT_FOUND);
+      expect(response.body.error).toBe('No rejection feedback available for this article');
+    });
+
+    it('should return 200 with review feedback and inline comments for the article author', async () => {
+      const mockArticle = {
+        id: articleId,
+        authorId: 'user-123',
+        status: 'Unpublished',
+      };
+      const mockComments = [
+        {
+          id: 'comment-1',
+          comment: 'Please update this section',
+          selectedText: 'old text',
+          createdAt: new Date('2026-01-01').toISOString(),
+        },
+      ];
+      const mockReviewWithComments = {
+        id: 'review-123',
+        reviewStatus: 'Rejected',
+        feedback: 'Overall rejection notes',
+        comments: mockComments,
+      };
+
+      mockFindById.mockResolvedValueOnce(mockArticle);
+      mockFindLatestWithComments.mockResolvedValueOnce(mockReviewWithComments);
+
+      const response = await request(app)
+        .get(feedbackPath)
+        .set(userHeaders);
+
+      expect(response.status).toBe(HttpStatusCode.OK);
+      expect(response.body.success).toBe(true);
+      expect(response.body.message).toBe('Review feedback retrieved successfully');
+      expect(response.body.data).toEqual({
+        overallFeedback: 'Overall rejection notes',
+        comments: [
+          {
+            id: 'comment-1',
+            comment: 'Please update this section',
+            selectedText: 'old text',
+            createdAt: new Date('2026-01-01').toISOString(),
+          },
+        ],
+      });
+      expect(mockFindById).toHaveBeenCalledWith(articleId);
+      expect(mockFindLatestWithComments).toHaveBeenCalledWith(articleId);
+      expect(mockFindByReviewId).not.toHaveBeenCalled();
     });
   });
 });

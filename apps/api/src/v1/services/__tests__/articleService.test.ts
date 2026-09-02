@@ -8,6 +8,7 @@ import type { QuizService } from '@services/quizService.js';
 import type { User, UserRole } from '@/types/userTypes.js';
 import { UserRoleValue } from '@/types/userTypes.js';
 import { HttpStatusCode } from '@/v1/utils/httpStatus.js';
+import { ArticleReviewStatus } from '@repo/shared';
 
 const mockFindActiveByRole = jest
   .fn<(role: UserRole) => Promise<User[]>>()
@@ -50,11 +51,18 @@ jest.unstable_mockModule('@repositories/articleRepository.js', () => {
 
 jest.unstable_mockModule('@repositories/articleReviewRepository.js', () => {
   const mockFindLatest = jest.fn();
+  const mockFindLatestWithComments = jest.fn();
   return {
-    default: { findLatestByArticleId: mockFindLatest },
+    default: {
+      findLatestByArticleId: mockFindLatest,
+      findLatestWithComments: mockFindLatestWithComments,
+    },
     ArticleReviewRepository: jest
       .fn()
-      .mockImplementation(() => ({ findLatestByArticleId: mockFindLatest })),
+      .mockImplementation(() => ({
+        findLatestByArticleId: mockFindLatest,
+        findLatestWithComments: mockFindLatestWithComments,
+      })),
   };
 });
 
@@ -88,11 +96,23 @@ jest.unstable_mockModule('@services/notificationService.js', () => ({
   },
 }));
 
+jest.unstable_mockModule('@repositories/articleReviewCommentRepository.js', () => {
+  const mockFindByReviewId = jest.fn();
+  return {
+    default: { findByReviewId: mockFindByReviewId },
+    ArticleReviewCommentRepository: jest
+      .fn()
+      .mockImplementation(() => ({ findByReviewId: mockFindByReviewId })),
+  };
+});
+
 const { ArticleService } = await import('../articleService.js');
 const { default: ArticleAttachmentRepository } =
   await import('@repositories/articleAttachmentRepository.js');
 const { default: ArticleReviewRepository } =
   await import('@repositories/articleReviewRepository.js');
+const { default: ArticleReviewCommentRepository } =
+  await import('@repositories/articleReviewCommentRepository.js');
 const { default: b2Client } = await import('../../lib/b2Client.js');
 
 // Build a typed mock repository object — injected directly into the service.
@@ -1902,5 +1922,111 @@ describe('ArticleService.listMine', () => {
 
     const result = await service.listMine(authorId, 1, 20);
     expect(result.articles[0].rejectionFeedback).toBeNull();
+  });
+});
+
+describe('ArticleService.getReviewFeedback', () => {
+  const authorId = 'user-123';
+  const articleId = 'article-123';
+  const reviewId = 'review-123';
+  let mockRepo: ReturnType<typeof makeRepo>;
+  let mockReviewRepo: { findLatestWithComments: jest.Mock<any> };
+  let mockReviewCommentRepo: { findByReviewId: jest.Mock<any> };
+  let service: InstanceType<typeof ArticleService>;
+
+  beforeEach(() => {
+    mockRepo = makeRepo();
+    mockReviewRepo = { findLatestWithComments: jest.fn() };
+    mockReviewCommentRepo = { findByReviewId: jest.fn() };
+
+    service = new ArticleService(
+      mockRepo as unknown as ArticleRepository,
+      mockReviewRepo as any,
+      ArticleAttachmentRepository as any,
+      undefined as any,
+      undefined as any,
+      mockReviewCommentRepo as any
+    );
+    jest.clearAllMocks();
+  });
+
+  it("should return overall feedback and inline comments for article's own author on a Rejected article in a single parallel query batch", async () => {
+    const mockArticle = { id: articleId, authorId };
+    const mockComments = [
+      {
+        id: 'comment-1',
+        comment: 'Fix typo here',
+        selectedText: 'sample text',
+        createdAt: new Date('2026-01-01'),
+      },
+    ];
+    const mockReviewWithComments = {
+      id: reviewId,
+      reviewStatus: ArticleReviewStatus.Rejected,
+      feedback: 'Overall rejection reason',
+      comments: mockComments,
+    };
+
+    mockRepo.findById.mockResolvedValue(mockArticle as never);
+    mockReviewRepo.findLatestWithComments.mockResolvedValue(mockReviewWithComments);
+
+    const result = await service.getReviewFeedback(articleId, authorId);
+
+    expect(result).toEqual({
+      overallFeedback: 'Overall rejection reason',
+      comments: [
+        {
+          id: 'comment-1',
+          comment: 'Fix typo here',
+          selectedText: 'sample text',
+          createdAt: new Date('2026-01-01'),
+        },
+      ],
+    });
+    expect(mockRepo.findById).toHaveBeenCalledWith(articleId);
+    expect(mockReviewRepo.findLatestWithComments).toHaveBeenCalledWith(articleId);
+    expect(mockReviewCommentRepo.findByReviewId).not.toHaveBeenCalled();
+  });
+
+  it('should throw 403 Forbidden for a different authenticated user', async () => {
+    const mockArticle = { id: articleId, authorId: 'other-user' };
+    const mockReviewWithComments = { id: reviewId, reviewStatus: ArticleReviewStatus.Rejected, feedback: 'Reason', comments: [] };
+    mockRepo.findById.mockResolvedValue(mockArticle as never);
+    mockReviewRepo.findLatestWithComments.mockResolvedValue(mockReviewWithComments);
+
+    await expect(service.getReviewFeedback(articleId, authorId)).rejects.toThrow(
+      new AppError('Not authorized', HttpStatusCode.FORBIDDEN)
+    );
+  });
+
+  it('should throw 404 Not Found if article does not exist', async () => {
+    mockRepo.findById.mockResolvedValue(null);
+    mockReviewRepo.findLatestWithComments.mockResolvedValue(null);
+
+    await expect(service.getReviewFeedback(articleId, authorId)).rejects.toThrow(
+      new AppError('Article not found', HttpStatusCode.NOT_FOUND)
+    );
+  });
+
+  it('should throw 404 Not Found when article has no review or review status is not Rejected', async () => {
+    const mockArticle = { id: articleId, authorId };
+    mockRepo.findById.mockResolvedValue(mockArticle as never);
+    mockReviewRepo.findLatestWithComments.mockResolvedValue({ id: reviewId, reviewStatus: ArticleReviewStatus.Approved, feedback: null, comments: [] });
+
+    await expect(service.getReviewFeedback(articleId, authorId)).rejects.toThrow(
+      new AppError('No rejection feedback available for this article', HttpStatusCode.NOT_FOUND)
+    );
+  });
+
+  it('should return null overallFeedback when review feedback field is null', async () => {
+    const mockArticle = { id: articleId, authorId };
+    const mockReviewWithComments = { id: reviewId, reviewStatus: ArticleReviewStatus.Rejected, feedback: null, comments: [] };
+    mockRepo.findById.mockResolvedValue(mockArticle as never);
+    mockReviewRepo.findLatestWithComments.mockResolvedValue(mockReviewWithComments);
+
+    const result = await service.getReviewFeedback(articleId, authorId);
+
+    expect(result.overallFeedback).toBeNull();
+    expect(result.comments).toEqual([]);
   });
 });
