@@ -21,6 +21,24 @@ export const ReviewCommentStatus = {
 
 export type ReviewCommentStatus = (typeof ReviewCommentStatus)[keyof typeof ReviewCommentStatus];
 
+export const ArticleStatus = {
+  Draft: 'Draft',
+  Pending: 'Pending',
+  Approved: 'Approved',
+  Published: 'Published',
+  Unpublished: 'Unpublished',
+}
+
+export type ArticleStatus = (typeof ArticleStatus)[keyof typeof ArticleStatus];
+
+export const ArticleReviewStatus = {
+  Pending: 'Pending',
+  Approved: 'Approved',
+  Rejected: 'Rejected',
+}
+
+export type ArticleReviewStatus = (typeof ArticleReviewStatus)[keyof typeof ArticleReviewStatus];
+
 // ---------------------------------------------------------------------------
 
 export interface PaginationParams {
