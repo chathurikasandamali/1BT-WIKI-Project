@@ -674,6 +674,28 @@ describe('EditorDraftContext', () => {
             }));
         });
 
+        it('does not autosave an untouched existing article (no-op guard)', async () => {
+            mockApiFetch.mockResolvedValue({
+                success: true,
+                data: { status: 'Draft', attachments: [] },
+            });
+
+            const { result } = renderHook(() => useEditorDraft(), { wrapper: wrapperWithArticle });
+
+            act(() => {
+                // Simulate the editor registering with content identical to the initial article
+                result.current.registerEditor({
+                    getJSON: () => ({ type: 'doc', content: [] }),
+                } as unknown as Editor);
+            });
+
+            await act(async () => {
+                jest.advanceTimersByTime(3500);
+            });
+
+            expect(mockApiFetch).not.toHaveBeenCalled();
+        });
+
         it('debounces multiple rapid content changes', async () => {
             mockApiFetch.mockResolvedValue({
                 success: true,

@@ -116,7 +116,7 @@ export class ReviewerService {
 
     const rejected = await this.articleRepository.updateStatus(
       articleId,
-      ArticleStatus.Draft
+      ArticleStatus.Unpublished
     );
 
     const pendingReview = await this.reviewRepository.findPendingWithComments(articleId);

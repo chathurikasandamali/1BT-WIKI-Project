@@ -337,7 +337,7 @@ export class ArticleService {
       input.coverAttachmentId !== undefined;
     let updatedArticle = article;
 
-    if (hasUpdates || resetToDraft) {
+    if (hasUpdates) {
       const updateFields: ArticleUpdateFields = {};
 
       if (input.title !== undefined)

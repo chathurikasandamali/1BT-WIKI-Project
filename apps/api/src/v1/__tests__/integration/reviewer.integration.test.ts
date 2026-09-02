@@ -9,6 +9,7 @@ import {
   beforeAll,
   beforeEach,
 } from '@jest/globals';
+import { ArticleReviewStatus, ArticleStatus } from '@repo/shared';
 
 await jest.unstable_mockModule('@repo/db', () => ({
   TechTalkStatus: { draft: 'draft', published: 'published', unpublished: 'unpublished' },
@@ -219,13 +220,13 @@ describe('Reviewer API Integration', () => {
         'Pending articles retrieved successfully'
       );
       expect(response.body.data.articles).toHaveLength(1);
-      expect(response.body.data.articles[0].status).toBe('Pending');
+      expect(response.body.data.articles[0].status).toBe(ArticleStatus.Pending);
       expect(response.body.data.articles[0].authorName).toBe('Author Name');
       expect(response.body.data.articles[0].authorEmail).toBe('author@example.com');
       expect(response.body.data.total).toBe(1);
       expect(response.body.data.page).toBe(1);
       expect(response.body.data.limit).toBe(20);
-      expect(mockFindByStatus).toHaveBeenCalledWith('Pending', 1, 20);
+      expect(mockFindByStatus).toHaveBeenCalledWith(ArticleStatus.Pending, 1, 20);
     });
   });
 
@@ -265,7 +266,7 @@ describe('Reviewer API Integration', () => {
       mockFindById.mockResolvedValueOnce({
         id: articleId,
         title: 'Draft Article',
-        status: 'Draft',
+        status: ArticleStatus.Draft,
         authorId: 'user-1',
       });
 
@@ -284,13 +285,13 @@ describe('Reviewer API Integration', () => {
         id: articleId,
         title: 'Pending Article',
         body: { type: 'doc' },
-        status: 'Pending',
+        status: ArticleStatus.Pending,
         authorId: 'user-1',
         tags: [],
         createdAt: mockDate,
         updatedAt: mockDate,
       };
-      const approvedArticle = { ...pendingArticle, status: 'Approved' };
+      const approvedArticle = { ...pendingArticle, status: ArticleStatus.Approved };
 
       mockFindById.mockResolvedValueOnce(pendingArticle);
       mockUpdateStatus.mockResolvedValueOnce(approvedArticle);
@@ -298,7 +299,7 @@ describe('Reviewer API Integration', () => {
         id: 'review-1',
         articleId,
         reviewerId: 'reviewer-1',
-        reviewStatus: 'Approved',
+        reviewStatus: ArticleStatus.Approved,
       });
 
       const response = await request(app)
@@ -310,13 +311,13 @@ describe('Reviewer API Integration', () => {
       expect(response.body.message).toBe(
         'Article approved and sent for Admin publication.'
       );
-      expect(response.body.data.status).toBe('Approved');
-      expect(mockUpdateStatus).toHaveBeenCalledWith(articleId, 'Approved');
+      expect(response.body.data.status).toBe(ArticleStatus.Approved);
+      expect(mockUpdateStatus).toHaveBeenCalledWith(articleId, ArticleStatus.Approved);
       expect(mockReviewCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           articleId,
           reviewerId: 'reviewer-1',
-          status: 'Approved',
+          status: ArticleStatus.Approved,
           feedback: null,
           createdBy: 'reviewer-1',
         })
@@ -377,7 +378,7 @@ describe('Reviewer API Integration', () => {
       mockFindById.mockResolvedValueOnce({
         id: articleId,
         title: 'Draft Article',
-        status: 'Draft',
+        status: ArticleStatus.Draft,
         authorId: 'user-1',
       });
 
@@ -397,13 +398,13 @@ describe('Reviewer API Integration', () => {
         id: articleId,
         title: 'Pending Article',
         body: { type: 'doc' },
-        status: 'Pending',
+        status: ArticleStatus.Pending,
         authorId: 'user-1',
         tags: [],
         createdAt: mockDate,
         updatedAt: mockDate,
       };
-      const rejectedArticle = { ...pendingArticle, status: 'Unpublished' };
+      const rejectedArticle = { ...pendingArticle, status: ArticleStatus.Unpublished };
 
       mockFindById.mockResolvedValueOnce(pendingArticle);
       mockUpdateStatus.mockResolvedValueOnce(rejectedArticle);
@@ -411,7 +412,7 @@ describe('Reviewer API Integration', () => {
         id: 'review-1',
         articleId,
         reviewerId: 'reviewer-1',
-        reviewStatus: 'Rejected',
+        reviewStatus: ArticleReviewStatus.Rejected,
       });
 
       const response = await request(app)
@@ -422,13 +423,13 @@ describe('Reviewer API Integration', () => {
       expect(response.status).toBe(HttpStatusCode.OK);
       expect(response.body.success).toBe(true);
       expect(response.body.message).toBe('Article rejected');
-      expect(response.body.data.status).toBe('Unpublished');
-      expect(mockUpdateStatus).toHaveBeenCalledWith(articleId, 'Draft');
+      expect(response.body.data.status).toBe(ArticleStatus.Unpublished);
+      expect(mockUpdateStatus).toHaveBeenCalledWith(articleId, ArticleStatus.Unpublished);
       expect(mockReviewCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           articleId,
           reviewerId: 'reviewer-1',
-          status: 'Rejected',
+          status: ArticleReviewStatus.Rejected,
           feedback: 'this is a valid reject feedback',
           createdBy: 'reviewer-1',
         })
@@ -472,7 +473,7 @@ describe('Reviewer API Integration', () => {
       mockFindById.mockResolvedValueOnce({
         id: articleId,
         title: 'Draft Article',
-        status: 'Draft',
+        status: ArticleStatus.Draft,
         authorId: 'user-1',
       });
 
@@ -489,7 +490,7 @@ describe('Reviewer API Integration', () => {
         id: articleId,
         title: 'Pending Article',
         body: { type: 'doc', content: [{ type: 'paragraph', text: 'Full article body content' }] },
-        status: 'Pending',
+        status: ArticleStatus.Pending,
         authorId: 'user-1',
         tags: ['tech', 'wiki'],
         createdAt: mockDate,
@@ -509,7 +510,7 @@ describe('Reviewer API Integration', () => {
       expect(response.body.data.article.title).toBe('Pending Article');
       expect(response.body.data.article.body).toEqual(pendingArticle.body);
       expect(response.body.data.article.tags).toEqual(['tech', 'wiki']);
-      expect(response.body.data.article.status).toBe('Pending');
+      expect(response.body.data.article.status).toBe(ArticleStatus.Pending);
       expect(response.body.data.article.authorName).toBe('Author Name');
       expect(response.body.data.article.authorEmail).toBe('author@example.com');
       expect(mockFindById).toHaveBeenCalledWith(articleId);
