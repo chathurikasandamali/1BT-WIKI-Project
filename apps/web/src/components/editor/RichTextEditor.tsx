@@ -171,7 +171,7 @@ export function RichTextEditor({ onOpenImageEmbed }: RichTextEditorProps) {
     registerEditor,
     handleTitleBlur,
     notifyContentChanged,
-    initialBody,
+    currentBody,
     titleError,
     contentError,
     clearTitleError,
@@ -182,7 +182,7 @@ export function RichTextEditor({ onOpenImageEmbed }: RichTextEditorProps) {
     const text = ed.state.doc.textContent;
     const words = text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
     const chars = text.length;
-    notifyContentChanged(words, chars);
+    notifyContentChanged(words, chars, ed.getJSON());
   };
 
   const editor = useEditor({
@@ -193,7 +193,7 @@ export function RichTextEditor({ onOpenImageEmbed }: RichTextEditorProps) {
         allowBase64: true,
       }),
     ],
-    content: initialBody ?? '',
+    content: currentBody,
     editorProps: {
       attributes: {
         class:

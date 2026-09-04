@@ -69,6 +69,7 @@ describe('EditorDraftContext', () => {
             expect(result.current.attachments).toEqual([]);
             expect(result.current.wordCount).toBe(0);
             expect(result.current.charCount).toBe(0);
+            expect(result.current.currentBody).toEqual({ type: 'doc', content: [] });
             expect(result.current.initialBody).toBeNull();
             expect(result.current.initialStatus).toBeNull();
         });
@@ -89,6 +90,7 @@ describe('EditorDraftContext', () => {
                 type: 'doc',
                 content: [],
             });
+            expect(result.current.currentBody).toEqual(defaultInitialArticle.body);
             expect(result.current.initialStatus).toBe('Draft');
 
             expect(result.current.saveStatus).toBe('idle');
@@ -175,11 +177,16 @@ describe('EditorDraftContext', () => {
 
         it('notifyContentChanged updates word and character counts', () => {
             const { result } = renderHook(() => useEditorDraft(), { wrapper });
+            const body = { type: 'doc', content: [{ type: 'paragraph' }] };
             act(() => {
-                result.current.notifyContentChanged(10, 50);
+                result.current.notifyContentChanged(10, 50, body);
             });
             expect(result.current.wordCount).toBe(10);
             expect(result.current.charCount).toBe(50);
+            expect(result.current.currentBody).toEqual(body);
+            expect(mockApiFetch).not.toHaveBeenCalled();
+            act(() => result.current.registerEditor(null));
+            expect(result.current.currentBody).toEqual(body);
         });
     });
 
@@ -642,7 +649,7 @@ describe('EditorDraftContext', () => {
             const { result } = renderHook(() => useEditorDraft(), { wrapper });
 
             act(() => {
-                result.current.notifyContentChanged(10, 50);
+                result.current.notifyContentChanged(10, 50, { type: 'doc', content: [] });
             });
 
             jest.advanceTimersByTime(3500);
@@ -659,7 +666,7 @@ describe('EditorDraftContext', () => {
             const { result } = renderHook(() => useEditorDraft(), { wrapper: wrapperWithArticle });
 
             act(() => {
-                result.current.notifyContentChanged(10, 50);
+                result.current.notifyContentChanged(10, 50, { type: 'doc', content: [] });
             });
 
             expect(mockApiFetch).not.toHaveBeenCalled();
@@ -705,19 +712,19 @@ describe('EditorDraftContext', () => {
             const { result } = renderHook(() => useEditorDraft(), { wrapper: wrapperWithArticle });
 
             act(() => {
-                result.current.notifyContentChanged(1, 10);
+                result.current.notifyContentChanged(1, 10, { type: 'doc', content: [] });
             });
             
             jest.advanceTimersByTime(1000);
             
             act(() => {
-                result.current.notifyContentChanged(2, 20);
+                result.current.notifyContentChanged(2, 20, { type: 'doc', content: [] });
             });
 
             jest.advanceTimersByTime(1000);
             
             act(() => {
-                result.current.notifyContentChanged(3, 30);
+                result.current.notifyContentChanged(3, 30, { type: 'doc', content: [] });
             });
             
             // Still no call because the timer keeps resetting
@@ -735,7 +742,7 @@ describe('EditorDraftContext', () => {
             const { result, unmount } = renderHook(() => useEditorDraft(), { wrapper: wrapperWithArticle });
 
             act(() => {
-                result.current.notifyContentChanged(10, 50);
+                result.current.notifyContentChanged(10, 50, { type: 'doc', content: [] });
             });
             
             unmount();

@@ -9,7 +9,7 @@ import React, {
   useEffect,
   type ReactNode,
 } from 'react';
-import type { Editor } from '@tiptap/react';
+import type { Editor, JSONContent } from '@tiptap/react';
 import { apiFetch } from '@/lib/api/client';
 import type { ArticleUpdateInput } from '@/lib/api/articles';
 import {
@@ -37,7 +37,7 @@ export interface ArticleAttachment {
 export interface ArticleResponse {
   id: string;
   title: string;
-  body: Record<string, unknown>;
+  body: JSONContent;
   status: string;
   authorId: string;
   coverAttachmentId?: string | null;
@@ -59,6 +59,7 @@ interface EditorDraftContextValue {
   articleStatus: string | null;
   title: string;
   tags: string[];
+  currentBody: JSONContent;
   saveStatus: SaveStatus;
   lastSavedAt: Date | null;
   lastError: string | null;
@@ -97,7 +98,11 @@ interface EditorDraftContextValue {
   // Editor helpers
   insertEditorImage: (src: string) => void;
   handleTitleBlur: () => void;
-  notifyContentChanged: (wordCount: number, charCount: number) => void;
+  notifyContentChanged: (
+    wordCount: number,
+    charCount: number,
+    body: JSONContent
+  ) => void;
 }
 
 // ── Context & hook ──────────────────────────────────────────────────────────
@@ -134,6 +139,9 @@ export function EditorDraftProvider({
   );
   const [title, setTitleState] = useState(initialArticle?.title ?? '');
   const [tags, setTagsState] = useState<string[]>(initialArticle?.tags ?? []);
+  const [currentBody, setCurrentBody] = useState<JSONContent>(
+    initialArticle?.body ?? { type: 'doc', content: [] }
+  );
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
@@ -221,11 +229,15 @@ export function EditorDraftProvider({
     }
   }, []);
 
-  const notifyContentChanged = useCallback((words: number, chars: number) => {
-    setWordCount(words);
-    setCharCount(chars);
-    setContentChangeCounter((c) => c + 1);
-  }, []);
+  const notifyContentChanged = useCallback(
+    (words: number, chars: number, body: JSONContent) => {
+      setWordCount(words);
+      setCharCount(chars);
+      setCurrentBody(body);
+      setContentChangeCounter((c) => c + 1);
+    },
+    []
+  );
 
   // ── Frontend validation ────────────────────────────────────────────────
   //
@@ -699,6 +711,7 @@ export function EditorDraftProvider({
     articleStatus,
     title,
     tags,
+    currentBody,
     saveStatus,
     lastSavedAt,
     lastError,
