@@ -1,14 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { XCircleSolidIcon } from '@/components/shared/icons/XCircleSolidIcon';
 import { LandingNavbar } from '@/components/landing/LandingNavbar';
 import { PreviewExperience } from '@/components/landing/PreviewExperience';
-import {
-  findFirstPreview,
-  type PreviewKind,
-} from '@/components/landing/previewContent';
 import { authClient } from '@/lib/auth/client';
 import { useLenisScroll } from '@/lib/hooks/useLenisScroll';
 import { BRAND_NAME } from '@/lib/constants/brand';
@@ -21,6 +17,15 @@ export function LandingPage(): React.JSX.Element {
   const errorParam = searchParams.get('error');
 
   useLenisScroll();
+
+  useEffect(() => {
+    const { overflow: previousOverflow } = document.body.style;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
 
   const handleAuthenticate = async () => {
     if (isAuthenticating) return;
@@ -47,17 +52,12 @@ export function LandingPage(): React.JSX.Element {
     }
   };
 
-  const handleSelectKind = (kind: PreviewKind) => {
-    setSelectedItemId(findFirstPreview(kind).id);
-  };
-
   return (
-    <div className="min-h-screen bg-brand-bg text-brand-text-primary">
+    <div className="h-screen w-screen overflow-hidden bg-brand-bg text-brand-text-primary">
       <LandingNavbar
         isAuthenticating={isAuthenticating}
         onAuthenticate={handleAuthenticate}
         onReset={() => setSelectedItemId(null)}
-        onSelectKind={handleSelectKind}
       />
 
       {errorParam && (
