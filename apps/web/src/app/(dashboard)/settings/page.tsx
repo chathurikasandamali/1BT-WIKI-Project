@@ -12,6 +12,7 @@ import { ProfileIcon } from '@/components/shared/icons/ProfileIcon';
 import { LockIcon } from '@/components/shared/icons/LockIcon';
 import { BellIcon } from '@/components/shared/icons/BellIcon';
 import { CameraIcon } from '@/components/shared/icons/CameraIcon';
+import { PageLoader } from '@/components/shared/PageLoader';
 
 export default function ProfileSettingsPage() {
   const { user, loading, refetch } = useUser();
@@ -123,11 +124,7 @@ export default function ProfileSettingsPage() {
   );
 
   if (loading) {
-    return (
-      <div className="p-8 flex justify-center items-center h-full">
-        <div className="text-brand-text-secondary">Loading profile...</div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (!user) {

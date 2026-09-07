@@ -11,6 +11,7 @@ import { ReadingPreview } from '@/components/editor/ReadingPreview';
 import { ImageEmbedModal } from '@/components/editor/ImageEmbedModal';
 import { apiFetch } from '@/lib/api/client';
 import { Toast } from '@/components/shared/Toast';
+import { PageLoader } from '@/components/shared/PageLoader';
 import type { ArticleResponse } from '@/components/editor/EditorDraftContext';
 
 export default function EditArticlePage() {
@@ -77,8 +78,8 @@ export default function EditArticlePage() {
 
   if (loading || !article) {
     return (
-      <div className="flex h-screen w-full flex-col overflow-hidden bg-brand-bg items-center justify-center">
-        <div className="text-brand-text-secondary">Loading article...</div>
+      <div className="flex h-screen w-full flex-col overflow-hidden bg-brand-bg">
+        <PageLoader />
         <Toast visible={toastVisible} message={toastMessage} type="error" />
       </div>
     );

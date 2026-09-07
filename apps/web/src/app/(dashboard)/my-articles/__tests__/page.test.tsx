@@ -27,7 +27,7 @@ describe('MyArticlesPage', () => {
 
     render(<MyArticlesPage />);
 
-    expect(screen.getByText('Loading...')).toBeInTheDocument();
+    expect(screen.getByTestId('page-loader')).toBeInTheDocument();
     expect(
       screen.queryByTestId('my-articles-list-stub')
     ).not.toBeInTheDocument();

@@ -13,6 +13,7 @@ import { ArticleContent } from '@/components/article-detail/ArticleContent';
 import { useArticleForReview, approveArticle, rejectArticle } from '@/lib/hooks/useReviewer';
 import { useToast } from '@/lib/hooks/useToast';
 import { formatDate } from '@/lib/utils/date';
+import { PageLoader } from '@/components/shared/PageLoader';
 
 function ReviewArticleDetailContent(): React.JSX.Element {
   const params = useParams();
@@ -62,14 +63,7 @@ function ReviewArticleDetailContent(): React.JSX.Element {
   const showErrorMessage = hasError || isArticleMissing;
 
   if (isLoading) {
-    return (
-      <div
-        className="p-8 flex justify-center items-center text-brand-text-secondary"
-        data-testid="review-article-loading"
-      >
-        Loading article for review...
-      </div>
-    );
+    return <PageLoader testId="review-article-loading" />;
   }
 
   if (showErrorMessage) {

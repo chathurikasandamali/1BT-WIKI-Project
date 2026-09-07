@@ -7,17 +7,14 @@ import { RoleGuard } from '@/components/auth/RoleGuard';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { usePendingArticles } from '@/lib/hooks/useReviewer';
 import { formatDate } from '@/lib/utils/date';
+import { PageLoader } from '@/components/shared/PageLoader';
 
 function ReviewerApprovalsContent(): React.JSX.Element {
   const { articles, loading, error } = usePendingArticles();
   const isListEmpty = articles.length === 0;
 
   if (loading) {
-    return (
-      <div className="p-8 flex justify-center items-center text-brand-text-secondary">
-        Loading pending articles...
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (error) {

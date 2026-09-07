@@ -9,6 +9,7 @@ import { getTechTalkById } from '@/lib/api/techTalks';
 import type { TechTalkDetail } from '@/lib/api/techTalks';
 import { TechTalkForm } from '@/components/admin/TechTalkForm';
 import { ArrowLeftIcon } from '@/components/shared/icons/ArrowLeftIcon';
+import { PageLoader } from '@/components/shared/PageLoader';
 
 function EditTechTalkContent(): React.JSX.Element {
     const params = useParams();
@@ -60,12 +61,7 @@ function EditTechTalkContent(): React.JSX.Element {
 
 
     if (loading) {
-        return (
-            <div className="p-8 max-w-5xl mx-auto flex flex-col items-center justify-center py-20 gap-3">
-                <div className="w-6 h-6 border-2 border-brand-border border-t-brand-red rounded-full animate-spin" />
-                <p className="text-sm text-brand-text-secondary">Loading Tech Talk...</p>
-            </div>
-        );
+        return <PageLoader />;
     }
 
     if (error) {

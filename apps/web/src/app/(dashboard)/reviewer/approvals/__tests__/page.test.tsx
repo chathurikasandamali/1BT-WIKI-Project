@@ -61,7 +61,7 @@ describe('ReviewerApprovalsPage', () => {
 
     render(<ReviewerApprovalsPage />);
 
-    expect(screen.getByText('Loading pending articles...')).toBeInTheDocument();
+    expect(screen.getByTestId('page-loader')).toBeInTheDocument();
   });
 
   it('shows error state when fetching fails', async () => {

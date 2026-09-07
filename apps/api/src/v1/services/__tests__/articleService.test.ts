@@ -120,7 +120,9 @@ const makeRepo = (): jest.Mocked<
 });
 
 const makeUserRepo = () => ({
-  findManyByIds: jest.fn<() => Promise<unknown[]>>(),
+  // Defaults to an empty batch — tests that care about author enrichment
+  // override this with their own fixtures via mockResolvedValue.
+  findManyByIds: jest.fn<() => Promise<unknown[]>>().mockResolvedValue([]),
   findActiveByRole: jest
     .fn<(role: UserRole) => Promise<User[]>>()
     .mockResolvedValue([]),
@@ -1219,14 +1221,17 @@ describe('ArticleService.publishArticle', () => {
 
 describe('ArticleService.listPublished', () => {
   let mockRepo: ReturnType<typeof makeRepo>;
+  let mockUserRepo: ReturnType<typeof makeUserRepo>;
   let service: InstanceType<typeof ArticleService>;
 
   beforeEach(() => {
     mockRepo = makeRepo();
+    mockUserRepo = makeUserRepo();
     service = new ArticleService(
       mockRepo as unknown as ArticleRepository,
       ArticleReviewRepository as any,
-      ArticleAttachmentRepository as any
+      ArticleAttachmentRepository as any,
+      mockUserRepo as any
     );
     jest.clearAllMocks();
   });
@@ -1261,6 +1266,10 @@ describe('ArticleService.listPublished', () => {
       articles: mockArticles,
       total: 2,
     } as never);
+    mockUserRepo.findManyByIds.mockResolvedValue([
+      { id: 'user1', name: 'Author One' },
+      { id: 'user2', name: 'Author Two' },
+    ] as never);
 
     const result = await service.listPublished(1, 10);
 
@@ -1291,6 +1300,7 @@ describe('ArticleService.listPublished', () => {
           commentCount: 2,
           rejectionFeedback: null,
           coverImageUrl: null,
+          authorName: 'Author One',
         },
         {
           id: '2',
@@ -1305,6 +1315,7 @@ describe('ArticleService.listPublished', () => {
           commentCount: 0,
           rejectionFeedback: null,
           coverImageUrl: null,
+          authorName: 'Author Two',
         },
       ],
       total: 2,

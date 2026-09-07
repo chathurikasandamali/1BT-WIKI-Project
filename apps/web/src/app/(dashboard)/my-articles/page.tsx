@@ -2,16 +2,13 @@
 
 import { useUser } from '@/lib/hooks/useUser';
 import { MyArticlesList } from '@/components/profile/MyArticlesList';
+import { PageLoader } from '@/components/shared/PageLoader';
 
 export default function MyArticlesPage() {
   const { user, loading } = useUser();
 
   if (loading) {
-    return (
-      <div className="p-8 flex justify-center items-center text-brand-text-secondary">
-        Loading...
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (!user) {

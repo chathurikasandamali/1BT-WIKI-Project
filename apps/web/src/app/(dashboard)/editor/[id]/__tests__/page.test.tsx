@@ -177,7 +177,7 @@ describe('Edit Article Page', () => {
     (clientApi.apiFetch as jest.Mock).mockImplementationOnce(async () => { throw new Error('Article not available'); });
     rerender(<EditArticlePage />);
 
-    expect(screen.getByText('Loading article...')).toBeInTheDocument();
+    expect(screen.getByTestId('page-loader')).toBeInTheDocument();
 
     await waitFor(() => {
       expect(mockRouterPush).toHaveBeenCalledWith('/my-articles');

@@ -13,6 +13,7 @@ import UserController from '@controllers/userController.js';
 import AdminController from '@controllers/adminController.js';
 import ArticleController from '@controllers/articleController.js';
 import SettingsController from '@controllers/settingsController.js';
+import { adminDashboardController } from '@controllers/adminDashboardController.js';
 import { authenticate } from '@/middleware/auth.middleware.js';
 import { requireRole } from '@/middleware/rbac.middleware.js';
 import { UserRoleValue } from '@/types/userTypes.js';
@@ -20,6 +21,15 @@ import { UserRoleValue } from '@/types/userTypes.js';
 const router = Router();
 const articleController = new ArticleController();
 const { listAllArticles, publishArticle } = articleController;
+const { getSummary } = adminDashboardController;
+
+// GET /api/v1/admin/dashboard — Admin Home widget counts
+router.get(
+  '/dashboard',
+  authenticate,
+  requireRole(UserRoleValue.Admin),
+  getSummary
+);
 
 // GET /api/v1/admin/getAllUsers — list all users (any authenticated user)
 router.get('/getAllUsers', authenticate, AdminController.getAllUsers);

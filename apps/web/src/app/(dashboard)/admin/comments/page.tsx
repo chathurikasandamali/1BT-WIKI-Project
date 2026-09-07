@@ -9,6 +9,7 @@ import { usePendingComments } from '@/lib/hooks/useCommentModeration';
 import { useToast } from '@/lib/hooks/useToast';
 import { formatDate } from '@/lib/utils/date';
 import { CheckCircle, XCircle } from 'lucide-react';
+import { PageLoader } from '@/components/shared/PageLoader';
 
 const DEFAULT_AVATAR = 'https://i.pravatar.cc/150?u=default';
 
@@ -52,11 +53,7 @@ function CommentModerationContent(): React.JSX.Element {
   };
 
   if (loading) {
-    return (
-      <div className="p-8 flex justify-center items-center text-brand-text-secondary">
-        Loading pending comments...
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (error) {

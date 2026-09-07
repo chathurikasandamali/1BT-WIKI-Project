@@ -7,10 +7,10 @@ import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { isE2E } from '@/lib/e2e';
 import { BRAND_NAME, BRAND_SUB_NAME } from '@/lib/constants/brand';
-import { SearchIcon } from '@/components/shared/icons/SearchIcon';
 import { BellIcon } from '@/components/shared/icons/BellIcon';
 import { NotificationDropdown } from './NotificationDropdown';
 import { UserAccountMenu } from './UserAccountMenu';
+import { HeaderSearch } from './HeaderSearch';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -200,21 +200,11 @@ export function Navbar({
       )}
 
       <div className="flex-1 px-4">
-        <div className="relative max-w-xl mx-auto">
-          <SearchIcon
-            className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-text-secondary"
-            aria-hidden="true"
-          />
-          <input
-            type="text"
-            placeholder="Search articles, tech talks..."
-            className="w-full !pl-10 pr-4 py-2 bg-brand-bg border border-brand-border rounded-full
-                       text-sm text-brand-text-primary placeholder:text-brand-text-secondary
-                       focus:outline-none focus:ring-2 focus:ring-brand-red/20
-                       focus:border-brand-red transition-colors"
-            data-testid="search-input"
-          />
-        </div>
+        <HeaderSearch
+          id="admin-navbar-search"
+          placeholder="Search articles, tech talks..."
+          className="max-w-xl mx-auto"
+        />
       </div>
 
       <div className="flex items-center gap-4 flex-shrink-0">

@@ -491,6 +491,12 @@ export class ArticleService {
       }
     );
 
+    // Batch-resolve author display names (e.g. for the global search dropdown),
+    // mirroring the enrichment pattern already used by listAllArticles.
+    const authorIds = articles.map((article) => article.authorId);
+    const authors = await this.userRepository.findManyByIds(authorIds);
+    const authorMap = new Map(authors.map((author) => [author.id, author]));
+
     const mappedArticles: PublishedArticleListItem[] = articles.map((article: PublishedArticleRow) => ({
       id: article.id,
       title: article.title,
@@ -504,6 +510,7 @@ export class ArticleService {
       commentCount: article._count?.comments ?? 0,
       rejectionFeedback: null,
       coverImageUrl: article.coverAttachment?.fileUrl ?? null,
+      authorName: authorMap.get(article.authorId)?.name ?? 'Unknown',
     }));
 
     return { articles: mappedArticles, total, page, limit };

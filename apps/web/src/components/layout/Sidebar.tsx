@@ -23,7 +23,6 @@ import { CheckCircleIcon } from '@/components/shared/icons/CheckCircleIcon';
 import { HomeIcon } from '@/components/shared/icons/HomeIcon';
 import { ArticleIcon } from '@/components/shared/icons/ArticleIcon';
 import { TechTalkIcon } from '@/components/shared/icons/TechTalkIcon';
-import { ForumIcon } from '@/components/shared/icons/ForumIcon';
 import { BookOpenIcon } from '@/components/shared/icons/BookOpenIcon';
 import { SettingsIcon } from '@/components/shared/icons/SettingsIcon';
 import { LogoutIcon } from '@/components/shared/icons/LogoutIcon';
@@ -49,12 +48,6 @@ const mainNavItems: NavItem[] = [
     icon: <TechTalkIcon className="w-4 h-4 relative z-10" />,
     testId: 'nav-tech-talks',
     showLiveBadge: true,
-  },
-  {
-    label: 'Forum',
-    href: '/forum',
-    icon: <ForumIcon className="w-4 h-4 relative z-10" />,
-    testId: 'nav-forum',
   },
 ];
 const secondaryNavItems: NavItem[] = [
