@@ -42,6 +42,11 @@ jest.mock('@/components/quiz/GenerateQuizModal', () => ({
   GenerateQuizModal: () => null,
 }));
 
+jest.mock('@/components/articles/ReviewFeedbackModal', () => ({
+  ReviewFeedbackModal: ({ isOpen, articleId }: { isOpen: boolean; articleId: string | null }) =>
+    isOpen ? <div data-testid="review-feedback-modal">Modal for {articleId}</div> : null,
+}));
+
 const mockShowToast = jest.fn();
 
 jest.mock('@/lib/hooks/useAutoDismissToast', () => ({
@@ -259,6 +264,35 @@ describe('EditorHeader', () => {
       
       const submitBtn = screen.getByRole('button', { name: /re-submit for review/i });
       expect(submitBtn).toBeInTheDocument();
+    });
+  });
+
+  describe('Review Feedback Button', () => {
+    it('does not render Review Feedback button for Draft initial status', () => {
+      mockContextState = { initialStatus: 'Draft' };
+      render(<EditorHeader mode="compose" setMode={jest.fn()} />);
+      expect(screen.queryByTestId('review-feedback-button')).not.toBeInTheDocument();
+    });
+
+    it('renders Review Feedback button when initialStatus is Rejected or Unpublished', () => {
+      mockContextState = { initialStatus: 'Rejected', articleId: 'art-99' };
+      const { rerender } = render(<EditorHeader mode="compose" setMode={jest.fn()} />);
+      expect(screen.getByTestId('review-feedback-button')).toBeInTheDocument();
+
+      mockContextState = { initialStatus: 'Unpublished', articleId: 'art-99' };
+      rerender(<EditorHeader mode="compose" setMode={jest.fn()} />);
+      expect(screen.getByTestId('review-feedback-button')).toBeInTheDocument();
+    });
+
+    it('opens ReviewFeedbackModal when clicking Review Feedback button', async () => {
+      mockContextState = { initialStatus: 'Unpublished', articleId: 'art-99' };
+      const user = userEvent.setup();
+      render(<EditorHeader mode="compose" setMode={jest.fn()} />);
+
+      const btn = screen.getByTestId('review-feedback-button');
+      await user.click(btn);
+
+      expect(screen.getByTestId('review-feedback-modal')).toHaveTextContent('Modal for art-99');
     });
   });
 });

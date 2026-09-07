@@ -110,15 +110,24 @@ await jest.unstable_mockModule(
 const mockFindByReviewId = jest
   .fn<(reviewId: string) => Promise<unknown[]>>()
   .mockResolvedValue([]);
+const mockCountByReviewIds = jest
+  .fn<(reviewIds: string[]) => Promise<Map<string, number>>>()
+  .mockResolvedValue(new Map());
 
 await jest.unstable_mockModule(
   '@repositories/articleReviewCommentRepository.js',
   () => {
     return {
-      default: { findByReviewId: mockFindByReviewId },
+      default: {
+        findByReviewId: mockFindByReviewId,
+        countByReviewIds: mockCountByReviewIds,
+      },
       ArticleReviewCommentRepository: jest
         .fn()
-        .mockImplementation(() => ({ findByReviewId: mockFindByReviewId })),
+        .mockImplementation(() => ({
+          findByReviewId: mockFindByReviewId,
+          countByReviewIds: mockCountByReviewIds,
+        })),
     };
   }
 );

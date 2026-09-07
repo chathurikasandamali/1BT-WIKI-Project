@@ -41,7 +41,7 @@ type ArticleUpdateFields = Partial<
 
 type PublishedArticleRow = Article & {
   _count?: { likes: number; comments: number };
-  reviews?: { feedback: string | null }[];
+  reviews?: { id: string; feedback: string | null }[];
   coverAttachment?: { fileUrl: string } | null;
 };
 
@@ -203,7 +203,7 @@ export class ArticleService {
     private attachmentRepository: ArticleAttachmentRepository = new ArticleAttachmentRepository(),
     private userRepository: typeof UserRepository = UserRepository,
     private quizService: QuizService = defaultQuizService,
-    private reviewCommentRepository: ArticleReviewCommentRepository = defaultArticleReviewCommentRepository
+    private reviewCommentRepository: ArticleReviewCommentRepository = new ArticleReviewCommentRepository()
   ) { }
 
   private async uploadArticleImages(
@@ -506,6 +506,7 @@ export class ArticleService {
       likeCount: article._count?.likes ?? 0,
       commentCount: article._count?.comments ?? 0,
       rejectionFeedback: null,
+      inlineCommentCount: 0,
       coverImageUrl: article.coverAttachment?.fileUrl ?? null,
     }));
 
@@ -565,6 +566,7 @@ export class ArticleService {
         likeCount: article._count?.likes ?? 0,
         commentCount: article._count?.comments ?? 0,
         rejectionFeedback: null,
+        inlineCommentCount: 0,
         authorName: authorMap.get(article.authorId)?.name ?? 'Unknown',
         authorEmail: authorMap.get(article.authorId)?.email ?? null,
         authorImage: authorMap.get(article.authorId)?.image ?? null,
@@ -674,22 +676,37 @@ export class ArticleService {
       limit
     );
 
-    const mappedArticles: ArticleListItem[] = articles.map((article: PublishedArticleRow) => ({
-      id: article.id,
-      title: article.title,
-      authorId: article.authorId,
-      tags: article.tags,
-      status: article.status as ArticleStatus,
-      views: article.views,
-      createdAt: article.createdAt,
-      updatedAt: article.updatedAt,
-      likeCount: article._count?.likes ?? 0,
-      commentCount: article._count?.comments ?? 0,
-      rejectionFeedback:
-        article.status === ArticleStatusValue.Unpublished
-          ? article.reviews?.[0]?.feedback ?? null
-          : null,
-    }));
+    const reviewIds = (articles as PublishedArticleRow[])
+      .filter((a) => a.status === ArticleStatusValue.Unpublished && a.reviews?.[0]?.id)
+      .map((a) => a.reviews![0]!.id);
+
+    const commentCountsMap = await this.reviewCommentRepository.countByReviewIds(reviewIds);
+
+    const mappedArticles: ArticleListItem[] = articles.map((article: PublishedArticleRow) => {
+      const reviewId = article.reviews?.[0]?.id;
+      const inlineCommentCount =
+        article.status === ArticleStatusValue.Unpublished && reviewId
+          ? commentCountsMap.get(reviewId) ?? 0
+          : 0;
+
+      return {
+        id: article.id,
+        title: article.title,
+        authorId: article.authorId,
+        tags: article.tags,
+        status: article.status as ArticleStatus,
+        views: article.views,
+        createdAt: article.createdAt,
+        updatedAt: article.updatedAt,
+        likeCount: article._count?.likes ?? 0,
+        commentCount: article._count?.comments ?? 0,
+        rejectionFeedback:
+          article.status === ArticleStatusValue.Unpublished
+            ? article.reviews?.[0]?.feedback ?? null
+            : null,
+        inlineCommentCount,
+      };
+    });
 
     return { articles: mappedArticles, total, page, limit };
   }

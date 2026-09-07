@@ -104,6 +104,7 @@ const MockArticleReviewCommentRepository = {
   findByReviewId: jest.fn<() => Promise<unknown>>().mockResolvedValue([]),
   create: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
   updateStatus: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
+  countByReviewIds: jest.fn<() => Promise<Map<string, number>>>().mockResolvedValue(new Map()),
 };
 
 await jest.unstable_mockModule(
