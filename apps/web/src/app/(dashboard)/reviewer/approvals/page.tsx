@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { Eye } from 'lucide-react';
 import { RoleGuard } from '@/components/auth/RoleGuard';
+import { UserRoleValue } from '@repo/shared';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { usePendingArticles } from '@/lib/hooks/useReviewer';
 import { formatDate } from '@/lib/utils/date';
@@ -91,7 +92,7 @@ function ReviewerApprovalsContent(): React.JSX.Element {
 
 export default function ReviewerApprovalsPage(): React.JSX.Element {
   return (
-    <RoleGuard allowedRoles={['Reviewer', 'Admin']}>
+    <RoleGuard allowedRoles={[UserRoleValue.Reviewer, UserRoleValue.Admin]}>
       <ReviewerApprovalsContent />
     </RoleGuard>
   );

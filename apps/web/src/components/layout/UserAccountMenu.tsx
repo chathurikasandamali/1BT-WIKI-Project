@@ -3,6 +3,7 @@
 import React, { useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/lib/hooks/useUser';
+import { UserRoleValue } from '@repo/shared';
 import { authClient } from '@/lib/auth/client';
 import { UserAvatar } from '@/components/UserAvatar';
 import { ChevronDownIcon } from '@/components/shared/icons/ChevronDownIcon';
@@ -114,7 +115,7 @@ export function UserAccountMenu({
   };
 
   // ----- Role flags (named booleans — project rule) -----------------------
-  const isAdmin = user?.role === 'Admin';
+  const isAdmin = user?.role === UserRoleValue.Admin;
 
   // -----------------------------------------------------------------------
   // Render

@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { CheckCircle, XCircle, ArrowLeft } from 'lucide-react';
 import { RoleGuard } from '@/components/auth/RoleGuard';
+import { UserRoleValue } from '@repo/shared';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ConfirmationModal } from '@/components/shared/ConfirmationModal';
 import { RejectModal } from '@/components/reviewer/RejectModal';
@@ -190,7 +191,7 @@ function ReviewArticleDetailContent(): React.JSX.Element {
 
 export default function ReviewArticleDetailPage(): React.JSX.Element {
   return (
-    <RoleGuard allowedRoles={['Reviewer', 'Admin']}>
+    <RoleGuard allowedRoles={[UserRoleValue.Reviewer, UserRoleValue.Admin]}>
       <ReviewArticleDetailContent />
     </RoleGuard>
   );

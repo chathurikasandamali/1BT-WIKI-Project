@@ -2,12 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api/client';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export type UserRole = 'User' | 'Admin' | 'Reviewer';
+import type { UserRole } from '@repo/shared';
 
 /** Matches the GET /api/v1/users/me response shape (UserProfile from the backend). */
 export interface UserMeData {

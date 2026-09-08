@@ -1,4 +1,5 @@
 import { apiFetch } from '@/lib/api/client';
+import type { UserRole } from '@repo/shared';
 
 export interface DashboardSummary {
   totalUsers: number;
@@ -8,13 +9,11 @@ export interface DashboardSummary {
   techTalks: number;
 }
 
-export type DashboardUserRole = 'Admin' | 'Reviewer' | 'User';
-
 export interface DashboardUser {
   id: string;
   name: string;
   email: string;
-  role: DashboardUserRole;
+  role: UserRole;
   banned: boolean | null;
   image: string | null;
   createdAt: string;

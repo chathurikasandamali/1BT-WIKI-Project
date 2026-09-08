@@ -7,10 +7,9 @@ import { UserManagementTable } from '@/app/(dashboard)/admin/users/UserManagemen
 import { BanModal } from '@/app/(dashboard)/admin/users/BanModal';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import type {
-  AdminUser,
-  UserRole,
-} from '@/app/(dashboard)/admin/users/UserManagementTable';
+import type {AdminUser} from '@/app/(dashboard)/admin/users/UserManagementTable';
+import { UserRoleValue } from '@repo/shared';
+import type { UserRole } from '@repo/shared';
 import { cn } from '@/lib/utils';
 
 gsap.registerPlugin(useGSAP);
@@ -154,7 +153,7 @@ function UserManagementContent(): React.JSX.Element {
 
   const totalActive = users.filter((u) => !u.banned).length;
   const totalBanned = users.filter((u) => u.banned === true).length;
-  const totalAdmins = users.filter((u) => u.role === 'Admin').length;
+  const totalAdmins = users.filter((u) => u.role === UserRoleValue.Admin).length;
 
   // ── Role update ─────────────────────────────────────────────────────────────
 
@@ -410,7 +409,7 @@ function UserManagementContent(): React.JSX.Element {
 
 export default function AdminUsersPage(): React.JSX.Element {
   return (
-    <RoleGuard allowedRoles={['Admin']}>
+    <RoleGuard allowedRoles={[UserRoleValue.Admin]}>
       <UserManagementContent />
     </RoleGuard>
   );

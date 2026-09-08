@@ -3,6 +3,7 @@
 
 import React, { useState } from 'react';
 import { RoleGuard } from '@/components/auth/RoleGuard';
+import { UserRoleValue } from '@repo/shared';
 import { ConfirmationModal } from '@/components/shared/ConfirmationModal';
 import { Toast } from '@/components/shared/Toast';
 import { usePendingComments } from '@/lib/hooks/useCommentModeration';
@@ -171,7 +172,7 @@ function CommentModerationContent(): React.JSX.Element {
 
 export default function AdminCommentsPage(): React.JSX.Element {
   return (
-    <RoleGuard allowedRoles={['Admin']}>
+    <RoleGuard allowedRoles={[UserRoleValue.Admin]}>
       <CommentModerationContent />
     </RoleGuard>
   );

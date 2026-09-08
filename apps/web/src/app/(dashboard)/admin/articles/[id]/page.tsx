@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { RoleGuard } from '@/components/auth/RoleGuard';
+import { UserRoleValue } from '@repo/shared';
 import {
   getArticle,
   publishArticleAsAdmin,
@@ -245,7 +246,7 @@ export default function AdminArticleDetailPage(
   const params = React.use(props.params);
 
   return (
-    <RoleGuard allowedRoles={['Admin']}>
+    <RoleGuard allowedRoles={[UserRoleValue.Admin]}>
       <AdminArticleDetailContent id={params.id} />
     </RoleGuard>
   );

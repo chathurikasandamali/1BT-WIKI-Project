@@ -3,6 +3,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { RoleGuard } from '@/components/auth/RoleGuard';
+import { UserRoleValue } from '@repo/shared';
 import {
   listAll,
   publishTechTalk,
@@ -719,7 +720,7 @@ function TechTalkManagementContent(): React.JSX.Element {
 
 export default function AdminTechTalksPage(): React.JSX.Element {
   return (
-    <RoleGuard allowedRoles={['Admin']}>
+    <RoleGuard allowedRoles={[UserRoleValue.Admin]}>
       <TechTalkManagementContent />
     </RoleGuard>
   );

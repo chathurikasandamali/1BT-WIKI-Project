@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 
 import { RoleGuard } from '@/components/auth/RoleGuard';
+import { UserRoleValue } from '@repo/shared';
 import { getTechTalkById } from '@/lib/api/techTalks';
 import type { TechTalkDetail } from '@/lib/api/techTalks';
 import { TechTalkForm } from '@/components/admin/TechTalkForm';
@@ -109,7 +110,7 @@ function EditTechTalkContent(): React.JSX.Element {
 
 export default function EditTechTalkPage(): React.JSX.Element {
     return (
-        <RoleGuard allowedRoles={['Admin']}>
+        <RoleGuard allowedRoles={[UserRoleValue.Admin]}>
             <EditTechTalkContent />
         </RoleGuard>
     );

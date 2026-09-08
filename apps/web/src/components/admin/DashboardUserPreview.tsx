@@ -1,12 +1,13 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { formatDate } from '@/lib/utils/date';
-import type { DashboardUser, DashboardUserRole } from '@/lib/api/adminDashboard';
+import type { DashboardUser } from '@/lib/api/adminDashboard';
+import type { UserRole } from '@repo/shared';
 import { DashboardPreviewTable } from '@/components/admin/DashboardPreviewTable';
 
 const USER_HEADERS = ['User', 'Role', 'Status', 'Joined'] as const;
 
-const roleBadgeClass: Record<DashboardUserRole, string> = {
+const roleBadgeClass: Record<UserRole, string> = {
   Admin: 'bg-brand-red/10 text-brand-red border-brand-red/20',
   Reviewer: 'bg-amber-50 text-amber-700 border-amber-200',
   User: 'bg-brand-bg text-brand-text-secondary border-brand-border',

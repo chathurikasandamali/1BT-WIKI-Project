@@ -7,6 +7,7 @@ import { useGSAP } from '@gsap/react';
 import { authClient } from '@/lib/auth/client';
 import { UserAvatar } from '@/components/UserAvatar';
 import { useUser } from '@/lib/hooks/useUser';
+import { UserRoleValue } from '@repo/shared';
 import { cn } from '@/lib/utils';
 
 interface NavItem {
@@ -73,8 +74,8 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
   const pathname = usePathname();
   const sidebarRef = useRef<HTMLElement>(null);
   const { user } = useUser();
-  const isAdmin = user?.role === 'Admin';
-  const isReviewerOrAdmin = user?.role === 'Reviewer' || user?.role === 'Admin';
+  const isAdmin = user?.role === UserRoleValue.Admin;
+  const isReviewerOrAdmin = user?.role === UserRoleValue.Reviewer || user?.role === UserRoleValue.Admin;
 
   const isCollapsed = !isOpen;
 

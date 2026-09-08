@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { RoleGuard } from '@/components/auth/RoleGuard';
+import { UserRoleValue } from '@repo/shared';
 import { getTechTalkById, type TechTalkDetail } from '@/lib/api/techTalks';
 import { useAsync } from '@/lib/hooks/useAsync';
 import { YoutubeEmbed } from '@/components/techTalks/YoutubeEmbed';
@@ -164,7 +165,7 @@ function AdminTechTalkDetailPageContent(): React.JSX.Element {
 
 export default function AdminTechTalkDetailPage(): React.JSX.Element {
   return (
-    <RoleGuard allowedRoles={['Admin']}>
+    <RoleGuard allowedRoles={[UserRoleValue.Admin]}>
       <AdminTechTalkDetailPageContent />
     </RoleGuard>
   );

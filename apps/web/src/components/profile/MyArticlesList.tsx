@@ -8,6 +8,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ConfirmationModal } from '@/components/shared/ConfirmationModal';
 import { Toast } from '@/components/shared/Toast';
 import { useUser } from '@/lib/hooks/useUser';
+import { UserRoleValue } from '@repo/shared';
 import { useToast } from '@/lib/hooks/useToast';
 import { formatDate } from '@/lib/utils/date';
 import { cn } from '@/lib/utils';
@@ -105,7 +106,7 @@ function ArticleCard({ article, onDeleteClick, isAdmin }: { article: ArticleList
 
 export function MyArticlesList(): React.JSX.Element {
   const { user } = useUser();
-  const isAdmin = user?.role === 'Admin';
+  const isAdmin = user?.role === UserRoleValue.Admin;
   
   const [articles, setArticles] = useState<ArticleListItem[]>([]);
   const [loading, setLoading] = useState(true);
