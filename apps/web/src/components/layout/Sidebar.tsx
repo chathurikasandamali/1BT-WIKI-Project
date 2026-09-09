@@ -25,7 +25,7 @@ import { HomeIcon } from '@/components/shared/icons/HomeIcon';
 import { ArticleIcon } from '@/components/shared/icons/ArticleIcon';
 import { TechTalkIcon } from '@/components/shared/icons/TechTalkIcon';
 import { BookOpenIcon } from '@/components/shared/icons/BookOpenIcon';
-import { SettingsIcon } from '@/components/shared/icons/SettingsIcon';
+import { ProfileIcon } from '@/components/shared/icons/ProfileIcon';
 import { LogoutIcon } from '@/components/shared/icons/LogoutIcon';
 import { UsersIcon } from '@/components/shared/icons/UsersIcon';
 import { CommentIcon } from '@/components/shared/icons/CommentIcon';
@@ -59,9 +59,9 @@ const secondaryNavItems: NavItem[] = [
     testId: 'nav-my-articles',
   },
   {
-    label: 'Settings',
+    label: 'My Profile',
     href: '/settings',
-    icon: <SettingsIcon className="w-4 h-4 relative z-10" />,
+    icon: <ProfileIcon className="w-4 h-4 relative z-10" />,
     testId: 'nav-settings',
   },
 ];

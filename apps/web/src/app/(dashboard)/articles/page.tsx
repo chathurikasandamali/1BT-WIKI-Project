@@ -5,6 +5,7 @@ import { apiFetch } from '@/lib/api/client';
 import { ArticleCard } from '@/components/article-listing/ArticleCard';
 import { SearchIcon } from '@/components/shared/icons/SearchIcon';
 import { FileIcon } from '@/components/shared/icons/FileIcon';
+import { PageLoader } from '@/components/shared/PageLoader';
 
 interface ArticleItem {
   id: string;
@@ -185,35 +186,7 @@ export default function ArticlesPage(): React.JSX.Element {
       )}
 
       {loading && (
-        <div
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-          data-testid="loading-skeleton"
-        >
-          {[...Array(limit)].map((_, i) => (
-            <div
-              key={i}
-              className="flex flex-col gap-4 bg-white border border-brand-border rounded-lg overflow-hidden animate-pulse"
-            >
-              <div className="aspect-video w-full bg-brand-border"></div>
-              <div className="flex flex-col gap-4 px-6">
-                <div className="h-6 bg-brand-border rounded w-3/4"></div>
-                <div className="h-4 bg-brand-border rounded w-1/2"></div>
-                <div className="flex gap-2 mt-4">
-                  <div className="h-6 w-16 bg-gray-100 rounded-full"></div>
-                  <div className="h-6 w-16 bg-gray-100 rounded-full"></div>
-                </div>
-              </div>
-              <div className="flex justify-between items-center px-6 pb-6">
-                <div className="flex gap-4">
-                  <div className="h-4 w-8 bg-brand-border rounded"></div>
-                  <div className="h-4 w-8 bg-brand-border rounded"></div>
-                  <div className="h-4 w-8 bg-brand-border rounded"></div>
-                </div>
-                <div className="h-4 w-20 bg-brand-border rounded"></div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <PageLoader testId="loading-skeleton" className="min-h-0 py-20" />
       )}
       {!loading && !hasArticles && (
         <div

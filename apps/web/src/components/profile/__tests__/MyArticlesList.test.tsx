@@ -47,7 +47,7 @@ describe('MyArticlesList', () => {
 
     render(<MyArticlesList />);
 
-    expect(screen.getByText('Loading your articles...')).toBeInTheDocument();
+    expect(screen.getByTestId('my-articles-loading')).toBeInTheDocument();
   });
 
   it('shows an empty state when there are no articles', async () => {
@@ -64,9 +64,12 @@ describe('MyArticlesList', () => {
       "You haven't written any articles yet."
     );
 
-    const emptyCreateLink = screen.getByRole('link', { name: /create your first article/i });
-    expect(emptyCreateLink).toBeInTheDocument();
-    expect(emptyCreateLink).toHaveAttribute('href', '/editor');
+    expect(
+      screen.queryByRole('link', { name: /create your first article/i })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: /create new article/i })
+    ).not.toBeInTheDocument();
   });
 
   it('shows an error state when fetching fails', async () => {
@@ -122,10 +125,6 @@ describe('MyArticlesList', () => {
     expect(
       within(draftCard).getByText(new RegExp(`Last updated: ${formattedDraftDate}`))
     ).toBeInTheDocument();
-
-    const createLink = screen.getByRole('link', { name: /create new article/i });
-    expect(createLink).toBeInTheDocument();
-    expect(createLink).toHaveAttribute('href', '/editor');
   });
 
   it('filters articles by title via search', async () => {
@@ -268,6 +267,38 @@ describe('MyArticlesList', () => {
     expect(editLink.tagName).toBe('A');
     expect(editLink).toHaveAttribute('href', '/editor/a2');
     expect(screen.getByTestId('delete-article-a2')).not.toBeDisabled();
+  });
+
+  it('shows the first five submitted articles and loads five more on Show more', async () => {
+    const articles = Array.from({ length: 7 }, (_, index) =>
+      makeArticle({
+        id: `pub${index + 1}`,
+        title: `Published ${index + 1}`,
+        status: 'Published',
+        updatedAt: `2026-01-${String(index + 1).padStart(2, '0')}T00:00:00.000Z`,
+      })
+    );
+    mockFetchMyArticles.mockResolvedValueOnce({
+      articles,
+      total: 7,
+      page: 1,
+      limit: 20,
+    });
+
+    render(<MyArticlesList />);
+    await screen.findByTestId('article-card-pub7');
+
+    expect(screen.getByTestId('article-card-pub7')).toBeInTheDocument();
+    expect(screen.getByTestId('article-card-pub3')).toBeInTheDocument();
+    expect(screen.queryByTestId('article-card-pub2')).not.toBeInTheDocument();
+    expect(screen.getByTestId('show-more-articles')).toHaveTextContent('Show more');
+
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('show-more-articles'));
+
+    expect(screen.getByTestId('article-card-pub2')).toBeInTheDocument();
+    expect(screen.getByTestId('article-card-pub1')).toBeInTheDocument();
+    expect(screen.queryByTestId('show-more-articles')).not.toBeInTheDocument();
   });
 
   it('does not update state after unmount (cancelled fetch)', async () => {

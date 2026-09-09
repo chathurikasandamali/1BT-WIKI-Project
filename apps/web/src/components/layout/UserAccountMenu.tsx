@@ -8,9 +8,8 @@ import { authClient } from '@/lib/auth/client';
 import { UserAvatar } from '@/components/UserAvatar';
 import { ChevronDownIcon } from '@/components/shared/icons/ChevronDownIcon';
 import { ArticleIcon } from '@/components/shared/icons/ArticleIcon';
-import { SettingsIcon } from '@/components/shared/icons/SettingsIcon';
+import { ProfileIcon } from '@/components/shared/icons/ProfileIcon';
 import { LogoutIcon } from '@/components/shared/icons/LogoutIcon';
-import { UsersIcon } from '@/components/shared/icons/UsersIcon';
 import { cn } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
@@ -47,7 +46,7 @@ const ITEM_BASE =
  *   - Rendering the dropdown panel
  *   - Outside-click detection (calls onClose)
  *   - Escape key handling (calls onClose and returns focus to trigger)
- *   - Role-based visibility of the Admin Dashboard item
+ *   - Navigation to My Articles and My Profile
  */
 export function UserAccountMenu({
   isOpen,
@@ -187,29 +186,15 @@ export function UserAccountMenu({
             My Articles
           </button>
 
-          {/* Settings */}
           <button
             type="button"
             onClick={() => handleNavigation('/settings')}
             className={cn(ITEM_BASE, 'hover:bg-brand-hover mx-1 w-[calc(100%-0.5rem)]')}
             data-testid="menu-item-settings"
           >
-            <SettingsIcon className="h-4 w-4 flex-shrink-0 text-brand-text-secondary" aria-hidden="true" />
-            Settings
+            <ProfileIcon className="h-4 w-4 flex-shrink-0 text-brand-text-secondary" aria-hidden="true" />
+            My Profile
           </button>
-
-          {/* Admin Dashboard — admin only */}
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={() => handleNavigation('/admin')}
-              className={cn(ITEM_BASE, 'hover:bg-brand-hover mx-1 w-[calc(100%-0.5rem)]')}
-              data-testid="menu-item-admin"
-            >
-              <UsersIcon className="h-4 w-4 flex-shrink-0 text-brand-text-secondary" aria-hidden="true" />
-              Admin Dashboard
-            </button>
-          )}
 
           {/* Divider */}
           <div className="border-t border-brand-border my-1" />

@@ -52,7 +52,10 @@ describe('My Articles page', () => {
 
     cy.get('[data-testid="article-search-input"]').clear();
     cy.get('[data-testid="article-sort-select"]').select('title');
-    cy.get('[data-testid^="article-card-"]')
+    cy.get('[data-testid="my-articles-articles-section"] [data-testid^="article-card-"]')
+      .first()
+      .should('have.attr', 'data-testid', 'article-card-a1');
+    cy.get('[data-testid="my-articles-drafts-section"] [data-testid^="article-card-"]')
       .first()
       .should('have.attr', 'data-testid', 'article-card-a2');
   });

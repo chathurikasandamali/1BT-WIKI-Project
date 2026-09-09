@@ -8,9 +8,11 @@ import { PreviewExperience } from '@/components/landing/PreviewExperience';
 import { authClient } from '@/lib/auth/client';
 import { useLenisScroll } from '@/lib/hooks/useLenisScroll';
 import { BRAND_NAME } from '@/lib/constants/brand';
+import type { LandingAuthAction } from '@/components/landing/landingAuth';
 
 export function LandingPage(): React.JSX.Element {
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [authenticatingAction, setAuthenticatingAction] =
+    useState<LandingAuthAction | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -27,10 +29,10 @@ export function LandingPage(): React.JSX.Element {
     };
   }, []);
 
-  const handleAuthenticate = async () => {
-    if (isAuthenticating) return;
+  const handleAuthenticate = async (action: LandingAuthAction) => {
+    if (authenticatingAction) return;
 
-    setIsAuthenticating(true);
+    setAuthenticatingAction(action);
 
     try {
       const { error } = await authClient.signIn.social({
@@ -48,14 +50,14 @@ export function LandingPage(): React.JSX.Element {
     } catch (error) {
       console.error('Error during social sign-in:', error);
     } finally {
-      setIsAuthenticating(false);
+      setAuthenticatingAction(null);
     }
   };
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-brand-bg text-brand-text-primary">
       <LandingNavbar
-        isAuthenticating={isAuthenticating}
+        authenticatingAction={authenticatingAction}
         onAuthenticate={handleAuthenticate}
         onReset={() => setSelectedItemId(null)}
       />
@@ -79,7 +81,7 @@ export function LandingPage(): React.JSX.Element {
       )}
 
       <PreviewExperience
-        isAuthenticating={isAuthenticating}
+        authenticatingAction={authenticatingAction}
         selectedItemId={selectedItemId}
         onAuthenticate={handleAuthenticate}
         onSelectItem={setSelectedItemId}
