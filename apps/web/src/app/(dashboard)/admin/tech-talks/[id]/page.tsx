@@ -3,12 +3,14 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { RoleGuard } from '@/components/auth/RoleGuard';
+import { UserRoleValue } from '@repo/shared';
 import { getTechTalkById, type TechTalkDetail } from '@/lib/api/techTalks';
 import { useAsync } from '@/lib/hooks/useAsync';
 import { YoutubeEmbed } from '@/components/techTalks/YoutubeEmbed';
 import { formatDate } from '@/lib/utils/date';
 import { ArrowLeftIcon } from '@/components/shared/icons/ArrowLeftIcon';
 import { cn } from '@/lib/utils';
+import { PageLoader } from '@/components/shared/PageLoader';
 
 function AdminTechTalkDetailPageContent(): React.JSX.Element {
   const params = useParams();
@@ -29,14 +31,7 @@ function AdminTechTalkDetailPageContent(): React.JSX.Element {
   );
 
   if (loading) {
-    return (
-      <div
-        className="max-w-5xl mx-auto p-4 sm:p-6 text-center text-brand-text-secondary"
-        data-testid="admin-techtalk-detail-loading"
-      >
-        Loading Tech Talk details...
-      </div>
-    );
+    return <PageLoader testId="admin-techtalk-detail-loading" />;
   }
 
   let errorMessage: string | null = null;
@@ -170,7 +165,7 @@ function AdminTechTalkDetailPageContent(): React.JSX.Element {
 
 export default function AdminTechTalkDetailPage(): React.JSX.Element {
   return (
-    <RoleGuard allowedRoles={['Admin']}>
+    <RoleGuard allowedRoles={[UserRoleValue.Admin]}>
       <AdminTechTalkDetailPageContent />
     </RoleGuard>
   );

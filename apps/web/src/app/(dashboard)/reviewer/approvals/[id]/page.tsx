@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { CheckCircle, XCircle, ArrowLeft } from 'lucide-react';
 import { RoleGuard } from '@/components/auth/RoleGuard';
+import { UserRoleValue } from '@repo/shared';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ConfirmationModal } from '@/components/shared/ConfirmationModal';
 import { RejectModal } from '@/components/reviewer/RejectModal';
@@ -13,6 +14,7 @@ import { ArticleContent } from '@/components/article-detail/ArticleContent';
 import { useArticleForReview, approveArticle, rejectArticle } from '@/lib/hooks/useReviewer';
 import { useToast } from '@/lib/hooks/useToast';
 import { formatDate } from '@/lib/utils/date';
+import { PageLoader } from '@/components/shared/PageLoader';
 
 function ReviewArticleDetailContent(): React.JSX.Element {
   const params = useParams();
@@ -62,14 +64,7 @@ function ReviewArticleDetailContent(): React.JSX.Element {
   const showErrorMessage = hasError || isArticleMissing;
 
   if (isLoading) {
-    return (
-      <div
-        className="p-8 flex justify-center items-center text-brand-text-secondary"
-        data-testid="review-article-loading"
-      >
-        Loading article for review...
-      </div>
-    );
+    return <PageLoader testId="review-article-loading" />;
   }
 
   if (showErrorMessage) {
@@ -196,7 +191,7 @@ function ReviewArticleDetailContent(): React.JSX.Element {
 
 export default function ReviewArticleDetailPage(): React.JSX.Element {
   return (
-    <RoleGuard allowedRoles={['Reviewer', 'Admin']}>
+    <RoleGuard allowedRoles={[UserRoleValue.Reviewer, UserRoleValue.Admin]}>
       <ReviewArticleDetailContent />
     </RoleGuard>
   );

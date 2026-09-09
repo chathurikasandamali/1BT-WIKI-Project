@@ -7,6 +7,7 @@ import { useGSAP } from '@gsap/react';
 import { authClient } from '@/lib/auth/client';
 import { UserAvatar } from '@/components/UserAvatar';
 import { useUser } from '@/lib/hooks/useUser';
+import { UserRoleValue } from '@repo/shared';
 import { cn } from '@/lib/utils';
 
 interface NavItem {
@@ -23,7 +24,6 @@ import { CheckCircleIcon } from '@/components/shared/icons/CheckCircleIcon';
 import { HomeIcon } from '@/components/shared/icons/HomeIcon';
 import { ArticleIcon } from '@/components/shared/icons/ArticleIcon';
 import { TechTalkIcon } from '@/components/shared/icons/TechTalkIcon';
-import { ForumIcon } from '@/components/shared/icons/ForumIcon';
 import { BookOpenIcon } from '@/components/shared/icons/BookOpenIcon';
 import { SettingsIcon } from '@/components/shared/icons/SettingsIcon';
 import { LogoutIcon } from '@/components/shared/icons/LogoutIcon';
@@ -50,12 +50,6 @@ const mainNavItems: NavItem[] = [
     testId: 'nav-tech-talks',
     showLiveBadge: true,
   },
-  {
-    label: 'Forum',
-    href: '/forum',
-    icon: <ForumIcon className="w-4 h-4 relative z-10" />,
-    testId: 'nav-forum',
-  },
 ];
 const secondaryNavItems: NavItem[] = [
   {
@@ -80,8 +74,8 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
   const pathname = usePathname();
   const sidebarRef = useRef<HTMLElement>(null);
   const { user } = useUser();
-  const isAdmin = user?.role === 'Admin';
-  const isReviewerOrAdmin = user?.role === 'Reviewer' || user?.role === 'Admin';
+  const isAdmin = user?.role === UserRoleValue.Admin;
+  const isReviewerOrAdmin = user?.role === UserRoleValue.Reviewer || user?.role === UserRoleValue.Admin;
 
   const isCollapsed = !isOpen;
 

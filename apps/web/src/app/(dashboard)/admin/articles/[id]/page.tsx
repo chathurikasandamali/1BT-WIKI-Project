@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { RoleGuard } from '@/components/auth/RoleGuard';
+import { UserRoleValue } from '@repo/shared';
 import {
   getArticle,
   publishArticleAsAdmin,
@@ -12,6 +13,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ArrowLeftIcon } from '@/components/shared/icons/ArrowLeftIcon';
 import { ConfirmationModal } from '@/components/shared/ConfirmationModal';
 import { Toast } from '@/components/shared/Toast';
+import { PageLoader } from '@/components/shared/PageLoader';
 import { useToast } from '@/lib/hooks/useToast';
 
 interface AdminArticlePageProps {
@@ -87,17 +89,7 @@ function AdminArticleDetailContent({
   };
 
   if (loading) {
-    return (
-      <div
-        className="max-w-4xl mx-auto px-4 py-8 text-center text-brand-text-secondary"
-        data-testid="loading-skeleton"
-      >
-        <div className="animate-pulse flex flex-col items-center">
-          <div className="h-8 w-64 bg-brand-border rounded mb-4"></div>
-          <div className="h-4 w-32 bg-brand-border rounded"></div>
-        </div>
-      </div>
-    );
+    return <PageLoader testId="loading-skeleton" />;
   }
 
   if (error || !article) {
@@ -254,7 +246,7 @@ export default function AdminArticleDetailPage(
   const params = React.use(props.params);
 
   return (
-    <RoleGuard allowedRoles={['Admin']}>
+    <RoleGuard allowedRoles={[UserRoleValue.Admin]}>
       <AdminArticleDetailContent id={params.id} />
     </RoleGuard>
   );

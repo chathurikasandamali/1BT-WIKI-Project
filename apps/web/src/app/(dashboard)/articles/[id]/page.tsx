@@ -9,6 +9,7 @@ import { LikeButton } from '@/components/article-detail/LikeButton';
 import { LikedByAvatars } from '@/components/article-detail/LikedByAvatars';
 import { CommentsSection } from '@/components/article-detail/CommentsSection';
 import { ArrowLeftIcon } from '@/components/shared/icons/ArrowLeftIcon';
+import { PageLoader } from '@/components/shared/PageLoader';
 import { ReaderQuizModal } from '@/components/quiz/ReaderQuizModal';
 
 interface ArticlePageProps {
@@ -53,14 +54,7 @@ export default function ArticleDetailPage(props: ArticlePageProps) {
   }, [params.id]);
 
   if (loading) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-8 text-center text-brand-text-secondary" data-testid="loading-skeleton">
-        <div className="animate-pulse flex flex-col items-center">
-          <div className="h-8 w-64 bg-brand-border rounded mb-4"></div>
-          <div className="h-4 w-32 bg-brand-border rounded"></div>
-        </div>
-      </div>
-    );
+    return <PageLoader testId="loading-skeleton" />;
   }
 
   if (error || !article) {

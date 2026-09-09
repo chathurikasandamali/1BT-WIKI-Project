@@ -722,13 +722,13 @@ export function PreviewExperience({
   return (
     <main
       ref={scopeRef}
-      className="relative isolate min-h-[calc(100svh-5rem)] overflow-hidden bg-brand-bg"
+      className="relative isolate h-[calc(100svh-5rem)] overflow-hidden bg-brand-bg"
     >
       <div className="pointer-events-none absolute -left-48 top-24 h-96 w-96 rounded-full bg-brand-red/[0.045] blur-3xl" />
       <div className="pointer-events-none absolute -right-36 bottom-0 h-[440px] w-[440px] rounded-full bg-white blur-3xl" />
 
       <section
-        className="relative mx-auto max-w-[1440px] px-5 pb-16 pt-12 sm:px-8 sm:pt-16 lg:grid lg:min-h-[calc(100svh-5rem)] lg:grid-cols-1 lg:items-start lg:px-10 lg:py-5 min-[1440px]:py-8"
+        className="relative mx-auto h-full max-w-[1440px] overflow-hidden px-5 pb-16 pt-12 sm:px-8 sm:pt-16 lg:grid lg:h-[calc(100svh-5rem)] lg:grid-cols-1 lg:items-start lg:px-10 lg:py-5 min-[1440px]:py-8"
         aria-labelledby="landing-heading"
       >
         <div

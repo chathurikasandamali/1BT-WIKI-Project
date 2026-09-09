@@ -8,6 +8,7 @@ import { TechTalkCard } from '@/components/tech-talk-listing/TechTalkCard';
 import { fetchPublishedTechTalks } from '@/lib/api/techTalks';
 import { type TechTalkListItem } from '@/lib/api/techTalks';
 import { useAsync } from '@/lib/hooks/useAsync';
+import { PageLoader } from '@/components/shared/PageLoader';
 
 enum HomepageFeedItemType {
     Article = 'article',
@@ -65,11 +66,7 @@ export function HomepageFeed(): React.JSX.Element {
     let content: React.ReactNode;
 
     if (loading) {
-        content = (
-            <p className="mt-4 text-brand-text-secondary">
-                Loading latest updates...
-            </p>
-        );
+        content = <PageLoader className="min-h-0 py-10" />;
     } else if (error) {
         content = (
             <p className="mt-4 text-brand-red">

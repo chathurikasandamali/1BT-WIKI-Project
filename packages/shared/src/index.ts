@@ -1,8 +1,11 @@
-// ---------------------------------------------------------------------------
-// TechTalkStatus — mirrors the Prisma enum of the same name.
-// Defined here (not in @repo/db) so that client-side code in apps/web can
-// import it without bundling the Prisma client into the browser.
-// ---------------------------------------------------------------------------
+/** Runtime constant — use instead of bare string literals for role values. */
+export const UserRoleValue = {
+  Admin: 'Admin',
+  Reviewer: 'Reviewer',
+  User: 'User',
+} as const;
+
+export type UserRole = (typeof UserRoleValue)[keyof typeof UserRoleValue];
 
 /** Runtime object matching the Prisma TechTalkStatus enum values. */
 export const TechTalkStatus = {

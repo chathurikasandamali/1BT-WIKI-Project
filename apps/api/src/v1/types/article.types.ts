@@ -62,6 +62,7 @@ export interface ArticleListItem {
 
 export interface PublishedArticleListItem extends ArticleListItem {
   coverImageUrl: string | null;
+  authorName: string;
 }
 
 /**

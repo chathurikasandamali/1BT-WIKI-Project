@@ -3,20 +3,17 @@
 import { useEffect, useState } from 'react';
 import { Menu, X } from 'lucide-react';
 import { BRAND_NAME, BRAND_SUB_NAME } from '@/lib/constants/brand';
-import type { PreviewKind } from '@/components/landing/previewContent';
 
 interface LandingNavbarProps {
   isAuthenticating: boolean;
   onAuthenticate: () => void;
   onReset: () => void;
-  onSelectKind: (kind: PreviewKind) => void;
 }
 
 export function LandingNavbar({
   isAuthenticating,
   onAuthenticate,
   onReset,
-  onSelectKind,
 }: LandingNavbarProps): React.JSX.Element {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -36,11 +33,6 @@ export function LandingNavbar({
     setIsMenuOpen(false);
   };
 
-  const handleKindSelection = (kind: PreviewKind) => {
-    onSelectKind(kind);
-    setIsMenuOpen(false);
-  };
-
   return (
     <header className="relative z-50 border-b border-brand-border/80 bg-white/90 backdrop-blur-xl">
       <div className="mx-auto flex h-20 max-w-[1440px] items-center gap-6 px-5 sm:px-8 lg:px-10">
@@ -57,33 +49,6 @@ export function LandingNavbar({
             {BRAND_SUB_NAME}
           </span>
         </button>
-
-        <nav
-          className="hidden items-center gap-1 xl:flex"
-          aria-label="Primary navigation"
-        >
-          <button
-            type="button"
-            onClick={handleReset}
-            className="rounded-full px-4 py-2 text-sm font-semibold text-brand-dark transition hover:bg-brand-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red"
-          >
-            Home
-          </button>
-          <button
-            type="button"
-            onClick={() => handleKindSelection('article')}
-            className="rounded-full px-4 py-2 text-sm font-semibold text-brand-text-secondary transition hover:bg-brand-hover hover:text-brand-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red"
-          >
-            Articles
-          </button>
-          <button
-            type="button"
-            onClick={() => handleKindSelection('tech-talk')}
-            className="rounded-full px-4 py-2 text-sm font-semibold text-brand-text-secondary transition hover:bg-brand-hover hover:text-brand-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red"
-          >
-            Tech Talks
-          </button>
-        </nav>
 
         <div className="ml-auto hidden items-center gap-3 xl:flex">
           <button
@@ -135,28 +100,7 @@ export function LandingNavbar({
             className="mx-auto flex max-w-2xl flex-col gap-2"
             aria-label="Mobile navigation"
           >
-            <button
-              type="button"
-              onClick={handleReset}
-              className="rounded-xl px-4 py-3 text-left text-sm font-semibold text-brand-dark hover:bg-brand-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red"
-            >
-              Home
-            </button>
-            <button
-              type="button"
-              onClick={() => handleKindSelection('article')}
-              className="rounded-xl px-4 py-3 text-left text-sm font-semibold text-brand-dark hover:bg-brand-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red"
-            >
-              Articles
-            </button>
-            <button
-              type="button"
-              onClick={() => handleKindSelection('tech-talk')}
-              className="rounded-xl px-4 py-3 text-left text-sm font-semibold text-brand-dark hover:bg-brand-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red"
-            >
-              Tech Talks
-            </button>
-            <div className="mt-2 grid grid-cols-2 gap-3 border-t border-brand-border pt-4">
+            <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={onAuthenticate}

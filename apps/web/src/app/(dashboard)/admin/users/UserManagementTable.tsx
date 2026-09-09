@@ -4,8 +4,8 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 import { SpinnerIcon } from '@/components/shared/icons/SpinnerIcon';
 import { formatDate } from '@/lib/utils/date';
-
-export type UserRole = 'Admin' | 'Reviewer' | 'User';
+import { UserRoleValue } from '@repo/shared';
+import type { UserRole } from '@repo/shared';
 
 export interface AdminUser {
   id: string;
@@ -25,7 +25,7 @@ interface UserManagementTableProps {
   onBanToggle: (user: AdminUser) => void;
 }
 
-const ROLES: UserRole[] = ['Admin', 'Reviewer', 'User'];
+const ROLES: UserRole[] = [UserRoleValue.Admin, UserRoleValue.Reviewer, UserRoleValue.User];
 
 const roleBadgeClass: Record<UserRole, string> = {
   Admin: 'bg-brand-red/10 text-brand-red border-brand-red/20',

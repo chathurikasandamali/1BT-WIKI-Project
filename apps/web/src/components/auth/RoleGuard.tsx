@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useUser, UserRole } from '@/lib/hooks/useUser';
+import { PageLoader } from '@/components/shared/PageLoader';
 
 interface RoleGuardProps {
   allowedRoles: UserRole[];
@@ -18,11 +19,7 @@ export function RoleGuard({
   const { user, loading } = useUser();
 
   if (loading) {
-    return (
-      <div className="p-8 flex justify-center items-center">
-        <div className="text-brand-text-secondary">Loading...</div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   // user is null (not logged in, though middleware should catch this first)

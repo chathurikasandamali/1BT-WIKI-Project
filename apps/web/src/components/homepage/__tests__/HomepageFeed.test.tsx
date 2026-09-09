@@ -45,7 +45,7 @@ describe('HomepageFeed', () => {
 
     render(<HomepageFeed />);
 
-    expect(screen.getByText('Loading latest updates...')).toBeInTheDocument();
+    expect(screen.getByTestId('page-loader')).toBeInTheDocument();
   });
 
   it('renders error state if fetching fails', async () => {
@@ -54,7 +54,7 @@ describe('HomepageFeed', () => {
 
     render(<HomepageFeed />);
 
-    expect(screen.getByText('Loading latest updates...')).toBeInTheDocument();
+    expect(screen.getByTestId('page-loader')).toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getByText('Failed to load feed data')).toBeInTheDocument();
@@ -111,7 +111,7 @@ describe('HomepageFeed', () => {
     render(<HomepageFeed />);
 
     await waitFor(() => {
-      expect(screen.queryByText('Loading latest updates...')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('page-loader')).not.toBeInTheDocument();
     });
 
     const items = screen.getAllByTestId(/card-/);

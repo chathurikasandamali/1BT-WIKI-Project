@@ -77,9 +77,7 @@ describe('ReviewArticleDetailPage', () => {
 
     render(<ReviewArticleDetailPage />);
 
-    expect(screen.getByTestId('review-article-loading')).toHaveTextContent(
-      'Loading article for review...'
-    );
+    expect(screen.getByTestId('review-article-loading')).toBeInTheDocument();
   });
 
   it('shows error state when fetching fails or article is no longer Pending', async () => {

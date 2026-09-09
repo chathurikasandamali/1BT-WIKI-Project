@@ -3,12 +3,14 @@
 
 import React, { useState } from 'react';
 import { RoleGuard } from '@/components/auth/RoleGuard';
+import { UserRoleValue } from '@repo/shared';
 import { ConfirmationModal } from '@/components/shared/ConfirmationModal';
 import { Toast } from '@/components/shared/Toast';
 import { usePendingComments } from '@/lib/hooks/useCommentModeration';
 import { useToast } from '@/lib/hooks/useToast';
 import { formatDate } from '@/lib/utils/date';
 import { CheckCircle, XCircle } from 'lucide-react';
+import { PageLoader } from '@/components/shared/PageLoader';
 
 const DEFAULT_AVATAR = 'https://i.pravatar.cc/150?u=default';
 
@@ -52,11 +54,7 @@ function CommentModerationContent(): React.JSX.Element {
   };
 
   if (loading) {
-    return (
-      <div className="p-8 flex justify-center items-center text-brand-text-secondary">
-        Loading pending comments...
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (error) {
@@ -174,7 +172,7 @@ function CommentModerationContent(): React.JSX.Element {
 
 export default function AdminCommentsPage(): React.JSX.Element {
   return (
-    <RoleGuard allowedRoles={['Admin']}>
+    <RoleGuard allowedRoles={[UserRoleValue.Admin]}>
       <CommentModerationContent />
     </RoleGuard>
   );

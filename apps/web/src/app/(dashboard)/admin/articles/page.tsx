@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { RoleGuard } from '@/components/auth/RoleGuard';
+import { UserRoleValue } from '@repo/shared';
 import {
   fetchAllArticles,
   type AdminArticleListItem,
@@ -458,7 +459,7 @@ function ArticleManagementContent(): React.JSX.Element {
 
 export default function AdminArticlesPage(): React.JSX.Element {
   return (
-    <RoleGuard allowedRoles={['Admin']}>
+    <RoleGuard allowedRoles={[UserRoleValue.Admin]}>
       <ArticleManagementContent />
     </RoleGuard>
   );
