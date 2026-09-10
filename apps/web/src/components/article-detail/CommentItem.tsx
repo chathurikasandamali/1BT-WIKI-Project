@@ -129,6 +129,14 @@ export function CommentItem({
                 {moderationLabel}
               </span>
             )}
+            {isMine && comment.status === 'Rejected' && comment.rejectionReason && (
+              <p
+                data-testid="comment-rejection-reason"
+                className="mt-1 text-xs text-brand-text-secondary"
+              >
+                Reason: {comment.rejectionReason}
+              </p>
+            )}
           </div>
           {canEditComment && (
             <div className="flex items-center gap-1">

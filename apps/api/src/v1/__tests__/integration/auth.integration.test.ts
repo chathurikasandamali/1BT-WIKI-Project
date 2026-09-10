@@ -118,6 +118,8 @@ const { default: app, appReady } = await import('@/app.js');
 const { default: request } = await import('supertest');
 const { default: AdminRepository } =
   await import('@repositories/adminRepository.js');
+const { default: UserRepository } =
+  await import('@repositories/userRepository.js');
 
 // ── Auth header helpers ───────────────────────────────────────────────────
 
@@ -190,8 +192,6 @@ describe('Integration — A-05: auth + RBAC on POST /api/v1/admin/createUsers', 
 
   it('Admin role with valid payload → 201', async () => {
     // findByEmail returns null (no duplicate), createAdminUser returns the new user
-    const { default: UserRepository } =
-      await import('@repositories/userRepository.js');
     (
       UserRepository.findByEmail as jest.Mock<() => Promise<null>>
     ).mockResolvedValueOnce(null);
@@ -246,8 +246,6 @@ describe('Integration — A-05: auth + RBAC on PATCH /api/v1/admin/users/:userId
   });
 
   it('Admin role with valid payload → 200', async () => {
-    const { default: UserRepository } =
-      await import('@repositories/userRepository.js');
     (
       UserRepository.findById as jest.Mock<() => Promise<unknown>>
     ).mockResolvedValueOnce({
@@ -299,8 +297,6 @@ describe('Integration — A-05: auth + RBAC on PATCH /api/v1/admin/users/:userId
   });
 
   it('Admin role → 200 (ban)', async () => {
-    const { default: UserRepository } =
-      await import('@repositories/userRepository.js');
     const existing = { id: 'user-1', banned: false, banReason: null };
     const updated = { id: 'user-1', banned: true, banReason: 'spam' };
     (

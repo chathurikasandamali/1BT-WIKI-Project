@@ -373,6 +373,7 @@ describe('CommentController.reject', () => {
     req = {
       params: { commentId: 'comment-123' },
       user: { userId: 'admin-1' } as any,
+      body: { reason: 'This comment violates community guidelines' },
     };
     res = {
       status: jest.fn().mockReturnThis() as any,
@@ -392,7 +393,8 @@ describe('CommentController.reject', () => {
 
     expect(mockCommentService.rejectComment).toHaveBeenCalledWith(
       'comment-123',
-      'admin-1'
+      'admin-1',
+      'This comment violates community guidelines'
     );
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({

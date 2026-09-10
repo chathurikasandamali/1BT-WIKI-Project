@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import CommentService from '@services/commentService.js';
 import { successResponse } from '@models/article.types.js';
 import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT } from '@repo/shared';
+import { HttpStatusCode } from '@utils/httpStatus.js';
 
 const create = async (
   req: Request,
@@ -18,7 +19,7 @@ const create = async (
     const comment = await CommentService.addComment(articleId, authorId, body);
 
     res
-      .status(201)
+      .status(HttpStatusCode.CREATED)
       .json(successResponse(comment, 'Comment added successfully'));
   } catch (error) {
     next(error);
@@ -39,7 +40,7 @@ const list = async (
     const comments = await CommentService.listComments(articleId, requesterId);
 
     res
-      .status(200)
+      .status(HttpStatusCode.OK)
       .json(successResponse(comments, 'Comments retrieved successfully'));
   } catch (error) {
     next(error);
@@ -61,7 +62,7 @@ const update = async (
     const comment = await CommentService.updateComment(commentId, userId, body);
 
     res
-      .status(200)
+      .status(HttpStatusCode.OK)
       .json(successResponse(comment, 'Comment updated successfully'));
   } catch (error) {
     next(error);
@@ -81,7 +82,7 @@ const remove = async (
 
     await CommentService.deleteComment(commentId, userId);
 
-    res.status(200).json(successResponse(null, 'Comment deleted successfully'));
+    res.status(HttpStatusCode.OK).json(successResponse(null, 'Comment deleted successfully'));
   } catch (error) {
     next(error);
   }
@@ -99,7 +100,7 @@ const listPending = async (
     const result = await CommentService.listPendingComments(page, limit);
 
     res
-      .status(200)
+      .status(HttpStatusCode.OK)
       .json(successResponse(result, 'Pending comments retrieved successfully'));
   } catch (error) {
     next(error);
@@ -119,7 +120,7 @@ const approve = async (
 
     const comment = await CommentService.approveComment(commentId, reviewerId);
 
-    res.status(200).json(successResponse(comment, 'Comment approved'));
+    res.status(HttpStatusCode.OK).json(successResponse(comment, 'Comment approved'));
   } catch (error) {
     next(error);
   }
@@ -135,10 +136,11 @@ const reject = async (
     // req.user is guaranteed to exist because of authenticate middleware
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const reviewerId = req.user!.userId;
+    const { reason } = req.body as { reason?: string };
 
-    const comment = await CommentService.rejectComment(commentId, reviewerId);
+    const comment = await CommentService.rejectComment(commentId, reviewerId, reason);
 
-    res.status(200).json(successResponse(comment, 'Comment rejected'));
+    res.status(HttpStatusCode.OK).json(successResponse(comment, 'Comment rejected'));
   } catch (error) {
     next(error);
   }

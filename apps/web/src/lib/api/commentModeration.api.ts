@@ -13,6 +13,7 @@ export interface PendingCommentListItem {
   status: CommentStatus;
   reviewedBy: string | null;
   reviewedAt: string | null;
+  rejectionReason: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -46,9 +47,10 @@ export async function approveComment(commentId: string): Promise<void> {
   }
 }
 
-export async function rejectComment(commentId: string): Promise<void> {
+export async function rejectComment(commentId: string, reason: string): Promise<void> {
   const result = await apiFetch(`/admin/comments/${commentId}/reject`, {
     method: 'PATCH',
+    body: JSON.stringify({ reason }),
   });
   if (!result.success) {
     throw new Error(result.error || 'Failed to reject comment');

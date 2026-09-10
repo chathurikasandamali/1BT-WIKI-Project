@@ -19,6 +19,7 @@ export interface Comment {
   status: CommentStatus;
   reviewedBy: string | null;
   reviewedAt: Date | null;
+  rejectionReason: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

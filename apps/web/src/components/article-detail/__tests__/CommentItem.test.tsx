@@ -24,6 +24,7 @@ function makeComment(
     status: 'Approved',
     reviewedBy: null,
     reviewedAt: null,
+    rejectionReason: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     authorName: 'Test User',
@@ -117,6 +118,53 @@ describe('CommentItem', () => {
       expect(screen.getByTestId('comment-status-badge')).toHaveTextContent(
         'Not approved'
       );
+    });
+
+    it('shows the rejection reason to the comment author when present', () => {
+      render(
+        <CommentItem
+          comment={makeComment({
+            status: 'Rejected',
+            rejectionReason: 'This comment violates community guidelines',
+          })}
+          currentUserId="test-user-1"
+          onDelete={jest.fn()}
+          onEdit={jest.fn()}
+        />
+      );
+
+      expect(screen.getByTestId('comment-rejection-reason')).toHaveTextContent(
+        'Reason: This comment violates community guidelines'
+      );
+    });
+
+    it('does not show the rejection reason to other users', () => {
+      render(
+        <CommentItem
+          comment={makeComment({
+            status: 'Rejected',
+            rejectionReason: 'This comment violates community guidelines',
+          })}
+          currentUserId="someone-else"
+          onDelete={jest.fn()}
+          onEdit={jest.fn()}
+        />
+      );
+
+      expect(screen.queryByTestId('comment-rejection-reason')).not.toBeInTheDocument();
+    });
+
+    it('does not show a rejection reason element when none is set', () => {
+      render(
+        <CommentItem
+          comment={makeComment({ status: 'Rejected' })}
+          currentUserId="test-user-1"
+          onDelete={jest.fn()}
+          onEdit={jest.fn()}
+        />
+      );
+
+      expect(screen.queryByTestId('comment-rejection-reason')).not.toBeInTheDocument();
     });
   });
 
