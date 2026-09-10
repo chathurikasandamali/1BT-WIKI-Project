@@ -139,10 +139,10 @@ describe('AdminDashboard', () => {
     render(<AdminDashboard />);
 
     await waitFor(() => {
-      expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
+      expect(screen.getByText('Intro to Prisma')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Intro to Prisma')).toBeInTheDocument();
+    expect(screen.getAllByText('Ada Lovelace').length).toBeGreaterThan(0);
     expect(screen.getByText('Neon branching')).toBeInTheDocument();
     expect(screen.getByText('Draft for review')).toBeInTheDocument();
 
