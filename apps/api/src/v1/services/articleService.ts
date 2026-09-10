@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { ArticleRepository } from '@repositories/articleRepository.js';
 import { ArticleAttachmentRepository } from '@repositories/articleAttachmentRepository.js';
 import { ArticleReviewRepository } from '@repositories/articleReviewRepository.js';
+import defaultArticleReviewCommentRepository, { ArticleReviewCommentRepository } from '@repositories/articleReviewCommentRepository.js';
 import UserRepository from '@repositories/userRepository.js';
 import b2Client from '@v1/lib/b2Client.js';
 import notificationService from '@services/notificationService.js';
@@ -30,6 +31,7 @@ import {
   MAX_ARTICLE_TITLE_LENGTH,
   type TipTapJsonContent,
   getArticleContentLength,
+  ArticleReviewStatus,
 } from '@repo/shared';
 
 // Derives update-field shapes from the app-level Article interface — no Prisma types cross into the service layer.
@@ -39,7 +41,7 @@ type ArticleUpdateFields = Partial<
 
 type PublishedArticleRow = Article & {
   _count?: { likes: number; comments: number };
-  reviews?: { feedback: string | null }[];
+  reviews?: { id: string; feedback: string | null }[];
   coverAttachment?: { fileUrl: string } | null;
 };
 
@@ -200,7 +202,8 @@ export class ArticleService {
     private reviewRepository: ArticleReviewRepository = new ArticleReviewRepository(),
     private attachmentRepository: ArticleAttachmentRepository = new ArticleAttachmentRepository(),
     private userRepository: typeof UserRepository = UserRepository,
-    private quizService: QuizService = defaultQuizService
+    private quizService: QuizService = defaultQuizService,
+    private reviewCommentRepository: ArticleReviewCommentRepository = new ArticleReviewCommentRepository()
   ) { }
 
   private async uploadArticleImages(
@@ -337,7 +340,7 @@ export class ArticleService {
       input.coverAttachmentId !== undefined;
     let updatedArticle = article;
 
-    if (hasUpdates || resetToDraft) {
+    if (hasUpdates) {
       const updateFields: ArticleUpdateFields = {};
 
       if (input.title !== undefined)
@@ -509,6 +512,7 @@ export class ArticleService {
       likeCount: article._count?.likes ?? 0,
       commentCount: article._count?.comments ?? 0,
       rejectionFeedback: null,
+      inlineCommentCount: 0,
       coverImageUrl: article.coverAttachment?.fileUrl ?? null,
       authorName: authorMap.get(article.authorId)?.name ?? 'Unknown',
     }));
@@ -569,6 +573,7 @@ export class ArticleService {
         likeCount: article._count?.likes ?? 0,
         commentCount: article._count?.comments ?? 0,
         rejectionFeedback: null,
+        inlineCommentCount: 0,
         authorName: authorMap.get(article.authorId)?.name ?? 'Unknown',
         authorEmail: authorMap.get(article.authorId)?.email ?? null,
         authorImage: authorMap.get(article.authorId)?.image ?? null,
@@ -678,24 +683,77 @@ export class ArticleService {
       limit
     );
 
-    const mappedArticles: ArticleListItem[] = articles.map((article: PublishedArticleRow) => ({
-      id: article.id,
-      title: article.title,
-      authorId: article.authorId,
-      tags: article.tags,
-      status: article.status as ArticleStatus,
-      views: article.views,
-      createdAt: article.createdAt,
-      updatedAt: article.updatedAt,
-      likeCount: article._count?.likes ?? 0,
-      commentCount: article._count?.comments ?? 0,
-      rejectionFeedback:
-        article.status === ArticleStatusValue.Unpublished
-          ? article.reviews?.[0]?.feedback ?? null
-          : null,
-    }));
+    const reviewIds = (articles as PublishedArticleRow[])
+      .filter((a) => a.status === ArticleStatusValue.Unpublished && a.reviews?.[0]?.id)
+      .map((a) => a.reviews![0]!.id);
+
+    const commentCountsMap = await this.reviewCommentRepository.countByReviewIds(reviewIds);
+
+    const mappedArticles: ArticleListItem[] = articles.map((article: PublishedArticleRow) => {
+      const reviewId = article.reviews?.[0]?.id;
+      const inlineCommentCount =
+        article.status === ArticleStatusValue.Unpublished && reviewId
+          ? commentCountsMap.get(reviewId) ?? 0
+          : 0;
+
+      return {
+        id: article.id,
+        title: article.title,
+        authorId: article.authorId,
+        tags: article.tags,
+        status: article.status as ArticleStatus,
+        views: article.views,
+        createdAt: article.createdAt,
+        updatedAt: article.updatedAt,
+        likeCount: article._count?.likes ?? 0,
+        commentCount: article._count?.comments ?? 0,
+        rejectionFeedback:
+          article.status === ArticleStatusValue.Unpublished
+            ? article.reviews?.[0]?.feedback ?? null
+            : null,
+        inlineCommentCount,
+      };
+    });
 
     return { articles: mappedArticles, total, page, limit };
+  }
+
+  async getReviewFeedback(
+    articleId: string,
+    requesterId: string
+  ): Promise<{
+    overallFeedback: string | null;
+    comments: Array<{
+      id: string;
+      comment: string;
+      selectedText: string | null;
+      createdAt: Date;
+    }>;
+  }> {
+    const [article, latestReview] = await Promise.all([
+      this.repository.findById(articleId),
+      this.reviewRepository.findLatestWithComments(articleId),
+    ]);
+
+    if (!article) {
+      throw new AppError('Article not found', HttpStatusCode.NOT_FOUND);
+    }
+    if (article.authorId !== requesterId) {
+      throw new AppError('Not authorized', HttpStatusCode.FORBIDDEN);
+    }
+    if (!latestReview || latestReview.reviewStatus !== ArticleReviewStatus.Rejected) {
+      throw new AppError('No rejection feedback available for this article', HttpStatusCode.NOT_FOUND);
+    }
+
+    return {
+      overallFeedback: latestReview.feedback ?? null,
+      comments: latestReview.comments.map((c) => ({
+        id: c.id,
+        comment: c.comment,
+        selectedText: c.selectedText,
+        createdAt: c.createdAt,
+      })),
+    };
   }
 }
 

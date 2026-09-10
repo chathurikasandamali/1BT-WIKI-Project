@@ -17,6 +17,7 @@ const {
   submitForReview,
   remove,
   listMine,
+  getReviewFeedback,
 } = articleController;
 
 // POST /api/v1/articles — Create a new article as Draft
@@ -27,6 +28,9 @@ router.get('/', authenticate, listPublished);
 
 // GET /api/v1/articles/mine — List the authenticated user's own articles across all statuses
 router.get('/mine', authenticate, listMine);
+
+// GET /api/v1/articles/:id/review-feedback — Author views rejection feedback + inline comments
+router.get('/:id/review-feedback', authenticate, getReviewFeedback);
 
 // GET /api/v1/articles/:id — View a single published article
 router.get('/:id', authenticate, getById);

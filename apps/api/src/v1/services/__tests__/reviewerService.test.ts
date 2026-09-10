@@ -344,7 +344,7 @@ describe('ReviewerService.rejectArticle', () => {
     expect(mockArticleRepo.findById).toHaveBeenCalledWith(articleId);
     expect(mockArticleRepo.updateStatus).toHaveBeenCalledWith(
       articleId,
-      'Draft'
+      'Unpublished'
     );
     expect(mockReviewRepo.create).toHaveBeenCalledWith({
       articleId,
@@ -415,7 +415,7 @@ describe('ReviewerService.rejectArticle', () => {
     expect(mockArticleRepo.findById).toHaveBeenCalledWith(articleId);
     expect(mockArticleRepo.updateStatus).toHaveBeenCalledWith(
       articleId,
-      'Draft'
+      'Unpublished'
     );
     expect(mockReviewRepo.create).toHaveBeenCalledWith({
       articleId,

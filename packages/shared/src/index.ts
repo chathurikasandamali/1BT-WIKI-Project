@@ -17,6 +17,31 @@ export const TechTalkStatus = {
 /** TypeScript type derived from the TechTalkStatus const. */
 export type TechTalkStatus = (typeof TechTalkStatus)[keyof typeof TechTalkStatus];
 
+export const ReviewCommentStatus = {
+  open: 'Open',
+  resolved: 'Resolved',
+} as const;
+
+export type ReviewCommentStatus = (typeof ReviewCommentStatus)[keyof typeof ReviewCommentStatus];
+
+export const ArticleStatus = {
+  Draft: 'Draft',
+  Pending: 'Pending',
+  Approved: 'Approved',
+  Published: 'Published',
+  Unpublished: 'Unpublished',
+}
+
+export type ArticleStatus = (typeof ArticleStatus)[keyof typeof ArticleStatus];
+
+export const ArticleReviewStatus = {
+  Pending: 'Pending',
+  Approved: 'Approved',
+  Rejected: 'Rejected',
+}
+
+export type ArticleReviewStatus = (typeof ArticleReviewStatus)[keyof typeof ArticleReviewStatus];
+
 // ---------------------------------------------------------------------------
 
 export interface PaginationParams {
