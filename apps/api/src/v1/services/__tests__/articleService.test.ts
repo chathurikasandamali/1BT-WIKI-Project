@@ -1329,6 +1329,7 @@ describe('ArticleService.listPublished', () => {
           likeCount: 5,
           commentCount: 2,
           rejectionFeedback: null,
+          inlineCommentCount: 0,
           coverImageUrl: null,
         },
         {
@@ -1343,6 +1344,7 @@ describe('ArticleService.listPublished', () => {
           likeCount: 0,
           commentCount: 0,
           rejectionFeedback: null,
+          inlineCommentCount: 0,
           coverImageUrl: null,
         },
       ],
@@ -1747,15 +1749,22 @@ describe('ArticleService.deleteArticle', () => {
 
 describe('ArticleService.listMine', () => {
   let mockRepo: ReturnType<typeof makeRepo>;
+  let mockReviewCommentRepo: { countByReviewIds: jest.Mock<(reviewIds: string[]) => Promise<Map<string, number>>> };
   let service: InstanceType<typeof ArticleService>;
   const authorId = 'user-123';
 
   beforeEach(() => {
     mockRepo = makeRepo();
+    mockReviewCommentRepo = {
+      countByReviewIds: jest.fn<(reviewIds: string[]) => Promise<Map<string, number>>>().mockResolvedValue(new Map()),
+    };
     service = new ArticleService(
       mockRepo as unknown as ArticleRepository,
       ArticleReviewRepository as any,
-      ArticleAttachmentRepository as any
+      ArticleAttachmentRepository as any,
+      undefined as any,
+      undefined as any,
+      mockReviewCommentRepo as any
     );
     jest.clearAllMocks();
   });
@@ -1771,7 +1780,7 @@ describe('ArticleService.listMine', () => {
     createdAt: Date;
     updatedAt: Date;
     _count?: { likes: number; comments: number };
-    reviews?: { feedback: string | null }[];
+    reviews?: { id: string; feedback: string | null }[];
   };
 
   it('should map returned articles correctly and not expose reviews array', async () => {
@@ -1798,12 +1807,13 @@ describe('ArticleService.listMine', () => {
     
     expect(result.articles).toHaveLength(1);
     expect(result.articles[0]).not.toHaveProperty('reviews');
+    expect(result.articles[0].inlineCommentCount).toBe(0);
     expect(result.total).toBe(1);
     expect(result.page).toBe(1);
     expect(result.limit).toBe(20);
   });
 
-  it('should return rejectionFeedback if article is Unpublished and has a review', async () => {
+  it('should return rejectionFeedback and inlineCommentCount in a batched query if article is Unpublished', async () => {
     const mockArticles: MockPublishedArticleRow[] = [
       {
         id: '2',
@@ -1815,7 +1825,7 @@ describe('ArticleService.listMine', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         _count: { likes: 1, comments: 2 },
-        reviews: [{ feedback: 'Needs more technical depth' }],
+        reviews: [{ id: 'review-1', feedback: 'Needs more technical depth' }],
       },
     ];
 
@@ -1823,9 +1833,13 @@ describe('ArticleService.listMine', () => {
       articles: mockArticles,
       total: 1,
     } as never);
+    mockReviewCommentRepo.countByReviewIds.mockResolvedValue(new Map([['review-1', 4]]));
 
     const result = await service.listMine(authorId, 1, 20);
     expect(result.articles[0].rejectionFeedback).toBe('Needs more technical depth');
+    expect(result.articles[0].inlineCommentCount).toBe(4);
+    expect(mockReviewCommentRepo.countByReviewIds).toHaveBeenCalledWith(['review-1']);
+    expect(mockReviewCommentRepo.countByReviewIds).toHaveBeenCalledTimes(1);
   });
 
   it('should map the first review if multiple review data is returned (though repo should take 1)', async () => {
@@ -1839,7 +1853,7 @@ describe('ArticleService.listMine', () => {
         views: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
-        reviews: [{ feedback: 'Latest feedback' }, { feedback: 'Old feedback' }],
+        reviews: [{ id: 'rev-1', feedback: 'Latest feedback' }, { id: 'rev-2', feedback: 'Old feedback' }],
       },
     ];
 
@@ -1887,7 +1901,7 @@ describe('ArticleService.listMine', () => {
         views: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
-        reviews: [{ feedback: null }],
+        reviews: [{ id: 'rev-1', feedback: null }],
       },
     ];
 
@@ -1911,7 +1925,7 @@ describe('ArticleService.listMine', () => {
         views: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
-        reviews: [{ feedback: 'Historical feedback' }],
+        reviews: [{ id: 'rev-1', feedback: 'Historical feedback' }],
       },
     ];
 

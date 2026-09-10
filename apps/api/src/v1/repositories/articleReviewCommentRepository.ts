@@ -73,6 +73,26 @@ export class ArticleReviewCommentRepository {
       status: result.status as ReviewCommentStatus,
     };
   }
+
+  async countByReviewIds(reviewIds: string[]): Promise<Map<string, number>> {
+    if (reviewIds.length === 0) return new Map();
+
+    const counts = await prisma.articleReviewComment.groupBy({
+      by: ['reviewId'],
+      where: {
+        reviewId: { in: reviewIds },
+      },
+      _count: {
+        _all: true,
+      },
+    });
+
+    const map = new Map<string, number>();
+    for (const c of counts) {
+      map.set(c.reviewId, c._count._all);
+    }
+    return map;
+  }
 }
 
 export default new ArticleReviewCommentRepository();

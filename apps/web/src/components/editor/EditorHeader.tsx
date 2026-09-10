@@ -4,7 +4,7 @@ import React, { useRef } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Save, Sparkles } from 'lucide-react';
+import { ArrowLeft, Save, Sparkles, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 import { useEditorDraft } from '@/components/editor/EditorDraftContext';
 import { getStatusDotColor, getStatusText } from '@/lib/utils/saveStatus';
@@ -17,8 +17,10 @@ import {
 import { Toast } from '@/components/shared/Toast';
 import { ConfirmationModal } from '@/components/shared/ConfirmationModal';
 import { GenerateQuizModal } from '@/components/quiz/GenerateQuizModal';
+import { ReviewFeedbackModal } from '@/components/articles/ReviewFeedbackModal';
 import { EditIcon } from '@/components/shared/icons/EditIcon';
 import { EyeIcon } from '@/components/shared/icons/EyeIcon';
+import { ArticleReviewStatus, ArticleStatus } from '@repo/shared';
 
 interface EditorHeaderProps {
   mode: 'compose' | 'preview';
@@ -55,6 +57,8 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
   const [isGenerateQuizModalOpen, setIsGenerateQuizModalOpen] =
     React.useState(false);
   const [canGenerateQuiz, setCanGenerateQuiz] =
+    React.useState(false);
+  const [isReviewFeedbackModalOpen, setIsReviewFeedbackModalOpen] =
     React.useState(false);
 
   // React.useEffect(() => {
@@ -165,10 +169,14 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
   const isSaving = saveStatus === 'saving';
   const isPublished =
     articleStatus !== null &&
-    articleStatus !== 'Draft' &&
-    articleStatus !== 'Rejected';
+    articleStatus !== ArticleStatus.Draft &&
+    articleStatus !== ArticleReviewStatus.Rejected;
   const submitLabel =
-    initialStatus === 'Rejected' ? 'Re-submit for Review' : 'Submit for Review';
+    initialStatus === ArticleReviewStatus.Rejected ? 'Re-submit for Review' : 'Submit for Review';
+
+  const isPreviouslyRejected =
+    initialStatus === ArticleReviewStatus.Rejected || initialStatus === ArticleStatus.Unpublished;
+  const showReviewFeedbackButton = isPreviouslyRejected && Boolean(articleId);
 
   return (
     <>
@@ -257,7 +265,20 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
             </button>
           </div>
 
-          {/* Save Draft button (Correction 3: replaces the removed "Revert to Draft") */}
+          {showReviewFeedbackButton ? (
+            <button
+              type="button"
+              data-cy="review-feedback-button"
+              data-testid="review-feedback-button"
+              onClick={() => setIsReviewFeedbackModalOpen(true)}
+              className="flex items-center gap-2 rounded-lg border border-brand-border bg-white px-4 py-2 text-sm font-semibold text-brand-text-primary hover:bg-brand-hover transition-colors shadow-sm"
+            >
+              <MessageSquare className="h-4 w-4 text-brand-red" />
+              Review Feedback
+            </button>
+          ) : null}
+
+          {/* Save Draft button */}
           <button
             type="button"
             data-cy="save-draft-button"
@@ -310,6 +331,11 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
         isOpen={isGenerateQuizModalOpen}
         articleId={articleId}
         onClose={() => setIsGenerateQuizModalOpen(false)}
+      />
+      <ReviewFeedbackModal
+        isOpen={isReviewFeedbackModalOpen}
+        articleId={articleId}
+        onClose={() => setIsReviewFeedbackModalOpen(false)}
       />
     </>
   );
