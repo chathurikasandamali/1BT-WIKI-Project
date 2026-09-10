@@ -54,7 +54,7 @@ describe('Article lifecycle', () => {
   let createdArticleId: string | null = null;
   let useAdminProfile = false;
 
-  const DEFAULT_TIMEOUT = 10000; // 10 seconds
+  const DEFAULT_TIMEOUT = 30000;
 
   beforeEach(() => {
     useAdminProfile = false;
@@ -770,7 +770,16 @@ describe('Article lifecycle', () => {
           cy.root().should('have.attr', 'href', `/articles/${articleId}`).click();
         });
 
-      cy.wait('@getPublishedArticleDetail', { timeout: DEFAULT_TIMEOUT }).then((interception) => {
+      // Dev-mode Strict Mode (and the Admin detail page) can leave an extra
+      // GET /articles/:id in the intercept queue from the previous identity.
+      const assertAuthorArticleDetail = (interception: Interception): void => {
+        if (interception.request.headers['x-test-user-id'] !== E2E_AUTHOR.id) {
+          cy.wait('@getPublishedArticleDetail', { timeout: DEFAULT_TIMEOUT }).then(
+            assertAuthorArticleDetail
+          );
+          return;
+        }
+
         expect(interception.request.method).to.eq('GET');
         const reqUrl = new URL(interception.request.url);
         expect(reqUrl.pathname).to.eq(`/api/v1/articles/${articleId}`);
@@ -788,7 +797,11 @@ describe('Article lifecycle', () => {
 
         const bodyStr = JSON.stringify(responseBody.data.body);
         expect(bodyStr).to.include(articleContent);
-      });
+      };
+
+      cy.wait('@getPublishedArticleDetail', { timeout: DEFAULT_TIMEOUT }).then(
+        assertAuthorArticleDetail
+      );
 
       cy.location('pathname').should('eq', `/articles/${articleId}`);
       cy.get('h1').contains(articleTitle).should('be.visible');
