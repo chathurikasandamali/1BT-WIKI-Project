@@ -20,7 +20,7 @@ import { GenerateQuizModal } from '@/components/quiz/GenerateQuizModal';
 import { ReviewFeedbackModal } from '@/components/articles/ReviewFeedbackModal';
 import { EditIcon } from '@/components/shared/icons/EditIcon';
 import { EyeIcon } from '@/components/shared/icons/EyeIcon';
-import { ArticleReviewStatus, ArticleStatus } from '@repo/shared';
+import { ArticleReviewStatus, ArticleStatus, extractTextFromTipTap, type TipTapJsonContent } from '@repo/shared';
 
 interface EditorHeaderProps {
   mode: 'compose' | 'preview';
@@ -33,7 +33,12 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
     articleId,
     articleStatus,
     initialStatus,
-    title,
+    title = '',
+    tags = [],
+    currentBody,
+    featuredImageUrl,
+    coverAttachmentId,
+    attachments = [],
     wordCount,
     saveStatus,
     lastSavedAt,
@@ -42,6 +47,39 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
     submitForReview,
     validate,
   } = useEditorDraft();
+
+  const hasAnyInput = React.useMemo(() => {
+    const hasTitle = Boolean(title && title.trim().length > 0);
+    const hasTags = Array.isArray(tags) && tags.length > 0;
+    const hasImages =
+      (Array.isArray(attachments) && attachments.length > 0) ||
+      Boolean(featuredImageUrl) ||
+      Boolean(coverAttachmentId);
+
+    let hasBody = false;
+    if (currentBody && typeof currentBody === 'object') {
+      const text = extractTextFromTipTap(currentBody as TipTapJsonContent);
+      if (text.trim().length > 0) {
+        hasBody = true;
+      } else {
+        const hasMediaNode = (node: TipTapJsonContent): boolean => {
+          if (node.type === 'image' || node.type === 'media') return true;
+          if (Array.isArray(node.content)) {
+            return node.content.some(
+              (child) =>
+                typeof child === 'object' &&
+                child !== null &&
+                hasMediaNode(child as TipTapJsonContent)
+            );
+          }
+          return false;
+        };
+        hasBody = hasMediaNode(currentBody as TipTapJsonContent);
+      }
+    }
+
+    return hasTitle || hasBody || hasTags || hasImages;
+  }, [title, currentBody, tags, attachments, featuredImageUrl, coverAttachmentId]);
   const statusDotRef = useRef<HTMLDivElement>(null);
   const {
     isVisible: isToastVisible,
@@ -253,8 +291,11 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
             <button
               type='button'
               onClick={() => setMode('preview')}
+              disabled={!hasAnyInput}
+              data-testid="preview-button"
+              data-cy="preview-mode-button"
               className={cn(
-                'flex items-center gap-2 rounded-md px-4 py-1.5 text-sm font-semibold transition-colors',
+                'flex items-center gap-2 rounded-md px-4 py-1.5 text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
                 mode === 'preview'
                   ? 'bg-gray-100 text-brand-text-primary'
                   : 'text-brand-text-secondary hover:bg-brand-hover hover:text-brand-text-primary'
