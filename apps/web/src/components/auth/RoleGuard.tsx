@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useUser } from '@/lib/hooks/useUser';
 import type { UserRole } from '@repo/shared';
-import { PageLoader } from '@/components/shared/PageLoader';
+import { PageLoader } from '../shared/PageLoader';
 
 interface RoleGuardProps {
   allowedRoles: UserRole[];
@@ -21,9 +21,7 @@ export function RoleGuard({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-8 text-sm text-brand-text-secondary">
-        Loading...
-      </div>
+      <PageLoader className="min-h-0 py-8" />
     );
   }
 
