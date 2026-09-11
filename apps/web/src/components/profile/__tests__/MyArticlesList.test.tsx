@@ -1,23 +1,103 @@
+import React from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ArticleListItem } from '@/lib/api/articles';
+import type { ArticleListItem, ArticleStatus } from '@/lib/api/articles';
+import { formatDate } from '@/lib/utils/date';
 
 const mockFetchMyArticles = jest.fn();
+const mockDeleteArticle = jest.fn();
+const mockGetReviewFeedback = jest.fn();
+const mockUseUser = jest.fn();
 
 jest.mock('@/lib/api/articles', () => ({
   fetchMyArticles: (...args: unknown[]) => mockFetchMyArticles(...args),
+  deleteArticle: (...args: unknown[]) => mockDeleteArticle(...args),
+  getReviewFeedback: (...args: unknown[]) => mockGetReviewFeedback(...args),
 }));
 
 jest.mock('@/lib/hooks/useUser', () => ({
-  useUser: () => ({
-    user: { id: 'u1', name: 'Test User', role: 'User' },
-    loading: false,
-    error: null,
-  }),
+  useUser: () => mockUseUser(),
+}));
+
+jest.mock('@/components/articles/ReviewFeedbackModal', () => ({
+  ReviewFeedbackModal: ({
+    isOpen,
+    articleId,
+    onClose,
+  }: {
+    isOpen: boolean;
+    articleId: string | null;
+    onClose: () => void;
+  }): React.JSX.Element | null => {
+    if (!isOpen) {
+      return null;
+    }
+
+    return (
+      <div data-testid="review-feedback-modal">
+        <span data-testid="review-feedback-article-id">{articleId}</span>
+        <button
+          type="button"
+          data-testid="close-review-feedback"
+          onClick={onClose}
+        >
+          Close
+        </button>
+      </div>
+    );
+  },
+}));
+
+jest.mock('@/components/shared/ConfirmationModal', () => ({
+  ConfirmationModal: ({
+    isOpen,
+    title,
+    message,
+    onConfirm,
+    onCancel,
+  }: {
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+  }): React.JSX.Element | null => {
+    if (!isOpen) {
+      return null;
+    }
+
+    return (
+      <div data-testid="delete-confirmation-modal">
+        <h2>{title}</h2>
+        <p>{message}</p>
+        <button type="button" data-testid="confirm-delete" onClick={onConfirm}>
+          Delete
+        </button>
+        <button type="button" data-testid="cancel-delete" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    );
+  },
 }));
 
 import { MyArticlesList } from '@/components/profile/MyArticlesList';
 
+const NORMAL_USER = {
+  id: 'u1',
+  name: 'Test User',
+  role: 'User',
+};
+
+const ADMIN_USER = {
+  id: 'admin-1',
+  name: 'Admin User',
+  role: 'Admin',
+};
+
+/**
+ * Builds a My Articles list fixture.
+ */
 function makeArticle(
   overrides: Partial<ArticleListItem> = {}
 ): ArticleListItem {
@@ -38,9 +118,40 @@ function makeArticle(
   };
 }
 
+/**
+ * Returns data-testid values for rendered article cards.
+ */
+function articleCardTestIds(cards: HTMLElement[]): Array<string | null> {
+  return cards.map((card: HTMLElement): string | null =>
+    card.getAttribute('data-testid')
+  );
+}
+
+/**
+ * Resolves fetchMyArticles with the given articles.
+ */
+function mockArticles(articles: ArticleListItem[]): void {
+  mockFetchMyArticles.mockResolvedValueOnce({
+    articles,
+    total: articles.length,
+    page: 1,
+    limit: 20,
+  });
+}
+
 describe('MyArticlesList', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUseUser.mockReturnValue({
+      user: NORMAL_USER,
+      loading: false,
+      error: null,
+    });
+    mockDeleteArticle.mockResolvedValue(undefined);
+    mockGetReviewFeedback.mockResolvedValue({
+      overallFeedback: null,
+      comments: [],
+    });
   });
 
   it('shows a loading state while fetching', () => {
@@ -49,28 +160,20 @@ describe('MyArticlesList', () => {
     render(<MyArticlesList />);
 
     expect(screen.getByTestId('my-articles-loading')).toBeInTheDocument();
+    expect(screen.getByText('Loading your articles')).toBeInTheDocument();
   });
 
   it('shows an empty state when there are no articles', async () => {
-    mockFetchMyArticles.mockResolvedValueOnce({
-      articles: [],
-      total: 0,
-      page: 1,
-      limit: 20,
-    });
+    mockArticles([]);
 
     render(<MyArticlesList />);
 
     expect(await screen.findByTestId('my-articles-empty')).toHaveTextContent(
       "You haven't written any articles yet."
     );
-
     expect(
-      screen.queryByRole('link', { name: /create your first article/i })
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('link', { name: /create new article/i })
-    ).not.toBeInTheDocument();
+      screen.getByText('Use Create New Article when you are ready to start a draft.')
+    ).toBeInTheDocument();
   });
 
   it('shows an error state when fetching fails', async () => {
@@ -83,61 +186,57 @@ describe('MyArticlesList', () => {
     );
   });
 
-  it('renders article cards with status and date labels', async () => {
-    const published = makeArticle({
-      id: 'pub1',
-      title: 'Published Piece',
-      status: 'Published',
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-05T00:00:00.000Z',
-    });
-    const draft = makeArticle({
-      id: 'draft1',
-      title: 'Draft Piece',
-      status: 'Draft',
-      createdAt: '2026-01-03T00:00:00.000Z',
-      updatedAt: '2026-01-04T00:00:00.000Z',
-    });
-    mockFetchMyArticles.mockResolvedValueOnce({
-      articles: [published, draft],
-      total: 2,
-      page: 1,
-      limit: 20,
-    });
+  it('renders summary widgets and splits submitted work from drafts', async () => {
+    mockArticles([
+      makeArticle({
+        id: 'pub1',
+        title: 'Published Piece',
+        status: 'Published',
+        updatedAt: '2026-01-05T00:00:00.000Z',
+      }),
+      makeArticle({
+        id: 'draft1',
+        title: 'Draft Piece',
+        status: 'Draft',
+        updatedAt: '2026-01-04T00:00:00.000Z',
+      }),
+    ]);
 
     render(<MyArticlesList />);
 
     const publishedCard = await screen.findByTestId('article-card-pub1');
-    expect(within(publishedCard).getByText('Published')).toBeInTheDocument();
+    expect(within(publishedCard).getByText('Published Piece')).toBeInTheDocument();
+    expect(within(publishedCard).getByTestId('article-status-badge')).toHaveTextContent(
+      'Published'
+    );
     expect(
-      within(publishedCard).getByText(/Published: 05 Jan 2026/)
+      within(publishedCard).getByText(
+        `Published: ${formatDate('2026-01-05T00:00:00.000Z')}`
+      )
     ).toBeInTheDocument();
 
     const draftCard = screen.getByTestId('article-card-draft1');
-    expect(within(draftCard).getByText('Draft')).toBeInTheDocument();
-    
-    // Instead of hardcoding the expected string which may fail due to timezone differences
-    // or mismatching date fields, we just ensure the formatted updatedAt is in the document
-    const formattedDraftDate = new Date('2026-01-04T00:00:00.000Z').toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
+    expect(within(draftCard).getByTestId('article-status-badge')).toHaveTextContent(
+      'Draft'
+    );
     expect(
-      within(draftCard).getByText(new RegExp(`Last updated: ${formattedDraftDate}`))
+      within(draftCard).getByText(
+        `Last updated: ${formatDate('2026-01-04T00:00:00.000Z')}`
+      )
     ).toBeInTheDocument();
+
+    expect(screen.getByTestId('widget-my-articles-total')).toHaveTextContent('2');
+    expect(screen.getByTestId('widget-my-articles-submitted')).toHaveTextContent('1');
+    expect(screen.getByTestId('widget-my-articles-drafts')).toHaveTextContent('1');
+    expect(screen.getByTestId('my-articles-articles-section')).toBeInTheDocument();
+    expect(screen.getByTestId('my-articles-drafts-section')).toBeInTheDocument();
   });
 
   it('filters articles by title via search', async () => {
-    mockFetchMyArticles.mockResolvedValueOnce({
-      articles: [
-        makeArticle({ id: 'a1', title: 'React Basics' }),
-        makeArticle({ id: 'a2', title: 'Node Deep Dive' }),
-      ],
-      total: 2,
-      page: 1,
-      limit: 20,
-    });
+    mockArticles([
+      makeArticle({ id: 'a1', title: 'React Basics' }),
+      makeArticle({ id: 'a2', title: 'Node Deep Dive' }),
+    ]);
 
     render(<MyArticlesList />);
     await screen.findByTestId('article-card-a1');
@@ -150,12 +249,7 @@ describe('MyArticlesList', () => {
   });
 
   it('shows a no-match message when search filters out all articles', async () => {
-    mockFetchMyArticles.mockResolvedValueOnce({
-      articles: [makeArticle({ id: 'a1', title: 'React Basics' })],
-      total: 1,
-      page: 1,
-      limit: 20,
-    });
+    mockArticles([makeArticle({ id: 'a1', title: 'React Basics' })]);
 
     render(<MyArticlesList />);
     await screen.findByTestId('article-card-a1');
@@ -169,82 +263,121 @@ describe('MyArticlesList', () => {
   });
 
   it('sorts articles by title A-Z', async () => {
-    mockFetchMyArticles.mockResolvedValueOnce({
-      articles: [
-        makeArticle({ id: 'a1', title: 'Zebra' }),
-        makeArticle({ id: 'a2', title: 'Alpha' }),
-      ],
-      total: 2,
-      page: 1,
-      limit: 20,
-    });
+    mockArticles([
+      makeArticle({ id: 'a1', title: 'Zebra' }),
+      makeArticle({ id: 'a2', title: 'Alpha' }),
+    ]);
 
     render(<MyArticlesList />);
     await screen.findByTestId('article-card-a1');
 
     const user = userEvent.setup();
-    await user.selectOptions(
-      screen.getByTestId('article-sort-select'),
-      'title'
-    );
+    await user.selectOptions(screen.getByTestId('article-sort-select'), 'title');
 
     const cards = screen.getAllByTestId(/^article-card-/);
-    expect(cards.map((c) => c.getAttribute('data-testid'))).toEqual([
+    expect(articleCardTestIds(cards)).toEqual([
       'article-card-a2',
       'article-card-a1',
     ]);
   });
 
-  it('sorts articles by newest and oldest createdAt', async () => {
-    mockFetchMyArticles.mockResolvedValueOnce({
-      articles: [
-        makeArticle({
-          id: 'old',
-          title: 'Old',
-          createdAt: '2026-01-01T00:00:00.000Z',
-          updatedAt: '2026-01-01T00:00:00.000Z',
-        }),
-        makeArticle({
-          id: 'new',
-          title: 'New',
-          createdAt: '2026-01-10T00:00:00.000Z',
-          updatedAt: '2026-01-10T00:00:00.000Z',
-        }),
-      ],
-      total: 2,
-      page: 1,
-      limit: 20,
-    });
+  it('sorts articles by newest and oldest updatedAt', async () => {
+    mockArticles([
+      makeArticle({
+        id: 'old',
+        title: 'Old',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }),
+      makeArticle({
+        id: 'new',
+        title: 'New',
+        updatedAt: '2026-01-10T00:00:00.000Z',
+      }),
+    ]);
 
     render(<MyArticlesList />);
     await screen.findByTestId('article-card-old');
 
     let cards = screen.getAllByTestId(/^article-card-/);
-    expect(cards.map((c) => c.getAttribute('data-testid'))).toEqual([
+    expect(articleCardTestIds(cards)).toEqual([
       'article-card-new',
       'article-card-old',
     ]);
 
     const user = userEvent.setup();
-    await user.selectOptions(
-      screen.getByTestId('article-sort-select'),
-      'oldest'
-    );
+    await user.selectOptions(screen.getByTestId('article-sort-select'), 'oldest');
 
     cards = screen.getAllByTestId(/^article-card-/);
-    expect(cards.map((c) => c.getAttribute('data-testid'))).toEqual([
+    expect(articleCardTestIds(cards)).toEqual([
       'article-card-old',
       'article-card-new',
     ]);
   });
 
-  it('renders disabled edit and delete buttons', async () => {
-    mockFetchMyArticles.mockResolvedValueOnce({
-      articles: [makeArticle({ id: 'a1', status: 'Pending' })],
-      total: 1,
-      page: 1,
-      limit: 20,
-    });
+  it('renders filter chips including Rejected for Unpublished', async () => {
+    mockArticles([makeArticle({ id: 'a1', status: 'Draft' })]);
+
+    render(<MyArticlesList />);
+    await screen.findByTestId('article-card-a1');
+
+    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Rejected' })).toBeInTheDocument();
+  });
+
+  it('filters to submitted articles when the Articles widget is clicked', async () => {
+    mockArticles([
+      makeArticle({ id: 'draft1', title: 'Draft Piece', status: 'Draft' }),
+      makeArticle({ id: 'pend1', title: 'Pending Piece', status: 'Pending' }),
+    ]);
+
+    render(<MyArticlesList />);
+    await screen.findByTestId('article-card-draft1');
+
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('widget-my-articles-submitted'));
+
+    expect(screen.getByTestId('article-card-pend1')).toBeInTheDocument();
+    expect(screen.queryByTestId('article-card-draft1')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('my-articles-drafts-section')).not.toBeInTheDocument();
+  });
+
+  it('filters to drafts when the Drafts widget is clicked', async () => {
+    mockArticles([
+      makeArticle({ id: 'draft1', title: 'Draft Piece', status: 'Draft' }),
+      makeArticle({ id: 'pend1', title: 'Pending Piece', status: 'Pending' }),
+    ]);
+
+    render(<MyArticlesList />);
+    await screen.findByTestId('article-card-draft1');
+
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('widget-my-articles-drafts'));
+
+    expect(screen.getByTestId('article-card-draft1')).toBeInTheDocument();
+    expect(screen.queryByTestId('article-card-pend1')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('my-articles-articles-section')).not.toBeInTheDocument();
+  });
+
+  it('filters Unpublished articles when Rejected is selected', async () => {
+    mockArticles([
+      makeArticle({ id: 'rej1', title: 'Rejected Piece', status: 'Unpublished' }),
+      makeArticle({ id: 'pub1', title: 'Published Piece', status: 'Published' }),
+      makeArticle({ id: 'draft1', title: 'Draft Piece', status: 'Draft' }),
+    ]);
+
+    render(<MyArticlesList />);
+    await screen.findByTestId('article-card-rej1');
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Rejected' }));
+
+    expect(screen.getByTestId('article-card-rej1')).toBeInTheDocument();
+    expect(screen.queryByTestId('article-card-pub1')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('article-card-draft1')).not.toBeInTheDocument();
+  });
+
+  it('disables edit and delete for Pending articles', async () => {
+    mockArticles([makeArticle({ id: 'a1', status: 'Pending' })]);
 
     render(<MyArticlesList />);
     await screen.findByTestId('article-card-a1');
@@ -253,13 +386,8 @@ describe('MyArticlesList', () => {
     expect(screen.getByTestId('delete-article-a1')).toBeDisabled();
   });
 
-  it('renders a link for editing Draft articles', async () => {
-    mockFetchMyArticles.mockResolvedValueOnce({
-      articles: [makeArticle({ id: 'a2', status: 'Draft' })],
-      total: 1,
-      page: 1,
-      limit: 20,
-    });
+  it('lets authors edit and delete drafts', async () => {
+    mockArticles([makeArticle({ id: 'a2', status: 'Draft' })]);
 
     render(<MyArticlesList />);
     await screen.findByTestId('article-card-a2');
@@ -270,21 +398,80 @@ describe('MyArticlesList', () => {
     expect(screen.getByTestId('delete-article-a2')).not.toBeDisabled();
   });
 
-  it('shows the first five submitted articles and loads five more on Show more', async () => {
-    const articles = Array.from({ length: 7 }, (_, index) =>
-      makeArticle({
-        id: `pub${index + 1}`,
-        title: `Published ${index + 1}`,
-        status: 'Published',
-        updatedAt: `2026-01-${String(index + 1).padStart(2, '0')}T00:00:00.000Z`,
-      })
+  it('lets authors edit Unpublished articles but not delete them', async () => {
+    mockArticles([makeArticle({ id: 'a1', status: 'Unpublished' })]);
+
+    render(<MyArticlesList />);
+    await screen.findByTestId('article-card-a1');
+
+    const editLink = screen.getByTestId('edit-article-a1');
+    expect(editLink.tagName).toBe('A');
+    expect(editLink).toHaveAttribute('href', '/editor/a1');
+    expect(within(screen.getByTestId('article-card-a1')).getByTestId('article-status-badge')).toHaveTextContent(
+      'Rejected'
     );
-    mockFetchMyArticles.mockResolvedValueOnce({
-      articles,
-      total: 7,
-      page: 1,
-      limit: 20,
+    expect(screen.getByTestId('delete-article-a1')).toBeDisabled();
+  });
+
+  it('lets an admin delete a non-draft article', async () => {
+    mockUseUser.mockReturnValue({
+      user: ADMIN_USER,
+      loading: false,
+      error: null,
     });
+    mockArticles([makeArticle({ id: 'pub1', status: 'Published' })]);
+
+    render(<MyArticlesList />);
+    await screen.findByTestId('article-card-pub1');
+
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('delete-article-pub1'));
+
+    expect(await screen.findByTestId('delete-confirmation-modal')).toHaveTextContent(
+      'Permanently Delete Article'
+    );
+
+    await user.click(screen.getByTestId('confirm-delete'));
+
+    await waitFor(() => {
+      expect(mockDeleteArticle).toHaveBeenCalledWith('pub1', true);
+    });
+    expect(screen.queryByTestId('article-card-pub1')).not.toBeInTheDocument();
+  });
+
+  it('deletes a draft after confirmation', async () => {
+    mockArticles([makeArticle({ id: 'draft1', status: 'Draft' })]);
+
+    render(<MyArticlesList />);
+    await screen.findByTestId('article-card-draft1');
+
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('delete-article-draft1'));
+
+    expect(await screen.findByTestId('delete-confirmation-modal')).toHaveTextContent(
+      'Delete Draft'
+    );
+
+    await user.click(screen.getByTestId('confirm-delete'));
+
+    await waitFor(() => {
+      expect(mockDeleteArticle).toHaveBeenCalledWith('draft1', false);
+    });
+    expect(screen.queryByTestId('article-card-draft1')).not.toBeInTheDocument();
+  });
+
+  it('shows the first five submitted articles and loads five more on Show more', async () => {
+    const articles: ArticleListItem[] = Array.from(
+      { length: 7 },
+      (_unused: unknown, index: number): ArticleListItem =>
+        makeArticle({
+          id: `pub${index + 1}`,
+          title: `Published ${index + 1}`,
+          status: 'Published' as ArticleStatus,
+          updatedAt: `2026-01-${String(index + 1).padStart(2, '0')}T00:00:00.000Z`,
+        })
+    );
+    mockArticles(articles);
 
     render(<MyArticlesList />);
     await screen.findByTestId('article-card-pub7');
@@ -305,7 +492,7 @@ describe('MyArticlesList', () => {
   it('does not update state after unmount (cancelled fetch)', async () => {
     let resolveFetch: (value: unknown) => void = () => {};
     mockFetchMyArticles.mockReturnValue(
-      new Promise((resolve) => {
+      new Promise((resolve: (value: unknown) => void) => {
         resolveFetch = resolve;
       })
     );
@@ -319,156 +506,162 @@ describe('MyArticlesList', () => {
   });
 
   describe('Rejection feedback', () => {
-    it('shows rejection feedback warning banner with comment count for Unpublished articles', async () => {
-      mockFetchMyArticles.mockResolvedValueOnce({
-        articles: [
-          makeArticle({
-            id: 'a1',
-            status: 'Unpublished',
-            rejectionFeedback: 'Needs more technical depth',
-            inlineCommentCount: 3,
-          }),
-        ],
-        total: 1,
-        page: 1,
-        limit: 20,
-      });
+    it('shows the reviewer feedback banner for Unpublished articles', async () => {
+      mockArticles([
+        makeArticle({
+          id: 'a1',
+          status: 'Unpublished',
+          rejectionFeedback: 'Needs more technical depth',
+          inlineCommentCount: 3,
+        }),
+      ]);
 
       render(<MyArticlesList />);
       await screen.findByTestId('article-card-a1');
 
       expect(screen.getByTestId('reviewer-feedback-banner')).toBeInTheDocument();
-      expect(screen.getByText(/Reviewer Feedback/i)).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', { name: 'Reviewer Feedback' })
+      ).toBeInTheDocument();
       expect(screen.getByText('Needs more technical depth')).toBeInTheDocument();
-      expect(screen.getByTestId('inline-comment-count')).toHaveTextContent('3 inline comments');
+      expect(screen.getByTestId('inline-comment-count')).toHaveTextContent(
+        '3 inline comments'
+      );
       expect(screen.getByTestId('view-feedback-button')).toBeInTheDocument();
     });
 
-    it('shows fallback message when Unpublished article has null feedback', async () => {
-      mockFetchMyArticles.mockResolvedValueOnce({
-        articles: [
-          makeArticle({
-            id: 'a1',
-            status: 'Unpublished',
-            rejectionFeedback: null,
-          }),
-        ],
-        total: 1,
-        page: 1,
-        limit: 20,
-      });
+    it('uses a singular comment label when there is one inline comment', async () => {
+      mockArticles([
+        makeArticle({
+          id: 'a1',
+          status: 'Unpublished',
+          inlineCommentCount: 1,
+        }),
+      ]);
 
       render(<MyArticlesList />);
       await screen.findByTestId('article-card-a1');
 
-      expect(screen.getByRole('heading', { name: /Reviewer Feedback/i })).toBeInTheDocument();
-      expect(screen.getByText('No reviewer feedback was provided.')).toBeInTheDocument();
-      expect(screen.getByTestId('inline-comment-count')).toHaveTextContent('0 inline comments');
+      expect(screen.getByTestId('inline-comment-count')).toHaveTextContent(
+        '1 inline comment'
+      );
     });
 
-    it('shows fallback message when Unpublished article has empty or whitespace feedback', async () => {
-      mockFetchMyArticles.mockResolvedValueOnce({
-        articles: [
-          makeArticle({
-            id: 'a1',
-            status: 'Unpublished',
-            rejectionFeedback: '   \n  ',
-          }),
-        ],
-        total: 1,
-        page: 1,
-        limit: 20,
-      });
+    it('shows fallback copy when Unpublished article has no feedback', async () => {
+      mockArticles([
+        makeArticle({
+          id: 'a1',
+          status: 'Unpublished',
+          rejectionFeedback: null,
+        }),
+      ]);
 
       render(<MyArticlesList />);
       await screen.findByTestId('article-card-a1');
 
-      expect(screen.getByRole('heading', { name: /Reviewer Feedback/i })).toBeInTheDocument();
-      expect(screen.getByText('No reviewer feedback was provided.')).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', { name: /Reviewer Feedback/i })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText('No reviewer feedback was provided.')
+      ).toBeInTheDocument();
+      expect(screen.getByTestId('inline-comment-count')).toHaveTextContent(
+        '0 inline comments'
+      );
     });
 
-    it('opens ReviewFeedbackModal when View feedback is clicked', async () => {
-      mockFetchMyArticles.mockResolvedValueOnce({
-        articles: [
-          makeArticle({
-            id: 'a1',
-            status: 'Unpublished',
-            rejectionFeedback: 'Fix errors',
-            inlineCommentCount: 2,
-          }),
-        ],
-        total: 1,
-        page: 1,
-        limit: 20,
-      });
+    it('shows fallback copy when Unpublished article has whitespace-only feedback', async () => {
+      mockArticles([
+        makeArticle({
+          id: 'a1',
+          status: 'Unpublished',
+          rejectionFeedback: '   \n  ',
+        }),
+      ]);
+
+      render(<MyArticlesList />);
+      await screen.findByTestId('article-card-a1');
+
+      expect(
+        screen.getByText('No reviewer feedback was provided.')
+      ).toBeInTheDocument();
+    });
+
+    it('opens and closes ReviewFeedbackModal from View feedback', async () => {
+      mockArticles([
+        makeArticle({
+          id: 'a1',
+          status: 'Unpublished',
+          rejectionFeedback: 'Fix errors',
+          inlineCommentCount: 2,
+        }),
+      ]);
 
       const user = userEvent.setup();
       render(<MyArticlesList />);
       await screen.findByTestId('article-card-a1');
 
-      const viewBtn = screen.getByTestId('view-feedback-button');
-      await user.click(viewBtn);
+      await user.click(screen.getByTestId('view-feedback-button'));
 
       expect(await screen.findByTestId('review-feedback-modal')).toBeInTheDocument();
+      expect(screen.getByTestId('review-feedback-article-id')).toHaveTextContent(
+        'a1'
+      );
+
+      await user.click(screen.getByTestId('close-review-feedback'));
+
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId('review-feedback-modal')
+        ).not.toBeInTheDocument();
+      });
     });
 
-    it('hides feedback for Draft, Pending, and Published articles even with historical feedback string', async () => {
-      mockFetchMyArticles.mockResolvedValueOnce({
-        articles: [
-          makeArticle({ id: 'a1', status: 'Draft', rejectionFeedback: 'Old feedback 1' }),
-          makeArticle({ id: 'a2', status: 'Pending', rejectionFeedback: 'Old feedback 2' }),
-          makeArticle({ id: 'a3', status: 'Published', rejectionFeedback: 'Old feedback 3' }),
-        ],
-        total: 3,
-        page: 1,
-        limit: 20,
-      });
+    it('hides feedback for Draft, Pending, and Published articles', async () => {
+      mockArticles([
+        makeArticle({
+          id: 'a1',
+          status: 'Draft',
+          rejectionFeedback: 'Old feedback 1',
+        }),
+        makeArticle({
+          id: 'a2',
+          status: 'Pending',
+          rejectionFeedback: 'Old feedback 2',
+        }),
+        makeArticle({
+          id: 'a3',
+          status: 'Published',
+          rejectionFeedback: 'Old feedback 3',
+        }),
+      ]);
 
       render(<MyArticlesList />);
       await screen.findByTestId('article-card-a1');
       await screen.findByTestId('article-card-a2');
       await screen.findByTestId('article-card-a3');
 
-      expect(screen.queryByTestId('reviewer-feedback-banner')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('reviewer-feedback-banner')
+      ).not.toBeInTheDocument();
       expect(screen.queryByText(/Old feedback/)).not.toBeInTheDocument();
     });
 
-    it('retains edit controls for Unpublished articles', async () => {
-      mockFetchMyArticles.mockResolvedValueOnce({
-        articles: [
-          makeArticle({ id: 'a1', status: 'Unpublished' }),
-        ],
-        total: 1,
-        page: 1,
-        limit: 20,
-      });
-
-      render(<MyArticlesList />);
-      await screen.findByTestId('article-card-a1');
-
-      const editLink = screen.getByTestId('edit-article-a1');
-      expect(editLink.tagName).toBe('A');
-      expect(editLink).toHaveAttribute('href', '/editor/a1');
-    });
-
     it('renders HTML-like feedback as plain text', async () => {
-      mockFetchMyArticles.mockResolvedValueOnce({
-        articles: [
-          makeArticle({
-            id: 'a1',
-            status: 'Unpublished',
-            rejectionFeedback: '<script>alert(1)</script> <strong>bold</strong>',
-          }),
-        ],
-        total: 1,
-        page: 1,
-        limit: 20,
-      });
+      mockArticles([
+        makeArticle({
+          id: 'a1',
+          status: 'Unpublished',
+          rejectionFeedback: '<script>alert(1)</script> <strong>bold</strong>',
+        }),
+      ]);
 
       render(<MyArticlesList />);
       await screen.findByTestId('article-card-a1');
 
-      expect(screen.getByText('<script>alert(1)</script> <strong>bold</strong>')).toBeInTheDocument();
+      expect(
+        screen.getByText('<script>alert(1)</script> <strong>bold</strong>')
+      ).toBeInTheDocument();
       expect(screen.queryByRole('strong')).not.toBeInTheDocument();
     });
   });
