@@ -33,6 +33,7 @@ function makeArticle(
     commentCount: 0,
     views: 0,
     rejectionFeedback: null,
+    inlineCommentCount: 0,
     ...overrides,
   };
 }
@@ -318,13 +319,14 @@ describe('MyArticlesList', () => {
   });
 
   describe('Rejection feedback', () => {
-    it('shows rejection feedback for Unpublished articles', async () => {
+    it('shows rejection feedback warning banner with comment count for Unpublished articles', async () => {
       mockFetchMyArticles.mockResolvedValueOnce({
         articles: [
           makeArticle({
             id: 'a1',
             status: 'Unpublished',
             rejectionFeedback: 'Needs more technical depth',
+            inlineCommentCount: 3,
           }),
         ],
         total: 1,
@@ -335,8 +337,11 @@ describe('MyArticlesList', () => {
       render(<MyArticlesList />);
       await screen.findByTestId('article-card-a1');
 
-      expect(screen.getByText('Reviewer feedback')).toBeInTheDocument();
+      expect(screen.getByTestId('reviewer-feedback-banner')).toBeInTheDocument();
+      expect(screen.getByText(/Reviewer Feedback/i)).toBeInTheDocument();
       expect(screen.getByText('Needs more technical depth')).toBeInTheDocument();
+      expect(screen.getByTestId('inline-comment-count')).toHaveTextContent('3 inline comments');
+      expect(screen.getByTestId('view-feedback-button')).toBeInTheDocument();
     });
 
     it('shows fallback message when Unpublished article has null feedback', async () => {
@@ -356,8 +361,9 @@ describe('MyArticlesList', () => {
       render(<MyArticlesList />);
       await screen.findByTestId('article-card-a1');
 
-      expect(screen.getByText('Reviewer feedback')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Reviewer Feedback/i })).toBeInTheDocument();
       expect(screen.getByText('No reviewer feedback was provided.')).toBeInTheDocument();
+      expect(screen.getByTestId('inline-comment-count')).toHaveTextContent('0 inline comments');
     });
 
     it('shows fallback message when Unpublished article has empty or whitespace feedback', async () => {
@@ -377,8 +383,33 @@ describe('MyArticlesList', () => {
       render(<MyArticlesList />);
       await screen.findByTestId('article-card-a1');
 
-      expect(screen.getByText('Reviewer feedback')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Reviewer Feedback/i })).toBeInTheDocument();
       expect(screen.getByText('No reviewer feedback was provided.')).toBeInTheDocument();
+    });
+
+    it('opens ReviewFeedbackModal when View feedback is clicked', async () => {
+      mockFetchMyArticles.mockResolvedValueOnce({
+        articles: [
+          makeArticle({
+            id: 'a1',
+            status: 'Unpublished',
+            rejectionFeedback: 'Fix errors',
+            inlineCommentCount: 2,
+          }),
+        ],
+        total: 1,
+        page: 1,
+        limit: 20,
+      });
+
+      const user = userEvent.setup();
+      render(<MyArticlesList />);
+      await screen.findByTestId('article-card-a1');
+
+      const viewBtn = screen.getByTestId('view-feedback-button');
+      await user.click(viewBtn);
+
+      expect(await screen.findByTestId('review-feedback-modal')).toBeInTheDocument();
     });
 
     it('hides feedback for Draft, Pending, and Published articles even with historical feedback string', async () => {
@@ -398,7 +429,7 @@ describe('MyArticlesList', () => {
       await screen.findByTestId('article-card-a2');
       await screen.findByTestId('article-card-a3');
 
-      expect(screen.queryByText('Reviewer feedback')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('reviewer-feedback-banner')).not.toBeInTheDocument();
       expect(screen.queryByText(/Old feedback/)).not.toBeInTheDocument();
     });
 

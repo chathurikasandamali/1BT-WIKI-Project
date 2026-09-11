@@ -85,14 +85,38 @@ function matchesViewFilter(
   return article.status === filter;
 }
 
-function RejectionFeedback({ feedback }: { feedback: string | null }): React.JSX.Element {
+function RejectionFeedback({
+  feedback,
+  inlineCommentCount = 0,
+  onViewFeedback,
+}: {
+  feedback: string | null;
+  inlineCommentCount?: number;
+  onViewFeedback: () => void;
+}): React.JSX.Element {
   const trimmedFeedback = feedback?.trim();
+  const feedbackText = trimmedFeedback ? trimmedFeedback : 'No reviewer feedback was provided.';
+  const commentsLabel = `${inlineCommentCount} inline comment${inlineCommentCount === 1 ? '' : 's'}`;
+
   return (
     <div className="mt-3 rounded border border-brand-red/10 bg-brand-red/5 p-3">
       <h4 className="mb-1 text-xs font-semibold text-brand-red">Reviewer feedback</h4>
       <p className="whitespace-pre-wrap break-words text-sm text-brand-text-secondary">
         {trimmedFeedback ? trimmedFeedback : 'No reviewer feedback was provided.'}
       </p>
+      <div className="pt-2 border-t border-brand-red/10 flex items-center justify-between text-xs">
+        <span className="text-brand-text-secondary font-medium" data-testid="inline-comment-count">
+          {commentsLabel}
+        </span>
+        <button
+          type="button"
+          onClick={onViewFeedback}
+          data-testid="view-feedback-button"
+          className="text-brand-red font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+        >
+          View feedback &rarr;
+        </button>
+      </div>
     </div>
   );
 }
@@ -186,7 +210,7 @@ function ArticleCard({
           {deleteControl}
         </div>
       </div>
-      {isRejected && <RejectionFeedback feedback={article.rejectionFeedback} />}
+      {isRejected && <RejectionFeedback feedback={article.rejectionFeedback} onViewFeedback={() => {}} />}
     </div>
   );
 }
@@ -238,6 +262,7 @@ export function MyArticlesList(): React.JSX.Element {
   const [draftVisibleCount, setDraftVisibleCount] = useState(INITIAL_VISIBLE_COUNT);
 
   const [articleToDelete, setArticleToDelete] = useState<ArticleListItem | null>(null);
+  const [activeFeedbackArticleId, setActiveFeedbackArticleId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast, showToast } = useToast();
 

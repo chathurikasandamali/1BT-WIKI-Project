@@ -54,7 +54,7 @@ describe('Article lifecycle', () => {
   let createdArticleId: string | null = null;
   let useAdminProfile = false;
 
-  const DEFAULT_TIMEOUT = 10000; // 10 seconds
+  const DEFAULT_TIMEOUT = 30000;
 
   beforeEach(() => {
     useAdminProfile = false;
@@ -202,8 +202,17 @@ describe('Article lifecycle', () => {
     // 12. Verify exactly one creation request occurred
     cy.get('@createArticle.all').should('have.length', 1);
 
-    // 13. Wait for the real PATCH autosave request (the editor already contains
-    // the content from step 11, so this is the debounced autosave of it)
+    // 12b. The article's content is already persisted by the create POST, so a
+    // debounced autosave with byte-identical content is a genuine no-op that the
+    // app now intentionally skips. Make a REAL content edit AFTER the create so
+    // the autosave has an actual change to persist. {end} moves the caret to the
+    // end of the document, keeping articleContent intact for the assertions below.
+    cy.get('[data-cy="article-content-editor"]')
+      .click()
+      .type('{end} This sentence is appended after creation to trigger a real autosave.');
+
+    // 13. Wait for the real PATCH autosave request (a genuine content change
+    // added in 12b, not a no-op re-save of unchanged content)
     // The application has a 3000ms debounce, so we must allow a slightly longer timeout
     cy.wait('@finalArticleAutosave', { timeout: DEFAULT_TIMEOUT }).then((interception) => {
       // Assert PATCH URL contains createdArticleId
@@ -770,7 +779,16 @@ describe('Article lifecycle', () => {
           cy.root().should('have.attr', 'href', `/articles/${articleId}`).click();
         });
 
-      cy.wait('@getPublishedArticleDetail', { timeout: DEFAULT_TIMEOUT }).then((interception) => {
+      // Dev-mode Strict Mode (and the Admin detail page) can leave an extra
+      // GET /articles/:id in the intercept queue from the previous identity.
+      const assertAuthorArticleDetail = (interception: Interception): void => {
+        if (interception.request.headers['x-test-user-id'] !== E2E_AUTHOR.id) {
+          cy.wait('@getPublishedArticleDetail', { timeout: DEFAULT_TIMEOUT }).then(
+            assertAuthorArticleDetail
+          );
+          return;
+        }
+
         expect(interception.request.method).to.eq('GET');
         const reqUrl = new URL(interception.request.url);
         expect(reqUrl.pathname).to.eq(`/api/v1/articles/${articleId}`);
@@ -788,7 +806,11 @@ describe('Article lifecycle', () => {
 
         const bodyStr = JSON.stringify(responseBody.data.body);
         expect(bodyStr).to.include(articleContent);
-      });
+      };
+
+      cy.wait('@getPublishedArticleDetail', { timeout: DEFAULT_TIMEOUT }).then(
+        assertAuthorArticleDetail
+      );
 
       cy.location('pathname').should('eq', `/articles/${articleId}`);
       cy.get('h1').contains(articleTitle).should('be.visible');

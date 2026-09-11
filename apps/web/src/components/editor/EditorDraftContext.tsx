@@ -9,7 +9,7 @@ import React, {
   useEffect,
   type ReactNode,
 } from 'react';
-import type { Editor } from '@tiptap/react';
+import type { Editor, JSONContent } from '@tiptap/react';
 import { apiFetch } from '@/lib/api/client';
 import type { ArticleUpdateInput } from '@/lib/api/articles';
 import {
@@ -37,7 +37,7 @@ export interface ArticleAttachment {
 export interface ArticleResponse {
   id: string;
   title: string;
-  body: Record<string, unknown>;
+  body: JSONContent;
   status: string;
   authorId: string;
   coverAttachmentId?: string | null;
@@ -59,6 +59,7 @@ interface EditorDraftContextValue {
   articleStatus: string | null;
   title: string;
   tags: string[];
+  currentBody: JSONContent;
   saveStatus: SaveStatus;
   lastSavedAt: Date | null;
   lastError: string | null;
@@ -97,7 +98,11 @@ interface EditorDraftContextValue {
   // Editor helpers
   insertEditorImage: (src: string) => void;
   handleTitleBlur: () => void;
-  notifyContentChanged: (wordCount: number, charCount: number) => void;
+  notifyContentChanged: (
+    wordCount: number,
+    charCount: number,
+    body: JSONContent
+  ) => void;
 }
 
 // ── Context & hook ──────────────────────────────────────────────────────────
@@ -134,6 +139,9 @@ export function EditorDraftProvider({
   );
   const [title, setTitleState] = useState(initialArticle?.title ?? '');
   const [tags, setTagsState] = useState<string[]>(initialArticle?.tags ?? []);
+  const [currentBody, setCurrentBody] = useState<JSONContent>(
+    initialArticle?.body ?? { type: 'doc', content: [] }
+  );
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
@@ -169,6 +177,14 @@ export function EditorDraftProvider({
     initialArticle?.status ?? null
   );
 
+  // Baselines of what was last persisted. Autosave only fires when the
+  // current editor state differs from these — opening an existing article
+  // (e.g. a Rejected one) and navigating away untouched must not PATCH.
+  const titleBaselineRef = useRef<string>(initialArticle?.title ?? '');
+  const tagsBaselineRef = useRef<string[]>(initialArticle?.tags ?? []);
+  const contentBaselineRef = useRef<string | null>(null);
+  const baselineCapturedRef = useRef(false);
+
   // ── Concurrency control (Correction 2) ──
   const creatingDraftRef = useRef<Promise<string> | null>(null);
   const pendingRequestRef = useRef<Promise<unknown> | null>(null);
@@ -188,6 +204,22 @@ export function EditorDraftProvider({
 
   const registerEditor = useCallback((editor: Editor | null) => {
     editorRef.current = editor;
+    // Capture the editor's canonical initial content on first mount so the
+    // autosave can tell a genuine edit apart from the untouched initial doc.
+    if (editor && !baselineCapturedRef.current) {
+      baselineCapturedRef.current = true;
+      contentBaselineRef.current = JSON.stringify(editor.getJSON());
+      titleBaselineRef.current = titleRef.current;
+      tagsBaselineRef.current = [...tagsRef.current];
+    }
+  }, []);
+
+  const syncSavedBaseline = useCallback(() => {
+    titleBaselineRef.current = titleRef.current;
+    tagsBaselineRef.current = [...tagsRef.current];
+    contentBaselineRef.current = JSON.stringify(
+      editorRef.current?.getJSON() ?? {}
+    );
   }, []);
 
   const insertEditorImage = useCallback((src: string) => {
@@ -197,11 +229,15 @@ export function EditorDraftProvider({
     }
   }, []);
 
-  const notifyContentChanged = useCallback((words: number, chars: number) => {
-    setWordCount(words);
-    setCharCount(chars);
-    setContentChangeCounter((c) => c + 1);
-  }, []);
+  const notifyContentChanged = useCallback(
+    (words: number, chars: number, body: JSONContent) => {
+      setWordCount(words);
+      setCharCount(chars);
+      setCurrentBody(body);
+      setContentChangeCounter((c) => c + 1);
+    },
+    []
+  );
 
   // ── Frontend validation ────────────────────────────────────────────────
   //
@@ -319,6 +355,8 @@ export function EditorDraftProvider({
             setTitle(titleForCreate);
           }
 
+          syncSavedBaseline();
+
           return id;
         } catch (error) {
           setSaveStatus('error');
@@ -335,7 +373,7 @@ export function EditorDraftProvider({
     } finally {
       creatingDraftRef.current = null;
     }
-  }, [withRequestLock, setTitle]);
+  }, [withRequestLock, setTitle, syncSavedBaseline]);
 
   // ── saveDraft ─────────────────────────────────────────────────────────
   //
@@ -392,6 +430,7 @@ export function EditorDraftProvider({
         setLastSavedAt(new Date());
         setSaveStatus('saved');
         setLastError(null);
+        syncSavedBaseline();
       } catch (error) {
         setSaveStatus('error');
         const msg = error instanceof Error ? error.message : String(error);
@@ -399,7 +438,7 @@ export function EditorDraftProvider({
         throw error;
       }
     });
-  }, [ensureDraftExists, withRequestLock]);
+  }, [ensureDraftExists, withRequestLock, syncSavedBaseline]);
 
   // ── uploadImage (Correction 1 — id-diffing) ──────────────────────────
   //
@@ -460,6 +499,7 @@ export function EditorDraftProvider({
           setLastSavedAt(new Date());
           setSaveStatus('saved');
           setLastError(null);
+          syncSavedBaseline();
 
           // Correction 1: find the genuinely new attachment by diffing IDs
           const newAttachments = returnedAttachments.filter(
@@ -490,7 +530,7 @@ export function EditorDraftProvider({
         }
       });
     },
-    [ensureDraftExists, withRequestLock]
+    [ensureDraftExists, withRequestLock, syncSavedBaseline]
   );
 
   const uploadImage = useCallback(
@@ -538,6 +578,7 @@ export function EditorDraftProvider({
           setLastSavedAt(new Date());
           setSaveStatus('saved');
           setLastError(null);
+          syncSavedBaseline();
         } catch (error) {
           setSaveStatus('error');
           const msg = error instanceof Error ? error.message : String(error);
@@ -546,7 +587,7 @@ export function EditorDraftProvider({
         }
       });
     },
-    [ensureDraftExists, withRequestLock]
+    [ensureDraftExists, withRequestLock, syncSavedBaseline]
   );
 
   const uploadCoverImage = useCallback(
@@ -626,6 +667,20 @@ export function EditorDraftProvider({
     autosaveTimerRef.current = setTimeout(() => {
       autosaveTimerRef.current = null;
       if (!articleIdRef.current) return;
+
+      // Skip the PATCH when nothing has actually changed since the last
+      // persisted snapshot. Opening an existing article (e.g. a Rejected one)
+      // and leaving it untouched must not trigger a needless update.
+      const titleChanged = titleBaselineRef.current !== titleRef.current;
+      const tagsChanged =
+        tagsBaselineRef.current.join('\u0000') !==
+        tagsRef.current.join('\u0000');
+      const contentChanged =
+        contentBaselineRef.current !==
+        JSON.stringify(editorRef.current?.getJSON() ?? {});
+
+      if (!titleChanged && !tagsChanged && !contentChanged) return;
+
       saveDraft().catch(() => {
         // Error state is already set inside saveDraft
       });
@@ -656,6 +711,7 @@ export function EditorDraftProvider({
     articleStatus,
     title,
     tags,
+    currentBody,
     saveStatus,
     lastSavedAt,
     lastError,

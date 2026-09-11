@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useUser } from '@/lib/hooks/useUser';
 import type { UserRole } from '@repo/shared';
+import { PageLoader } from '@/components/shared/PageLoader';
 
 interface RoleGuardProps {
   allowedRoles: UserRole[];

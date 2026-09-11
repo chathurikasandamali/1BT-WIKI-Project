@@ -179,11 +179,11 @@ describe('SignInPage', () => {
     });
   });
 
-  it('activates the tech-talk experience from the navigation', async () => {
+  it('activates the tech-talk experience from the hero action', async () => {
     const user = userEvent.setup();
 
     render(<SignInPage />);
-    await user.click(screen.getByRole('button', { name: 'Tech Talks' }));
+    await user.click(screen.getByRole('button', { name: /browse tech talks/i }));
 
     expect(
       await screen.findByText(

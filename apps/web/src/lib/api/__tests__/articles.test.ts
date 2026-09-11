@@ -7,6 +7,7 @@ jest.mock('@/lib/api/client', () => ({
 import {
   fetchMyArticles,
   fetchAllArticles,
+  getReviewFeedback,
   type ListMineResult,
   type AdminArticleListResult,
 } from '@/lib/api/articles';
@@ -26,6 +27,7 @@ const sampleResult: ListMineResult = {
       commentCount: 1,
       views: 5,
       rejectionFeedback: null,
+      inlineCommentCount: 0,
     },
   ],
   total: 1,
@@ -93,6 +95,7 @@ describe('fetchAllArticles', () => {
         commentCount: 0,
         views: 10,
         rejectionFeedback: null,
+        inlineCommentCount: 0,
         authorName: 'Alice',
         authorEmail: 'alice@example.com',
       },
@@ -168,5 +171,30 @@ describe('fetchAllArticles', () => {
     await expect(fetchAllArticles()).rejects.toThrow(
       'Insufficient permissions'
     );
+  });
+});
+
+describe('getReviewFeedback', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('calls /articles/:id/review-feedback and returns review feedback', async () => {
+    const mockFeedback = {
+      overallFeedback: 'Need fixes',
+      comments: [{ id: 'c1', comment: 'Fix typo', selectedText: 'teh', createdAt: '2026-09-07T12:00:00Z' }],
+    };
+    mockApiFetch.mockResolvedValueOnce({ success: true, data: mockFeedback });
+
+    const result = await getReviewFeedback('art-123');
+
+    expect(mockApiFetch).toHaveBeenCalledWith('/articles/art-123/review-feedback');
+    expect(result).toEqual(mockFeedback);
+  });
+
+  it('throws error when apiFetch returns success false', async () => {
+    mockApiFetch.mockResolvedValueOnce({ success: false, error: 'Not authorized' });
+
+    await expect(getReviewFeedback('art-123')).rejects.toThrow('Not authorized');
   });
 });

@@ -19,6 +19,25 @@ interface ImageEmbedModalProps {
   onClose: () => void;
 }
 
+const GENERIC_UPLOAD_ERROR = 'We couldn’t upload this image. Please try again.';
+
+const ACTIONABLE_IMAGE_UPLOAD_ERRORS = new Set([
+  'Maximum 10 images per article',
+  'Image size cannot exceed 5MB',
+  'Only jpeg, png, webp, and gif images are allowed',
+]);
+
+function normalizeImageUploadError(error: unknown): string {
+  if (
+    error instanceof Error &&
+    ACTIONABLE_IMAGE_UPLOAD_ERRORS.has(error.message)
+  ) {
+    return error.message;
+  }
+
+  return GENERIC_UPLOAD_ERROR;
+}
+
 function stockGradientClass(i: number): string {
   if (i % 3 === 0) return 'from-blue-400 to-purple-500';
   if (i % 2 === 0) return 'from-orange-400 to-pink-500';
@@ -84,7 +103,7 @@ export function ImageEmbedModal({ isOpen, onClose }: ImageEmbedModalProps) {
       insertEditorImage(fileUrl);
       onClose();
     } catch (error) {
-      setUploadError(error instanceof Error ? error.message : 'Upload failed');
+      setUploadError(normalizeImageUploadError(error));
     } finally {
       setIsUploading(false);
       // Reset the input so the same file can be re-selected

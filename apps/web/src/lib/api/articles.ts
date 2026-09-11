@@ -41,6 +41,27 @@ export interface ArticleListItem {
   commentCount: number;
   views: number;
   rejectionFeedback: string | null;
+  inlineCommentCount: number;
+}
+
+export interface ReviewFeedbackComment {
+  id: string;
+  comment: string;
+  selectedText: string | null;
+  createdAt: string;
+}
+
+export interface ReviewFeedback {
+  overallFeedback: string | null;
+  comments: ReviewFeedbackComment[];
+}
+
+export async function getReviewFeedback(articleId: string): Promise<ReviewFeedback> {
+  const result = await apiFetch<ReviewFeedback>(`/articles/${articleId}/review-feedback`);
+  if (!result.success || !result.data) {
+    throw new Error(result.error || 'Failed to load review feedback');
+  }
+  return result.data;
 }
 
 export interface PublishedArticleListItem extends ArticleListItem {
