@@ -290,6 +290,7 @@ describe('Article lifecycle', () => {
       // 20. Success UI and Redirect
       cy.url().should('include', '/my-articles');
       cy.get(`[data-testid="article-card-${articleId}"]`)
+        .scrollIntoView()
         .should('be.visible')
         .and('contain.text', articleTitle);
 
@@ -611,7 +612,12 @@ describe('Article lifecycle', () => {
         }
       );
 
-      cy.get('[data-testid="status-filter-select"]').select('Approved');
+      cy.get('[data-testid="article-management-section"]')
+        .should('be.visible');
+      cy.get('[data-testid="article-management-section"]')
+        .contains('button', /^Approved$/)
+        .should('be.visible')
+        .click();
 
       cy.wait('@getApprovedAdminArticles', {
         timeout: DEFAULT_TIMEOUT,

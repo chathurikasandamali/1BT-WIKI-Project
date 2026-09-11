@@ -43,11 +43,17 @@ describe('My Articles page', () => {
     cy.wait('@usersMe');
     cy.wait('@articlesMine');
 
-    cy.get('[data-testid="article-card-a1"]').should('be.visible');
-    cy.get('[data-testid="article-card-a2"]').should('be.visible');
+    cy.get('[data-testid="article-card-a1"]')
+      .scrollIntoView()
+      .should('be.visible');
+    cy.get('[data-testid="article-card-a2"]')
+      .scrollIntoView()
+      .should('be.visible');
 
     cy.get('[data-testid="article-search-input"]').type('react');
-    cy.get('[data-testid="article-card-a1"]').should('be.visible');
+    cy.get('[data-testid="article-card-a1"]')
+      .scrollIntoView()
+      .should('be.visible');
     cy.get('[data-testid="article-card-a2"]').should('not.exist');
 
     cy.get('[data-testid="article-search-input"]').clear();
