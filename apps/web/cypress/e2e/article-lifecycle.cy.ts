@@ -658,12 +658,15 @@ describe('Article lifecycle', () => {
       });
 
       cy.get(`[data-testid="article-link-${articleId}"]`)
+        .scrollIntoView({ offset: { top: -96, left: 0 } })
         .should('be.visible')
         .and('contain.text', articleTitle)
         .closest('tr')
         .should('contain.text', 'Approved');
 
-      cy.get(`[data-testid="article-link-${articleId}"]`).click();
+      cy.get(`[data-testid="article-link-${articleId}"]`)
+        .scrollIntoView({ offset: { top: -96, left: 0 } })
+        .click();
 
       cy.wait('@getPublishedArticleDetail', {
         timeout: DEFAULT_TIMEOUT,
@@ -779,6 +782,7 @@ describe('Article lifecycle', () => {
       });
 
       cy.get(`[data-testid="article-card-${articleId}"]`)
+        .scrollIntoView({ offset: { top: -96, left: 0 } })
         .should('be.visible')
         .within(() => {
           cy.contains(articleTitle).should('be.visible');
