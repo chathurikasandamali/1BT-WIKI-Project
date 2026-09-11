@@ -10,6 +10,7 @@ import {
 } from '@/lib/api/articles';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ConfirmationModal } from '@/components/shared/ConfirmationModal';
+import { ReviewFeedbackModal } from '@/components/articles/ReviewFeedbackModal';
 import { Toast } from '@/components/shared/Toast';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { PageLoader } from '@/components/shared/PageLoader';
@@ -95,14 +96,19 @@ function RejectionFeedback({
   onViewFeedback: () => void;
 }): React.JSX.Element {
   const trimmedFeedback = feedback?.trim();
-  const feedbackText = trimmedFeedback ? trimmedFeedback : 'No reviewer feedback was provided.';
+  const feedbackText = trimmedFeedback
+    ? trimmedFeedback
+    : 'No reviewer feedback was provided.';
   const commentsLabel = `${inlineCommentCount} inline comment${inlineCommentCount === 1 ? '' : 's'}`;
 
   return (
-    <div className="mt-3 rounded border border-brand-red/10 bg-brand-red/5 p-3">
-      <h4 className="mb-1 text-xs font-semibold text-brand-red">Reviewer feedback</h4>
+    <div
+      className="mt-3 rounded border border-brand-red/10 bg-brand-red/5 p-3"
+      data-testid="reviewer-feedback-banner"
+    >
+      <h4 className="mb-1 text-xs font-semibold text-brand-red">Reviewer Feedback</h4>
       <p className="whitespace-pre-wrap break-words text-sm text-brand-text-secondary">
-        {trimmedFeedback ? trimmedFeedback : 'No reviewer feedback was provided.'}
+        {feedbackText}
       </p>
       <div className="pt-2 border-t border-brand-red/10 flex items-center justify-between text-xs">
         <span className="text-brand-text-secondary font-medium" data-testid="inline-comment-count">
@@ -124,10 +130,12 @@ function RejectionFeedback({
 function ArticleCard({
   article,
   onDeleteClick,
+  onViewFeedback,
   isAdmin,
 }: {
   article: ArticleListItem;
   onDeleteClick: (article: ArticleListItem) => void;
+  onViewFeedback: (articleId: string) => void;
   isAdmin: boolean;
 }): React.JSX.Element {
   const isRejected = article.status === 'Unpublished';
@@ -210,7 +218,13 @@ function ArticleCard({
           {deleteControl}
         </div>
       </div>
-      {isRejected && <RejectionFeedback feedback={article.rejectionFeedback} onViewFeedback={() => {}} />}
+      {isRejected && (
+        <RejectionFeedback
+          feedback={article.rejectionFeedback}
+          inlineCommentCount={article.inlineCommentCount}
+          onViewFeedback={() => onViewFeedback(article.id)}
+        />
+      )}
     </div>
   );
 }
@@ -271,7 +285,9 @@ export function MyArticlesList(): React.JSX.Element {
     setIsDeleting(true);
     try {
       await deleteArticle(articleToDelete.id, isAdmin);
-      setArticles((prev) => prev.filter((a) => a.id !== articleToDelete.id));
+      setArticles((prev: ArticleListItem[]): ArticleListItem[] =>
+        prev.filter((article: ArticleListItem): boolean => article.id !== articleToDelete.id)
+      );
       showToast('Article deleted successfully', 'success');
       setArticleToDelete(null);
     } catch (err) {
@@ -316,12 +332,12 @@ export function MyArticlesList(): React.JSX.Element {
 
   const visibleArticles = useMemo(() => {
     const query = search.trim().toLowerCase();
-    const filtered = articles.filter((article) => {
+    const filtered = articles.filter((article: ArticleListItem): boolean => {
       const matchesSearch = article.title.toLowerCase().includes(query);
       return matchesSearch && matchesViewFilter(article, viewFilter);
     });
 
-    return [...filtered].sort((a, b) => {
+    return [...filtered].sort((a: ArticleListItem, b: ArticleListItem): number => {
       if (sort === 'title') return a.title.localeCompare(b.title);
       const aTime = new Date(a.updatedAt).getTime();
       const bTime = new Date(b.updatedAt).getTime();
@@ -329,14 +345,22 @@ export function MyArticlesList(): React.JSX.Element {
     });
   }, [articles, search, sort, viewFilter]);
 
-  const submittedArticles = visibleArticles.filter((article) => !isDraftArticle(article));
-  const draftArticles = visibleArticles.filter((article) => isDraftArticle(article));
+  const submittedArticles = visibleArticles.filter(
+    (article: ArticleListItem): boolean => !isDraftArticle(article)
+  );
+  const draftArticles = visibleArticles.filter((article: ArticleListItem): boolean =>
+    isDraftArticle(article)
+  );
   const visibleSubmittedArticles = submittedArticles.slice(0, submittedVisibleCount);
   const visibleDraftArticles = draftArticles.slice(0, draftVisibleCount);
   const remainingSubmitted = submittedArticles.length - visibleSubmittedArticles.length;
   const remainingDrafts = draftArticles.length - visibleDraftArticles.length;
-  const totalSubmitted = articles.filter((article) => !isDraftArticle(article)).length;
-  const totalDrafts = articles.filter((article) => isDraftArticle(article)).length;
+  const totalSubmitted = articles.filter(
+    (article: ArticleListItem): boolean => !isDraftArticle(article)
+  ).length;
+  const totalDrafts = articles.filter((article: ArticleListItem): boolean =>
+    isDraftArticle(article)
+  ).length;
 
   const showSubmittedSection =
     viewFilter === 'All' ||
@@ -497,11 +521,12 @@ export function MyArticlesList(): React.JSX.Element {
                 )}
                 {submittedArticles.length > 0 && (
                   <div className="flex flex-col gap-3">
-                    {visibleSubmittedArticles.map((article) => (
+                    {visibleSubmittedArticles.map((article: ArticleListItem) => (
                       <ArticleCard
                         key={article.id}
                         article={article}
                         onDeleteClick={setArticleToDelete}
+                        onViewFeedback={setActiveFeedbackArticleId}
                         isAdmin={isAdmin}
                       />
                     ))}
@@ -510,7 +535,7 @@ export function MyArticlesList(): React.JSX.Element {
                         remaining={remainingSubmitted}
                         testId="show-more-articles"
                         onClick={() =>
-                          setSubmittedVisibleCount((count) => count + VISIBLE_STEP)
+                          setSubmittedVisibleCount((count: number): number => count + VISIBLE_STEP)
                         }
                       />
                     )}
@@ -539,11 +564,12 @@ export function MyArticlesList(): React.JSX.Element {
                 )}
                 {draftArticles.length > 0 && (
                   <div className="flex flex-col gap-3">
-                    {visibleDraftArticles.map((article) => (
+                    {visibleDraftArticles.map((article: ArticleListItem) => (
                       <ArticleCard
                         key={article.id}
                         article={article}
                         onDeleteClick={setArticleToDelete}
+                        onViewFeedback={setActiveFeedbackArticleId}
                         isAdmin={isAdmin}
                       />
                     ))}
@@ -552,7 +578,7 @@ export function MyArticlesList(): React.JSX.Element {
                         remaining={remainingDrafts}
                         testId="show-more-drafts"
                         onClick={() =>
-                          setDraftVisibleCount((count) => count + VISIBLE_STEP)
+                          setDraftVisibleCount((count: number): number => count + VISIBLE_STEP)
                         }
                       />
                     )}
@@ -577,6 +603,12 @@ export function MyArticlesList(): React.JSX.Element {
         onConfirm={handleDeleteConfirm}
         onCancel={() => setArticleToDelete(null)}
         isConfirming={isDeleting}
+      />
+
+      <ReviewFeedbackModal
+        isOpen={activeFeedbackArticleId !== null}
+        articleId={activeFeedbackArticleId}
+        onClose={() => setActiveFeedbackArticleId(null)}
       />
 
       <Toast visible={toast.visible} message={toast.message} type={toast.type} />
