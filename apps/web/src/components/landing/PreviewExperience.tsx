@@ -12,15 +12,16 @@ import {
   PREVIEW_ITEMS,
   type PreviewItem,
 } from '@/components/landing/previewContent';
+import type { LandingAuthAction } from '@/components/landing/landingAuth';
 
 gsap.registerPlugin(useGSAP);
 
 type ExperienceStage = 'default' | 'focus' | 'details';
 
 interface PreviewExperienceProps {
-  isAuthenticating: boolean;
+  authenticatingAction: LandingAuthAction | null;
   selectedItemId: string | null;
-  onAuthenticate: () => void;
+  onAuthenticate: (action: LandingAuthAction) => void;
   onSelectItem: (itemId: string | null) => void;
 }
 
@@ -50,7 +51,7 @@ function PreviewTypeIcon({ item }: { item: PreviewItem }): React.JSX.Element {
 }
 
 export function PreviewExperience({
-  isAuthenticating,
+  authenticatingAction,
   selectedItemId,
   onAuthenticate,
   onSelectItem,
@@ -72,6 +73,8 @@ export function PreviewExperience({
   );
   const [stage, setStage] = useState<ExperienceStage>('default');
   const [isAnimating, setIsAnimating] = useState(false);
+  const isAuthenticating = authenticatingAction !== null;
+  const isExploreSigningIn = authenticatingAction === 'explore';
 
   const displayedItemId = activeItemId ?? selectedItemId;
   const selectedItem = PREVIEW_ITEMS.find(
@@ -908,18 +911,18 @@ export function PreviewExperience({
 
                 <button
                   type="button"
-                  onClick={onAuthenticate}
+                  onClick={() => onAuthenticate('explore')}
                   disabled={isAuthenticating || isAnimating || !isDetailsStage}
                   tabIndex={isDetailsStage ? 0 : -1}
                   aria-label={
-                    isAuthenticating
+                    isExploreSigningIn
                       ? 'Signing in'
                       : 'Log in to explore with Google'
                   }
                   className="mt-9 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-brand-red px-6 text-sm font-semibold 
                   text-white shadow-[0_14px_30px_rgba(204,0,0,0.2)] transition hover:bg-brand-red-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red focus-visible:ring-offset-2 disabled:cursor-wait disabled:bg-brand-red-disabled sm:w-auto lg:mt-7"
                 >
-                  {isAuthenticating ? 'Signing in...' : 'Log in to explore'}
+                  {isExploreSigningIn ? 'Signing in...' : 'Log in to explore'}
                   <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
                 </button>
               </div>

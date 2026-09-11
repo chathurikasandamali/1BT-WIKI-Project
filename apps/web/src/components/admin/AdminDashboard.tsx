@@ -38,6 +38,7 @@ interface DashboardWidgetConfig {
   testId: string;
   valueClassName?: string;
   iconClassName?: string;
+  borderClassName?: string;
   highlight?: boolean;
 }
 
@@ -62,6 +63,7 @@ function getDashboardWidgets(summary: DashboardSummary): DashboardWidgetConfig[]
       icon: <ArticleIcon className="h-4 w-4" />,
       valueClassName: 'text-green-600',
       iconClassName: 'bg-green-50 text-green-700',
+      borderClassName: 'border-green-200',
       testId: 'widget-published-articles',
     },
     {
@@ -72,6 +74,7 @@ function getDashboardWidgets(summary: DashboardSummary): DashboardWidgetConfig[]
       icon: <FileIcon className="h-4 w-4" strokeWidth={2} />,
       valueClassName: 'text-amber-600',
       iconClassName: 'bg-amber-50 text-amber-700',
+      borderClassName: 'border-amber-200',
       highlight: summary.pendingReviews > 0,
       testId: 'widget-pending-reviews',
     },
@@ -83,6 +86,7 @@ function getDashboardWidgets(summary: DashboardSummary): DashboardWidgetConfig[]
       icon: <CheckCircleIcon className="h-4 w-4" />,
       valueClassName: 'text-blue-600',
       iconClassName: 'bg-blue-50 text-blue-700',
+      borderClassName: 'border-blue-200',
       testId: 'widget-approvals',
     },
     {

@@ -85,6 +85,14 @@ describe('Sidebar navigation', () => {
     expect(link).toHaveTextContent('My Articles');
   });
 
+  it('renders a My Profile link pointing to /settings', () => {
+    render(<Sidebar />);
+
+    const link = screen.getByTestId('nav-settings');
+    expect(link).toHaveAttribute('href', '/settings');
+    expect(link).toHaveTextContent('My Profile');
+  });
+
   it('does NOT render the Approvals link for a plain User role', () => {
     mockUseUser.mockReturnValue({
       user: { id: 'u1', name: 'Plain User', role: 'User' },

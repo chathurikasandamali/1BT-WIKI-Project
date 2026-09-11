@@ -2,9 +2,12 @@
 
 import { useEffect } from 'react';
 import Lenis from 'lenis';
+import { isE2E } from '@/lib/e2e';
 
 export function useLenisScroll(containerId?: string | null): void {
   useEffect(() => {
+    if (isE2E()) return;
+
     let wrapper: HTMLElement | null = null;
 
     if (containerId === null) return;

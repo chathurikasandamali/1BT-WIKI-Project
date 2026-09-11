@@ -55,6 +55,8 @@ export default defineConfig({
     specPattern: 'cypress/e2e/**/*.cy.ts',
     supportFile: 'cypress/support/e2e.ts',
     video: false,
+    viewportWidth: 1280,
+    viewportHeight: 900,
     env: {
       // Legacy key retained for specs that have not yet migrated to Cypress.expose().
       // New code should read Cypress.expose('apiUrl') instead.
