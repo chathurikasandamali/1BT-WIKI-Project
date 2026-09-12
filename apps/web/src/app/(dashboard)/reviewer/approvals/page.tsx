@@ -162,7 +162,7 @@ function ReviewerApprovalsContent(): React.JSX.Element {
 
 export default function ReviewerApprovalsPage(): React.JSX.Element {
   return (
-    <RoleGuard allowedRoles={[UserRoleValue.Reviewer, UserRoleValue.Admin]}>
+    <RoleGuard allowedRoles={[UserRoleValue.Reviewer]}>
       <ReviewerApprovalsContent />
     </RoleGuard>
   );

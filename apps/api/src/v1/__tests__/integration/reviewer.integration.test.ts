@@ -242,7 +242,7 @@ describe('Reviewer API Integration', () => {
       expect(response.body.success).toBe(false);
     });
 
-    it('should return 403 for a non-Reviewer non-Admin role', async () => {
+    it('should return 403 for a plain User role', async () => {
       const response = await request(app).patch(approvePath).set(userHeaders);
 
       expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
@@ -250,12 +250,23 @@ describe('Reviewer API Integration', () => {
       expect(mockFindById).not.toHaveBeenCalled();
     });
 
+    it('should return 403 for a Reviewer — approval is Admin-only', async () => {
+      const response = await request(app)
+        .patch(approvePath)
+        .set(reviewerHeaders);
+
+      expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
+      expect(response.body.error).toBe('Insufficient permissions');
+      expect(mockFindById).not.toHaveBeenCalled();
+      expect(mockUpdateStatus).not.toHaveBeenCalled();
+    });
+
     it('should return 404 when article does not exist', async () => {
       mockFindById.mockResolvedValueOnce(null);
 
       const response = await request(app)
         .patch(approvePath)
-        .set(reviewerHeaders);
+        .set(adminHeaders);
 
       expect(response.status).toBe(HttpStatusCode.NOT_FOUND);
       expect(response.body.error).toBe('Article not found');
@@ -273,7 +284,7 @@ describe('Reviewer API Integration', () => {
 
       const response = await request(app)
         .patch(approvePath)
-        .set(reviewerHeaders);
+        .set(adminHeaders);
 
       expect(response.status).toBe(HttpStatusCode.BAD_REQUEST);
       expect(response.body.error).toBe('Only Pending articles can be approved');
@@ -281,7 +292,7 @@ describe('Reviewer API Integration', () => {
       expect(mockReviewCreate).not.toHaveBeenCalled();
     });
 
-    it('should return 200 and approve a Pending article for a Reviewer', async () => {
+    it('should return 200 and approve a Pending article for an Admin', async () => {
       const pendingArticle = {
         id: articleId,
         title: 'Pending Article',
@@ -299,13 +310,13 @@ describe('Reviewer API Integration', () => {
       mockReviewCreate.mockResolvedValueOnce({
         id: 'review-1',
         articleId,
-        reviewerId: 'reviewer-1',
+        reviewerId: 'admin-1',
         reviewStatus: ArticleStatus.Approved,
       });
 
       const response = await request(app)
         .patch(approvePath)
-        .set(reviewerHeaders);
+        .set(adminHeaders);
 
       expect(response.status).toBe(HttpStatusCode.OK);
       expect(response.body.success).toBe(true);
@@ -317,10 +328,10 @@ describe('Reviewer API Integration', () => {
       expect(mockReviewCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           articleId,
-          reviewerId: 'reviewer-1',
+          reviewerId: 'admin-1',
           status: ArticleStatus.Approved,
           feedback: null,
-          createdBy: 'reviewer-1',
+          createdBy: 'admin-1',
         })
       );
     });
@@ -337,7 +348,7 @@ describe('Reviewer API Integration', () => {
       expect(response.body.success).toBe(false);
     });
 
-    it('should return 403 for a non-Reviewer non-Admin role', async () => {
+    it('should return 403 for a plain User role', async () => {
       const response = await request(app)
         .patch(rejectPath)
         .set(userHeaders)
@@ -348,10 +359,22 @@ describe('Reviewer API Integration', () => {
       expect(mockFindById).not.toHaveBeenCalled();
     });
 
-    it('should return 400 when feedback is missing or under 10 characters', async () => {
+    it('should return 403 for a Reviewer — rejection is Admin-only', async () => {
       const response = await request(app)
         .patch(rejectPath)
         .set(reviewerHeaders)
+        .send({ feedback: 'this is a valid reject feedback' });
+
+      expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
+      expect(response.body.error).toBe('Insufficient permissions');
+      expect(mockFindById).not.toHaveBeenCalled();
+      expect(mockUpdateStatus).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 when feedback is missing or under 10 characters', async () => {
+      const response = await request(app)
+        .patch(rejectPath)
+        .set(adminHeaders)
         .send({ feedback: 'short' });
 
       expect(response.status).toBe(HttpStatusCode.BAD_REQUEST);
@@ -366,7 +389,7 @@ describe('Reviewer API Integration', () => {
 
       const response = await request(app)
         .patch(rejectPath)
-        .set(reviewerHeaders)
+        .set(adminHeaders)
         .send({ feedback: 'this is a valid reject feedback' });
 
       expect(response.status).toBe(HttpStatusCode.NOT_FOUND);
@@ -385,7 +408,7 @@ describe('Reviewer API Integration', () => {
 
       const response = await request(app)
         .patch(rejectPath)
-        .set(reviewerHeaders)
+        .set(adminHeaders)
         .send({ feedback: 'this is a valid reject feedback' });
 
       expect(response.status).toBe(HttpStatusCode.BAD_REQUEST);
@@ -394,7 +417,7 @@ describe('Reviewer API Integration', () => {
       expect(mockReviewCreate).not.toHaveBeenCalled();
     });
 
-    it('should return 200 and reject a Pending article for a Reviewer', async () => {
+    it('should return 200 and reject a Pending article for an Admin', async () => {
       const pendingArticle = {
         id: articleId,
         title: 'Pending Article',
@@ -412,13 +435,13 @@ describe('Reviewer API Integration', () => {
       mockReviewCreate.mockResolvedValueOnce({
         id: 'review-1',
         articleId,
-        reviewerId: 'reviewer-1',
+        reviewerId: 'admin-1',
         reviewStatus: ArticleReviewStatus.Rejected,
       });
 
       const response = await request(app)
         .patch(rejectPath)
-        .set(reviewerHeaders)
+        .set(adminHeaders)
         .send({ feedback: 'this is a valid reject feedback' });
 
       expect(response.status).toBe(HttpStatusCode.OK);
@@ -429,10 +452,10 @@ describe('Reviewer API Integration', () => {
       expect(mockReviewCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           articleId,
-          reviewerId: 'reviewer-1',
+          reviewerId: 'admin-1',
           status: ArticleReviewStatus.Rejected,
           feedback: 'this is a valid reject feedback',
-          createdBy: 'reviewer-1',
+          createdBy: 'admin-1',
         })
       );
     });
