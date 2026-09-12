@@ -5,6 +5,7 @@ import { RoleGuard } from '@/components/auth/RoleGuard';
 import { apiFetch } from '@/lib/api/client';
 import { UserManagementTable } from '@/app/(dashboard)/admin/users/UserManagementTable';
 import { BanModal } from '@/app/(dashboard)/admin/users/BanModal';
+import { ConfirmationModal } from '@/components/shared/ConfirmationModal';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import type {AdminUser} from '@/app/(dashboard)/admin/users/UserManagementTable';
@@ -53,6 +54,10 @@ function UserManagementContent(): React.JSX.Element {
 
   // Ban modal state
   const [modalTarget, setModalTarget] = useState<AdminUser | null>(null);
+  const [pendingRoleChange, setPendingRoleChange] = useState<{
+    user: AdminUser;
+    newRole: UserRole;
+  } | null>(null);
 
   // ── Fetch users ─────────────────────────────────────────────────────────────
 
@@ -157,17 +162,32 @@ function UserManagementContent(): React.JSX.Element {
 
   // ── Role update ─────────────────────────────────────────────────────────────
 
-  const handleRoleChange = async (userId: string, newRole: UserRole) => {
-    setUpdatingId(userId);
+  /**
+   * Opens a confirmation modal instead of applying the ROLE dropdown immediately.
+   */
+  const handleRoleSelect = (userId: string, newRole: UserRole): void => {
+    const user = users.find((u) => u.id === userId);
+    if (!user || user.role === newRole) return;
+    setPendingRoleChange({ user, newRole });
+  };
+
+  /**
+   * Applies the pending role change after the admin confirms in the modal.
+   */
+  const handleRoleConfirm = async (): Promise<void> => {
+    if (!pendingRoleChange) return;
+    const { user, newRole } = pendingRoleChange;
+    setUpdatingId(user.id);
     try {
-      const res = await apiFetch(`/admin/users/${userId}/role`, {
+      const res = await apiFetch(`/admin/users/${user.id}/role`, {
         method: 'PATCH',
         body: JSON.stringify({ role: newRole }),
       });
       if (res.success) {
         setUsers((prev) =>
-          prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
+          prev.map((u) => (u.id === user.id ? { ...u, role: newRole } : u))
         );
+        setPendingRoleChange(null);
       } else {
         setError(res.error ?? 'Failed to update role.');
       }
@@ -379,7 +399,7 @@ function UserManagementContent(): React.JSX.Element {
             <UserManagementTable
               users={displayedUsers}
               updatingUserId={updatingId}
-              onRoleChange={handleRoleChange}
+              onRoleChange={handleRoleSelect}
               onBanToggle={(user) => setModalTarget(user)}
             />
             {displayedUsers.length > 0 && (
@@ -399,6 +419,53 @@ function UserManagementContent(): React.JSX.Element {
           isBanned={modalTarget.banned === true}
           onConfirm={handleBanConfirm}
           onCancel={() => setModalTarget(null)}
+        />
+      )}
+
+      {pendingRoleChange && (
+        <ConfirmationModal
+          isOpen
+          title="Change user role"
+          confirmText="Change role"
+          isConfirming={updatingId === pendingRoleChange.user.id}
+          onConfirm={() => {
+            void handleRoleConfirm();
+          }}
+          onCancel={() => setPendingRoleChange(null)}
+          message={
+            <div className="space-y-4" data-testid="role-change-details">
+              <p>
+                Confirm this role change before it is applied. The user&apos;s
+                access will update immediately.
+              </p>
+              <dl className="space-y-2 rounded-lg border border-brand-border bg-brand-bg/60 px-4 py-3 text-sm">
+                <div className="flex justify-between gap-4">
+                  <dt className="text-brand-text-secondary">Name</dt>
+                  <dd className="font-medium text-brand-text-primary text-right">
+                    {pendingRoleChange.user.name}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-brand-text-secondary">Email</dt>
+                  <dd className="font-medium text-brand-text-primary text-right break-all">
+                    {pendingRoleChange.user.email}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-brand-text-secondary">Current role</dt>
+                  <dd className="font-medium text-brand-text-primary">
+                    {pendingRoleChange.user.role}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-brand-text-secondary">New role</dt>
+                  <dd className="font-semibold text-brand-red">
+                    {pendingRoleChange.newRole}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          }
         />
       )}
     </div>
