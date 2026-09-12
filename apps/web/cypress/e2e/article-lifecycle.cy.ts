@@ -2,7 +2,11 @@
 // strictly maps to apps/web/src in tsconfig.json. Cypress's default bundler does not
 // natively support tsconfig paths without additional preprocessor dependencies, so
 // adding a custom @e2e alias merely to hide this cross-workspace dependency is unwarranted.
-import { E2E_AUTHOR, E2E_REVIEWER } from '../../../api/scripts/e2e-identities.js';
+import {
+  E2E_AUTHOR,
+  E2E_REVIEWER,
+  E2E_ADMIN,
+} from '../../../api/scripts/e2e-identities.js';
 import type { Interception } from 'cypress/types/net-stubbing';
 import {
   setE2EIdentity,
@@ -11,14 +15,6 @@ import {
   mintE2EFrontendSession,
   SESSION_TOKEN_COOKIE,
 } from '../support/e2e-auth';
-
-type E2EIdentity = NonNullable<Parameters<typeof setE2EIdentity>[0]>;
-
-const E2E_ADMIN = {
-  id: '00000000-0000-4000-8000-000000000103',
-  email: 'e2e-admin@1billiontech.com',
-  role: 'Admin',
-} as unknown as E2EIdentity;
 
 interface PendingArticle {
   id: string;
