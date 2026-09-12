@@ -102,7 +102,7 @@ See `00-global.mdc` and `01-backend-architecture.mdc` for shared conventions.
 | Task | File |
 |------|------|
 | Review approve/reject | `src/services/reviewerService.ts` |
-| Reviewer approvals page | `src/app/(dashboard)/reviewer/approvals/page.tsx` |
+| approvals page | `src/app/(dashboard)/reviewer/approvals/page.tsx` |
 | Reject modal | `src/components/reviewer/RejectModal.tsx` |
 
 ## Required Tests

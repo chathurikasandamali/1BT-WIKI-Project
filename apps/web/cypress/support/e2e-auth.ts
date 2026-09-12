@@ -1,6 +1,6 @@
 // apps/web/cypress/support/e2e-auth.ts
 
-export type E2ERole = 'User' | 'Reviewer';
+export type E2ERole = 'User' | 'Reviewer' | 'Admin';
 
 export interface E2ETestIdentity {
   id: string;

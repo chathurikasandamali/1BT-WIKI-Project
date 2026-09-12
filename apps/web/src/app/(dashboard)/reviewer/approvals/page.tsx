@@ -9,10 +9,13 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { usePendingArticles } from '@/lib/hooks/useReviewer';
 import { formatDate } from '@/lib/utils/date';
 import { PageLoader } from '@/components/shared/PageLoader';
+import { useUser } from '@/lib/hooks/useUser';
 
 function ReviewerApprovalsContent(): React.JSX.Element {
   const { articles, loading, error } = usePendingArticles();
+  const { user } = useUser();
   const isListEmpty = articles.length === 0;
+  const isAdmin = user?.role === UserRoleValue.Admin;
 
   if (loading) {
     return <PageLoader />;
@@ -33,10 +36,12 @@ function ReviewerApprovalsContent(): React.JSX.Element {
     <div className="max-w-5xl mx-auto p-4 sm:p-6" data-testid="reviewer-approvals-page">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-brand-text-primary font-display">
-          Reviewer Approvals
+          Approvals
         </h1>
         <p className="text-sm text-brand-text-secondary mt-1">
-          Review and approve or reject pending article submissions.
+          {isAdmin
+            ? 'Review and approve or reject pending article submissions.'
+            : 'Review pending submissions and leave feedback comments. Only an Admin can approve or reject.'}
         </p>
       </div>
 

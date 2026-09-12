@@ -33,16 +33,18 @@ router.get(
   requireRole(UserRoleValue.Reviewer, UserRoleValue.Admin),
   getArticleForReview
 );
+// Approve/reject are Admin-only decisions. Reviewers may read the queue and
+// leave feedback comments, but cannot change an article's review status.
 router.patch(
   '/articles/:id/approve',
   authenticate,
-  requireRole(UserRoleValue.Reviewer, UserRoleValue.Admin),
+  requireRole(UserRoleValue.Admin),
   approveArticle
 );
 router.patch(
   '/articles/:id/reject',
   authenticate,
-  requireRole(UserRoleValue.Reviewer, UserRoleValue.Admin),
+  requireRole(UserRoleValue.Admin),
   rejectArticle
 );
 router.post(

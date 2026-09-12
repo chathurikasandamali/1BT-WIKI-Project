@@ -2,7 +2,11 @@
 // strictly maps to apps/web/src in tsconfig.json. Cypress's default bundler does not
 // natively support tsconfig paths without additional preprocessor dependencies, so
 // adding a custom @e2e alias merely to hide this cross-workspace dependency is unwarranted.
-import { E2E_AUTHOR, E2E_REVIEWER } from '../../../api/scripts/e2e-identities.js';
+import {
+  E2E_AUTHOR,
+  E2E_REVIEWER,
+  E2E_ADMIN,
+} from '../../../api/scripts/e2e-identities.js';
 import type { Interception } from 'cypress/types/net-stubbing';
 import {
   setE2EIdentity,
@@ -11,14 +15,6 @@ import {
   mintE2EFrontendSession,
   SESSION_TOKEN_COOKIE,
 } from '../support/e2e-auth';
-
-type E2EIdentity = NonNullable<Parameters<typeof setE2EIdentity>[0]>;
-
-const E2E_ADMIN = {
-  id: '00000000-0000-4000-8000-000000000103',
-  email: 'e2e-admin@1billiontech.com',
-  role: 'Admin',
-} as unknown as E2EIdentity;
 
 interface PendingArticle {
   id: string;
@@ -426,13 +422,74 @@ describe('Article lifecycle', () => {
       cy.get('[data-testid="article-status-badge"]').should('contain.text', 'Pending');
       cy.get('[data-testid="review-article-content"]').should('contain.text', 'Cypress article lifecycle test');
 
+      // 30b. Approve/reject is Admin-only — a Reviewer gets neither control
+      cy.get('[data-testid="approve-button"]').should('not.exist');
+      cy.get('[data-testid="reject-button"]').should('not.exist');
+      cy.get('[data-testid="review-decision-admin-only-note"]')
+        .should('exist')
+        .and('contain.text', 'Only an Admin can approve or reject');
+      cy.get('[data-testid="review-article-page"]')
+        .contains('button', /^Publish$/)
+        .should('not.exist');
+
+      // ---------------------------------------------------------
+      // ADMIN REVIEW-DECISION PHASE
+      // ---------------------------------------------------------
+
+      // 30c. Switch to Admin, the only role allowed to approve or reject
+      cy.then(() => {
+        useAdminProfile = true;
+        setE2EIdentity(E2E_ADMIN);
+      });
+
+      cy.session(
+        ['e2e-admin', E2E_ADMIN.id],
+        () => {
+          mintE2EFrontendSession(E2E_ADMIN);
+        },
+        {
+          validate: () => {
+            cy.getCookie(SESSION_TOKEN_COOKIE).should('exist');
+          },
+        }
+      );
+
+      cy.visit(`/reviewer/approvals/${articleId}`);
+
+      cy.wait('@getAdminUser', { timeout: DEFAULT_TIMEOUT }).then(
+        (interception) => {
+          expect(interception.response?.statusCode).to.eq(200);
+          expect(interception.response?.body.success).to.eq(true);
+          expect(interception.response?.body.data.id).to.eq(E2E_ADMIN.id);
+          expect(interception.response?.body.data.role).to.eq('Admin');
+        }
+      );
+
+      cy.wait('@getReviewerArticle', { timeout: DEFAULT_TIMEOUT }).then(
+        (interception) => {
+          expect(interception.request.headers['x-test-user-id']).to.eq(
+            E2E_ADMIN.id
+          );
+          expect(interception.request.headers['x-test-user-role']).to.eq(
+            'Admin'
+          );
+          expect(interception.response?.statusCode).to.eq(200);
+          expect(interception.response?.body.data.article.id).to.eq(articleId);
+          expect(interception.response?.body.data.article.status).to.eq(
+            'Pending'
+          );
+        }
+      );
+
+      // 30d. The Admin sees both decision controls
+      cy.get('[data-testid="review-article-page"]').should('be.visible');
+      cy.get('[data-testid="review-decision-admin-only-note"]').should(
+        'not.exist'
+      );
       cy.get('[data-testid="approve-button"]')
         .should('be.visible')
         .and('contain.text', 'Approve & Send to Admin');
       cy.get('[data-testid="reject-button"]').should('exist');
-      cy.get('[data-testid="review-article-page"]')
-        .contains('button', /^Publish$/)
-        .should('not.exist');
 
       // 31. Approval modal flow
       cy.get('[data-testid="approve-button"]').click();
@@ -460,9 +517,9 @@ describe('Article lifecycle', () => {
         }
         expect(pathname).to.eq(`/api/v1/reviewer/articles/${articleId}/approve`);
 
-        expect(interception.request.headers['x-test-user-id']).to.eq(E2E_REVIEWER.id);
-        expect(interception.request.headers['x-test-user-email']).to.eq(E2E_REVIEWER.email);
-        expect(interception.request.headers['x-test-user-role']).to.eq(E2E_REVIEWER.role);
+        expect(interception.request.headers['x-test-user-id']).to.eq(E2E_ADMIN.id);
+        expect(interception.request.headers['x-test-user-email']).to.eq(E2E_ADMIN.email);
+        expect(interception.request.headers['x-test-user-role']).to.eq('Admin');
 
         expect(interception.response?.statusCode).to.eq(200);
         const responseBody = interception.response?.body;
@@ -510,6 +567,8 @@ describe('Article lifecycle', () => {
       });
 
       cy.then(() => {
+        // Back to the author's own /users/me response, not the Admin stub.
+        useAdminProfile = false;
         setE2EIdentity(E2E_AUTHOR);
       });
 
