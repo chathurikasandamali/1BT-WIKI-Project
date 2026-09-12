@@ -221,9 +221,19 @@ describe('Article Lifecycle Integration', () => {
       })
     );
 
-    const approveRes = await request(app)
+    const reviewerApproveRes = await request(app)
       .patch(`/api/v1/reviewer/articles/${articleId}/approve`)
       .set(reviewerHeaders);
+
+    expect(reviewerApproveRes.status).toBe(HttpStatusCode.FORBIDDEN);
+    expect(reviewerApproveRes.body.error).toBe('Insufficient permissions');
+    expect(articleStore.get(articleId)?.status).toBe(
+      ArticleStatusValue.Pending
+    );
+
+    const approveRes = await request(app)
+      .patch(`/api/v1/reviewer/articles/${articleId}/approve`)
+      .set(adminHeaders);
 
     expect(approveRes.status).toBe(HttpStatusCode.OK);
     expect(approveRes.body.success).toBe(true);
@@ -231,7 +241,7 @@ describe('Article Lifecycle Integration', () => {
     expect(mockReviewCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         articleId,
-        reviewerId: REVIEWER_ID,
+        reviewerId: ADMIN_ID,
         status: 'Approved',
       })
     );

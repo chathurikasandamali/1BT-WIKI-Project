@@ -81,13 +81,25 @@ function makeArticleDetail(overrides: Partial<ArticleDetail> = {}): ArticleDetai
   };
 }
 
+const ADMIN_USER = {
+  id: 'adm1',
+  name: 'Admin User',
+  role: 'Admin',
+  email: 'admin@1billiontech.com',
+};
+
+const REVIEWER_USER = {
+  id: 'rev1',
+  name: 'Reviewer User',
+  role: 'Reviewer',
+  email: 'rev@1billiontech.com',
+};
+
 describe('ReviewArticleDetailPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockUseUser.mockReturnValue({
-      user: { id: 'rev1', name: 'Reviewer User', role: 'Reviewer', email: 'rev@1billiontech.com' },
-      loading: false,
-    });
+    // Approve/reject is Admin-only, so the default identity is Admin.
+    mockUseUser.mockReturnValue({ user: ADMIN_USER, loading: false });
   });
 
   it('renders permission denied message when user is not Reviewer or Admin', () => {
@@ -119,6 +131,41 @@ describe('ReviewArticleDetailPage', () => {
     expect(await screen.findByTestId('review-article-error')).toHaveTextContent(
       'Only Pending articles can be reviewed'
     );
+  });
+
+  it('hides Approve and Reject from a Reviewer and explains it is Admin-only', async () => {
+    mockUseUser.mockReturnValue({ user: REVIEWER_USER, loading: false });
+    mockGetArticleForReview.mockResolvedValueOnce({
+      article: makeArticleDetail(),
+      review: null,
+    });
+
+    render(<ReviewArticleDetailPage />);
+
+    await screen.findByRole('heading', { name: 'Pending Review Article Title' });
+
+    expect(screen.queryByTestId('approve-button')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('reject-button')).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId('review-decision-admin-only-note')
+    ).toHaveTextContent('Only an Admin can approve or reject');
+  });
+
+  it('shows Approve and Reject to an Admin', async () => {
+    mockGetArticleForReview.mockResolvedValueOnce({
+      article: makeArticleDetail(),
+      review: null,
+    });
+
+    render(<ReviewArticleDetailPage />);
+
+    await screen.findByRole('heading', { name: 'Pending Review Article Title' });
+
+    expect(screen.getByTestId('approve-button')).toBeInTheDocument();
+    expect(screen.getByTestId('reject-button')).toBeInTheDocument();
+    expect(
+      screen.queryByTestId('review-decision-admin-only-note')
+    ).not.toBeInTheDocument();
   });
 
   it('renders article title, author, status badge, and content correctly', async () => {

@@ -47,7 +47,7 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
 - `analytics-dashboard-engineer` should ensure published articles and tech talks are included in a generated `sitemap.xml` (Next.js `app/sitemap.ts`), excluding Draft/Pending/Rejected/soft-deleted content.
 
 ## Non-Goals
-- No SEO changes to authenticated-only surfaces (admin dashboard, reviewer approvals, profile, notifications) — these are never indexed and don't need metadata beyond the app default.
+- No SEO changes to authenticated-only surfaces (admin dashboard, approvals, profile, notifications) — these are never indexed and don't need metadata beyond the app default.
 
 ## How to use this file
 If your PR touches a file matched by the globs above, apply these conventions in addition to whichever feature role's rules already govern that file (`content-authoring-engineer`, `content-publishing-engineer`, or `analytics-dashboard-engineer`).
