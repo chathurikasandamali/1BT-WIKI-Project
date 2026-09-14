@@ -1,7 +1,7 @@
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
-import { UserRoleValue } from '@repo/shared';
+import { UserRoleValue, type UserRole } from '@repo/shared';
 
 const mockApiFetch = jest.fn();
 
@@ -35,6 +35,29 @@ const member = {
   createdAt: '2026-01-01T00:00:00.000Z',
 };
 
+function getConfirmButton(): HTMLElement {
+  const btn = document.querySelector('[data-cy="confirm-submit-button"]');
+  if (!btn) {
+    throw new Error('Confirm button not found');
+  }
+  return btn as HTMLElement;
+}
+
+async function selectRole(
+  user: ReturnType<typeof userEvent.setup>,
+  userId: string,
+  role: UserRole
+): Promise<void> {
+  await user.click(await screen.findByTestId(`role-select-${userId}`));
+  await user.click(await screen.findByTestId(`role-option-${userId}-${role}`));
+}
+
+function expectRoleBadge(userId: string, role: UserRole): void {
+  expect(screen.getByTestId(`role-select-${userId}`)).toHaveTextContent(role, {
+    exact: false,
+  });
+}
+
 describe('Admin user management role change', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -42,10 +65,10 @@ describe('Admin user management role change', () => {
   });
 
   it('opens a confirmation modal with user details instead of changing the role immediately', async () => {
+    const user = userEvent.setup();
     render(<AdminUsersPage />);
 
-    const roleSelect = await screen.findByTestId('role-select-user-1');
-    fireEvent.change(roleSelect, { target: { value: UserRoleValue.Reviewer } });
+    await selectRole(user, 'user-1', UserRoleValue.Reviewer);
 
     const details = await screen.findByTestId('role-change-details');
     expect(screen.getByText('Change user role')).toBeInTheDocument();
@@ -55,7 +78,7 @@ describe('Admin user management role change', () => {
     expect(details).toHaveTextContent(UserRoleValue.User);
     expect(details).toHaveTextContent('New role');
     expect(details).toHaveTextContent(UserRoleValue.Reviewer);
-    expect(roleSelect).toHaveValue(UserRoleValue.User);
+    expectRoleBadge('user-1', UserRoleValue.User);
     expect(mockApiFetch).toHaveBeenCalledTimes(1);
     expect(mockApiFetch).toHaveBeenCalledWith('/admin/getAllUsers');
   });
@@ -64,15 +87,14 @@ describe('Admin user management role change', () => {
     const user = userEvent.setup();
     render(<AdminUsersPage />);
 
-    const roleSelect = await screen.findByTestId('role-select-user-1');
-    fireEvent.change(roleSelect, { target: { value: UserRoleValue.Admin } });
+    await selectRole(user, 'user-1', UserRoleValue.Admin);
 
-    await user.click(await screen.findByRole('button', { name: 'Cancel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     await waitFor(() => {
       expect(screen.queryByTestId('role-change-details')).not.toBeInTheDocument();
     });
-    expect(roleSelect).toHaveValue(UserRoleValue.User);
+    expectRoleBadge('user-1', UserRoleValue.User);
     expect(mockApiFetch).toHaveBeenCalledTimes(1);
   });
 
@@ -84,10 +106,9 @@ describe('Admin user management role change', () => {
 
     render(<AdminUsersPage />);
 
-    const roleSelect = await screen.findByTestId('role-select-user-1');
-    fireEvent.change(roleSelect, { target: { value: UserRoleValue.Reviewer } });
+    await selectRole(user, 'user-1', UserRoleValue.Reviewer);
 
-    await user.click(await screen.findByRole('button', { name: 'Change role' }));
+    fireEvent.click(getConfirmButton());
 
     await waitFor(() => {
       expect(mockApiFetch).toHaveBeenCalledWith('/admin/users/user-1/role', {
@@ -96,7 +117,7 @@ describe('Admin user management role change', () => {
       });
     });
     await waitFor(() => {
-      expect(roleSelect).toHaveValue(UserRoleValue.Reviewer);
+      expectRoleBadge('user-1', UserRoleValue.Reviewer);
     });
     expect(screen.queryByTestId('role-change-details')).not.toBeInTheDocument();
   });
