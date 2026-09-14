@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { AdminArticleListItem } from '@/lib/api/articles';
 
@@ -56,6 +56,13 @@ function mockApprovedList(articles: AdminArticleListItem[]): void {
     page: 1,
     limit: 20,
   });
+}
+
+/** ConfirmationModal uses data-cy; GSAP leaves the overlay pointer-events:none in Jest. */
+function getConfirmButton(): HTMLElement {
+  const btn = document.querySelector('[data-cy="confirm-submit-button"]');
+  if (!btn) throw new Error('Confirm button not found');
+  return btn as HTMLElement;
 }
 
 describe('AdminApprovalsPage', () => {
@@ -156,9 +163,7 @@ describe('AdminApprovalsPage', () => {
       )
     ).toBeInTheDocument();
 
-    // The modal is portaled after the list, so the confirm button is the last
-    // "Publish" control in the document.
-    await user.click(screen.getAllByRole('button', { name: 'Publish' }).pop()!);
+    fireEvent.click(getConfirmButton());
 
     await waitFor(() => {
       expect(mockPublishArticleAsAdmin).toHaveBeenCalledWith('a1');
@@ -183,7 +188,7 @@ describe('AdminApprovalsPage', () => {
 
     const user = userEvent.setup();
     await user.click(await screen.findByTestId('publish-article-a1'));
-    await user.click(screen.getAllByRole('button', { name: 'Publish' }).pop()!);
+    fireEvent.click(getConfirmButton());
 
     expect(await screen.findByText('Publish failed')).toBeInTheDocument();
     expect(screen.getByTestId('approved-article-card-a1')).toBeInTheDocument();
