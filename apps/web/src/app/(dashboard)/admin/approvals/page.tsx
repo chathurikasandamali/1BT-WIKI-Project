@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Eye, Send } from 'lucide-react';
 import { RoleGuard } from '@/components/auth/RoleGuard';
-import { UserRoleValue } from '@repo/shared';
+import { PAGINATION_CONFIG, UserRoleValue } from '@repo/shared';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ConfirmationModal } from '@/components/shared/ConfirmationModal';
 import { Toast } from '@/components/shared/Toast';
@@ -16,8 +16,6 @@ import {
   publishArticleAsAdmin,
   type AdminArticleListItem,
 } from '@/lib/api/articles';
-
-const PAGE_SIZE = 20;
 
 function AdminApprovalsContent(): React.JSX.Element {
   const [articles, setArticles] = useState<AdminArticleListItem[]>([]);
@@ -36,7 +34,7 @@ function AdminApprovalsContent(): React.JSX.Element {
       // publishing it is the Admin's only action in the review workflow.
       const result = await fetchAllArticles({
         page: 1,
-        limit: PAGE_SIZE,
+        limit: PAGINATION_CONFIG.PAGE_SIZE,
         status: 'Approved',
         sort: 'createdAt',
         order: 'desc',

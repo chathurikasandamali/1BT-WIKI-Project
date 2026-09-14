@@ -201,3 +201,8 @@ export function getArticleContentLength(
 ): number {
   return extractTextFromTipTap(body).length;
 }
+
+export const PAGINATION_CONFIG = {
+    DEFAULT_PAGE: 1,
+    PAGE_SIZE: 20,
+} as const;
