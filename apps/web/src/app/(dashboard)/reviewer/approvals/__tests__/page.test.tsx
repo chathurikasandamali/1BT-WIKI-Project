@@ -45,7 +45,7 @@ describe('ReviewerApprovalsPage', () => {
     });
   });
 
-  it('renders permission denied message when user is not Reviewer or Admin', () => {
+  it('renders permission denied message when user is not a Reviewer', () => {
     mockUseUser.mockReturnValue({
       user: { id: 'u1', name: 'Regular User', role: 'User', email: 'user@1billiontech.com' },
       loading: false,
@@ -54,6 +54,18 @@ describe('ReviewerApprovalsPage', () => {
     render(<ReviewerApprovalsPage />);
 
     expect(screen.getByText(/you don't have permission to view this page/i)).toBeInTheDocument();
+  });
+
+  it('renders permission denied message for an Admin — the pending queue is the Reviewer\'s', () => {
+    mockUseUser.mockReturnValue({
+      user: { id: 'adm1', name: 'Admin User', role: 'Admin', email: 'admin@1billiontech.com' },
+      loading: false,
+    });
+
+    render(<ReviewerApprovalsPage />);
+
+    expect(screen.getByText(/you don't have permission to view this page/i)).toBeInTheDocument();
+    expect(mockListPending).not.toHaveBeenCalled();
   });
 
   it('shows loading state while fetching pending articles', () => {

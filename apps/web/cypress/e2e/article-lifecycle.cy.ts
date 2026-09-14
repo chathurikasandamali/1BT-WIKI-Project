@@ -423,74 +423,15 @@ describe('Article lifecycle', () => {
       cy.get('[data-testid="article-status-badge"]').should('contain.text', 'Pending');
       cy.get('[data-testid="review-article-content"]').should('contain.text', 'Cypress article lifecycle test');
 
-      // 30b. Approve/reject is Admin-only — a Reviewer gets neither control
-      cy.get('[data-testid="approve-button"]').should('not.exist');
-      cy.get('[data-testid="reject-button"]').should('not.exist');
-      cy.get('[data-testid="review-decision-admin-only-note"]')
-        .should('exist')
-        .and('contain.text', 'Only an Admin can approve or reject');
-      cy.get('[data-testid="review-article-page"]')
-        .contains('button', /^Publish$/)
-        .should('not.exist');
-
-      // ---------------------------------------------------------
-      // ADMIN REVIEW-DECISION PHASE
-      // ---------------------------------------------------------
-
-      // 30c. Switch to Admin, the only role allowed to approve or reject
-      cy.then(() => {
-        useAdminProfile = true;
-        setE2EIdentity(E2E_ADMIN);
-      });
-
-      cy.session(
-        ['e2e-admin', E2E_ADMIN.id],
-        () => {
-          mintE2EFrontendSession(E2E_ADMIN);
-        },
-        {
-          validate: () => {
-            cy.getCookie(SESSION_TOKEN_COOKIE).should('exist');
-          },
-        }
-      );
-
-      cy.visit(`/reviewer/approvals/${articleId}`);
-
-      cy.wait('@getAdminUser', { timeout: DEFAULT_TIMEOUT }).then(
-        (interception) => {
-          expect(interception.response?.statusCode).to.eq(200);
-          expect(interception.response?.body.success).to.eq(true);
-          expect(interception.response?.body.data.id).to.eq(E2E_ADMIN.id);
-          expect(interception.response?.body.data.role).to.eq('Admin');
-        }
-      );
-
-      cy.wait('@getReviewerArticle', { timeout: DEFAULT_TIMEOUT }).then(
-        (interception) => {
-          expect(interception.request.headers['x-test-user-id']).to.eq(
-            E2E_ADMIN.id
-          );
-          expect(interception.request.headers['x-test-user-role']).to.eq(
-            'Admin'
-          );
-          expect(interception.response?.statusCode).to.eq(200);
-          expect(interception.response?.body.data.article.id).to.eq(articleId);
-          expect(interception.response?.body.data.article.status).to.eq(
-            'Pending'
-          );
-        }
-      );
-
-      // 30d. The Admin sees both decision controls
-      cy.get('[data-testid="review-article-page"]').should('be.visible');
-      cy.get('[data-testid="review-decision-admin-only-note"]').should(
-        'not.exist'
-      );
+      // 30b. The Reviewer owns the decision: both controls are present, but
+      // publishing is never offered here — that is the Admin's step.
       cy.get('[data-testid="approve-button"]')
         .should('be.visible')
         .and('contain.text', 'Approve & Send to Admin');
       cy.get('[data-testid="reject-button"]').should('exist');
+      cy.get('[data-testid="review-article-page"]')
+        .contains('button', /^Publish$/)
+        .should('not.exist');
 
       // 31. Approval modal flow
       cy.get('[data-testid="approve-button"]').click();
@@ -518,9 +459,9 @@ describe('Article lifecycle', () => {
         }
         expect(pathname).to.eq(`/api/v1/reviewer/articles/${articleId}/approve`);
 
-        expect(interception.request.headers['x-test-user-id']).to.eq(E2E_ADMIN.id);
-        expect(interception.request.headers['x-test-user-email']).to.eq(E2E_ADMIN.email);
-        expect(interception.request.headers['x-test-user-role']).to.eq('Admin');
+        expect(interception.request.headers['x-test-user-id']).to.eq(E2E_REVIEWER.id);
+        expect(interception.request.headers['x-test-user-email']).to.eq(E2E_REVIEWER.email);
+        expect(interception.request.headers['x-test-user-role']).to.eq('Reviewer');
 
         expect(interception.response?.statusCode).to.eq(200);
         const responseBody = interception.response?.body;
@@ -658,6 +599,58 @@ describe('Article lifecycle', () => {
             cy.getCookie(SESSION_TOKEN_COOKIE).should('exist');
           },
         }
+      );
+
+      // The Admin's Approvals tab is the hand-off point: it lists exactly the
+      // articles a Reviewer approved, each ready to publish.
+      cy.visit('/admin/approvals');
+
+      cy.wait('@getAdminUser', { timeout: DEFAULT_TIMEOUT }).then(
+        (interception) => {
+          expect(interception.response?.statusCode).to.eq(200);
+          expect(interception.response?.body.data.role).to.eq('Admin');
+        }
+      );
+
+      cy.wait('@getAdminApprovalsQueue', {
+        timeout: DEFAULT_TIMEOUT,
+      }).then((interception) => {
+        expect(interception.request.method).to.eq('GET');
+        const reqUrl = new URL(interception.request.url);
+        expect(reqUrl.pathname).to.eq('/api/v1/admin/articles');
+        expect(reqUrl.searchParams.get('status')).to.eq('Approved');
+
+        expect(interception.request.headers['x-test-user-id']).to.eq(
+          E2E_ADMIN.id
+        );
+        expect(interception.request.headers['x-test-user-role']).to.eq('Admin');
+
+        expect(interception.response?.statusCode).to.eq(200);
+
+        interface QueuedArticle {
+          id: string;
+          title: string;
+          status: string;
+        }
+
+        const queuedArticle = interception.response?.body.data.articles.find(
+          (article: QueuedArticle) => article.id === articleId
+        );
+        if (!queuedArticle) {
+          throw new Error(
+            'Reviewer-approved article was not found in the Admin Approvals queue'
+          );
+        }
+        expect(queuedArticle.title).to.eq(articleTitle);
+        expect(queuedArticle.status).to.eq('Approved');
+      });
+
+      cy.get('[data-testid="admin-approvals-page"]').should('be.visible');
+      cy.get(`[data-testid="approved-article-card-${articleId}"]`)
+        .should('be.visible')
+        .and('contain.text', articleTitle);
+      cy.get(`[data-testid="publish-article-${articleId}"]`).should(
+        'be.visible'
       );
 
       cy.visit('/admin/articles');

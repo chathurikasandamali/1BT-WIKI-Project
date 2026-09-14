@@ -221,19 +221,21 @@ describe('Article Lifecycle Integration', () => {
       })
     );
 
-    const reviewerApproveRes = await request(app)
+    // The Admin's only role in the review workflow is publishing — approving
+    // is the Reviewer's decision.
+    const adminApproveRes = await request(app)
       .patch(`/api/v1/reviewer/articles/${articleId}/approve`)
-      .set(reviewerHeaders);
+      .set(adminHeaders);
 
-    expect(reviewerApproveRes.status).toBe(HttpStatusCode.FORBIDDEN);
-    expect(reviewerApproveRes.body.error).toBe('Insufficient permissions');
+    expect(adminApproveRes.status).toBe(HttpStatusCode.FORBIDDEN);
+    expect(adminApproveRes.body.error).toBe('Insufficient permissions');
     expect(articleStore.get(articleId)?.status).toBe(
       ArticleStatusValue.Pending
     );
 
     const approveRes = await request(app)
       .patch(`/api/v1/reviewer/articles/${articleId}/approve`)
-      .set(adminHeaders);
+      .set(reviewerHeaders);
 
     expect(approveRes.status).toBe(HttpStatusCode.OK);
     expect(approveRes.body.success).toBe(true);
@@ -241,7 +243,7 @@ describe('Article Lifecycle Integration', () => {
     expect(mockReviewCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         articleId,
-        reviewerId: ADMIN_ID,
+        reviewerId: REVIEWER_ID,
         status: 'Approved',
       })
     );

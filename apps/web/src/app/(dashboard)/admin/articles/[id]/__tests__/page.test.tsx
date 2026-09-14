@@ -5,6 +5,14 @@ import React from 'react';
 const mockGetArticle = jest.fn();
 const mockPublishArticleAsAdmin = jest.fn();
 
+const mockSearchParamsGet = jest.fn();
+
+jest.mock('next/navigation', () => ({
+  useSearchParams: () => ({
+    get: mockSearchParamsGet,
+  }),
+}));
+
 jest.mock('@/lib/api/articles', () => ({
   getArticle: (...args: unknown[]) => mockGetArticle(...args),
   publishArticleAsAdmin: (...args: unknown[]) =>
@@ -91,6 +99,7 @@ const renderPage = async (id: string = mockArticleId) => {
 describe('AdminArticleDetailPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSearchParamsGet.mockReturnValue(null);
   });
 
   it('renders the loading skeleton while fetching', async () => {
@@ -277,8 +286,29 @@ describe('AdminArticleDetailPage', () => {
       );
     });
     expect(
-      screen.getByRole('link', { name: /Back to Article Management/i })
+      screen.getByRole('link', { name: /back to article management/i })
     ).toHaveAttribute('href', '/admin/articles');
     expect(screen.queryByTestId('article-content')).not.toBeInTheDocument();
+  });
+
+  it('returns to Approvals when opened from the Approvals queue', async () => {
+    mockSearchParamsGet.mockReturnValue('approvals');
+    mockGetArticle.mockResolvedValue(mockArticle);
+
+    await renderPage();
+
+    const backLink = await screen.findByTestId('back-link');
+    expect(backLink).toHaveAttribute('href', '/admin/approvals');
+    expect(backLink).toHaveTextContent('Back to Approvals');
+  });
+
+  it('returns to Article Management when opened from the management list', async () => {
+    mockGetArticle.mockResolvedValue(mockArticle);
+
+    await renderPage();
+
+    const backLink = await screen.findByTestId('back-link');
+    expect(backLink).toHaveAttribute('href', '/admin/articles');
+    expect(backLink).toHaveTextContent('Back to Article Management');
   });
 });

@@ -76,11 +76,13 @@ export function registerE2EApiAuth(): void {
       req.alias = 'approveArticle';
     } else if (req.method === 'GET' && /^\/api\/v1\/admin\/articles\/?$/.test(pathname)) {
       const searchParams = new URL(req.url).searchParams;
-      if (
-        searchParams.get('status') === 'Approved' &&
-        searchParams.get('limit') === '12'
-      ) {
+      const isApprovedFilter = searchParams.get('status') === 'Approved';
+      // Both Admin surfaces read the same endpoint; the page size tells the
+      // Article Management table (12) apart from the Approvals queue (20).
+      if (isApprovedFilter && searchParams.get('limit') === '12') {
         req.alias = 'getApprovedAdminArticles';
+      } else if (isApprovedFilter && searchParams.get('limit') === '20') {
+        req.alias = 'getAdminApprovalsQueue';
       }
     } else if (req.method === 'PATCH' && /^\/api\/v1\/admin\/articles\/[^/]+\/publish\/?$/.test(pathname)) {
       req.alias = 'publishArticleAsAdmin';

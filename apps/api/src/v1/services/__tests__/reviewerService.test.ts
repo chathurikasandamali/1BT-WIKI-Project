@@ -29,9 +29,14 @@ jest.unstable_mockModule('@services/notificationService.js', () => ({
   },
 }));
 
+const mockFindActiveByRole = jest
+  .fn<() => Promise<{ id: string }[]>>()
+  .mockResolvedValue([]);
+
 jest.unstable_mockModule('@repositories/userRepository.js', () => ({
   default: {
     findById: jest.fn(),
+    findActiveByRole: mockFindActiveByRole,
   },
 }));
 
@@ -56,6 +61,7 @@ const makeMockReviewRepo = (): jest.Mocked<
 
 const makeMockUserRepo = () => ({
   findById: jest.fn<() => Promise<{ name?: string; email?: string } | null>>(),
+  findActiveByRole: jest.fn<() => Promise<{ id: string }[]>>().mockResolvedValue([]),
 });
 
 const makeMockQuizService = (): QuizService =>
@@ -235,6 +241,43 @@ describe('ReviewerService.approveArticle', () => {
     );
     expect(mockQuizService.pregenerateFallbackQuiz).not.toHaveBeenCalled();
     expect(result).toEqual(approvedArticle);
+  });
+
+  it('should hand the article off to every active Admin for publication', async () => {
+    const pendingArticle = {
+      id: articleId,
+      title: 'Pending Article',
+      body: { type: 'doc' },
+      status: 'Pending',
+      authorId: 'user-1',
+      tags: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    mockArticleRepo.findById.mockResolvedValue(pendingArticle as never);
+    mockArticleRepo.updateStatus.mockResolvedValue({
+      ...pendingArticle,
+      status: ArticleStatusValue.Approved,
+    } as never);
+    mockReviewRepo.create.mockResolvedValue({ id: 'review-1' } as never);
+    mockFindActiveByRole.mockResolvedValue([{ id: 'admin-1' }, { id: 'admin-2' }]);
+
+    await service.approveArticle(articleId, reviewerId);
+    // The hand-off notification is fire-and-forget, so let it settle.
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(mockFindActiveByRole).toHaveBeenCalledWith('Admin');
+    for (const adminId of ['admin-1', 'admin-2']) {
+      expect(mockNotificationSend).toHaveBeenCalledWith({
+        recipientId: adminId,
+        notificationReferenceType: 'article',
+        referenceId: articleId,
+        notificationType: 'info',
+        notificationTitle: 'Article Ready to Publish',
+        message: `The article "${pendingArticle.title}" was approved by a Reviewer and is awaiting publication.`,
+      });
+    }
   });
 
   it.each(['Draft', 'Published', 'Rejected'] as const)(

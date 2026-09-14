@@ -9,10 +9,6 @@ import {
 } from '@/lib/api/adminDashboard';
 import { fetchAllArticles, type AdminArticleListItem } from '@/lib/api/articles';
 import { listAll, type TechTalkListItem } from '@/lib/api/techTalks';
-import {
-  listPending,
-  type PendingArticleListItem,
-} from '@/lib/api/reviewer.api';
 import { useAsync } from '@/lib/hooks/useAsync';
 import { DashboardWidget } from '@/components/admin/DashboardWidget';
 import { DashboardSection } from '@/components/admin/DashboardSection';
@@ -70,7 +66,7 @@ function getDashboardWidgets(summary: DashboardSummary): DashboardWidgetConfig[]
       label: 'Pending reviews',
       description: 'Articles waiting for a reviewer',
       value: summary.pendingReviews,
-      href: '/reviewer/approvals',
+      href: '/admin/articles',
       icon: <FileIcon className="h-4 w-4" strokeWidth={2} />,
       valueClassName: 'text-amber-600',
       iconClassName: 'bg-amber-50 text-amber-700',
@@ -82,7 +78,7 @@ function getDashboardWidgets(summary: DashboardSummary): DashboardWidgetConfig[]
       label: 'Approvals',
       description: 'Approved and ready to publish',
       value: summary.approvals,
-      href: '/admin/articles',
+      href: '/admin/approvals',
       icon: <CheckCircleIcon className="h-4 w-4" />,
       valueClassName: 'text-blue-600',
       iconClassName: 'bg-blue-50 text-blue-700',
@@ -109,7 +105,7 @@ interface AdminDashboardData {
   users: DashboardUser[];
   articles: AdminArticleListItem[];
   techTalks: TechTalkListItem[];
-  pendingReviews: PendingArticleListItem[];
+  pendingReviews: AdminArticleListItem[];
 }
 
 async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
@@ -129,7 +125,16 @@ async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
         sort: 'eventDate',
         order: 'desc',
       }),
-      listPending(1, PREVIEW_LIMIT),
+      // Sourced from the admin endpoint rather than the reviewer queue: the
+      // review queue is the Reviewer's alone, so Admins read pending articles
+      // through their own read-only article listing.
+      fetchAllArticles({
+        page: 1,
+        limit: PREVIEW_LIMIT,
+        status: 'Pending',
+        sort: 'createdAt',
+        order: 'desc',
+      }),
     ]);
 
   return {
@@ -221,8 +226,8 @@ export function AdminDashboard(): React.JSX.Element {
 
           <DashboardSection
             title="Pending reviews"
-            description="Articles waiting for admin or reviewer approval"
-            showMoreHref="/reviewer/approvals"
+            description="Articles waiting for a Reviewer's decision"
+            showMoreHref="/admin/articles"
             testId="dashboard-pending-reviews-section"
           >
             <DashboardPendingReviewPreview

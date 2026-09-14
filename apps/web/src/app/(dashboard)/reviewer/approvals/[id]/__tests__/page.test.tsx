@@ -98,11 +98,11 @@ const REVIEWER_USER = {
 describe('ReviewArticleDetailPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    // Approve/reject is Admin-only, so the default identity is Admin.
-    mockUseUser.mockReturnValue({ user: ADMIN_USER, loading: false });
+    // The review queue belongs to the Reviewer role alone.
+    mockUseUser.mockReturnValue({ user: REVIEWER_USER, loading: false });
   });
 
-  it('renders permission denied message when user is not Reviewer or Admin', () => {
+  it('renders permission denied message when user is not a Reviewer', () => {
     mockUseUser.mockReturnValue({
       user: { id: 'u1', name: 'Regular User', role: 'User', email: 'user@1billiontech.com' },
       loading: false,
@@ -111,6 +111,15 @@ describe('ReviewArticleDetailPage', () => {
     render(<ReviewArticleDetailPage />);
 
     expect(screen.getByText(/you don't have permission to view this page/i)).toBeInTheDocument();
+  });
+
+  it('renders permission denied message for an Admin — Admins only publish', () => {
+    mockUseUser.mockReturnValue({ user: ADMIN_USER, loading: false });
+
+    render(<ReviewArticleDetailPage />);
+
+    expect(screen.getByText(/you don't have permission to view this page/i)).toBeInTheDocument();
+    expect(mockGetArticleForReview).not.toHaveBeenCalled();
   });
 
   it('shows loading state while fetching article', () => {
@@ -133,25 +142,7 @@ describe('ReviewArticleDetailPage', () => {
     );
   });
 
-  it('hides Approve and Reject from a Reviewer and explains it is Admin-only', async () => {
-    mockUseUser.mockReturnValue({ user: REVIEWER_USER, loading: false });
-    mockGetArticleForReview.mockResolvedValueOnce({
-      article: makeArticleDetail(),
-      review: null,
-    });
-
-    render(<ReviewArticleDetailPage />);
-
-    await screen.findByRole('heading', { name: 'Pending Review Article Title' });
-
-    expect(screen.queryByTestId('approve-button')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('reject-button')).not.toBeInTheDocument();
-    expect(
-      screen.getByTestId('review-decision-admin-only-note')
-    ).toHaveTextContent('Only an Admin can approve or reject');
-  });
-
-  it('shows Approve and Reject to an Admin', async () => {
+  it('shows Approve and Reject to a Reviewer', async () => {
     mockGetArticleForReview.mockResolvedValueOnce({
       article: makeArticleDetail(),
       review: null,
@@ -163,9 +154,6 @@ describe('ReviewArticleDetailPage', () => {
 
     expect(screen.getByTestId('approve-button')).toBeInTheDocument();
     expect(screen.getByTestId('reject-button')).toBeInTheDocument();
-    expect(
-      screen.queryByTestId('review-decision-admin-only-note')
-    ).not.toBeInTheDocument();
   });
 
   it('renders article title, author, status badge, and content correctly', async () => {

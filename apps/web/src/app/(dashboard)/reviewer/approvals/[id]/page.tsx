@@ -13,7 +13,6 @@ import { Toast } from '@/components/shared/Toast';
 import { ArticleContent } from '@/components/article-detail/ArticleContent';
 import { useArticleForReview, approveArticle, rejectArticle } from '@/lib/hooks/useReviewer';
 import { useToast } from '@/lib/hooks/useToast';
-import { useUser } from '@/lib/hooks/useUser';
 import { formatDate } from '@/lib/utils/date';
 import { CommentPopover } from '@/components/reviewer/CommentPopover';
 import { ReviewCommentsList } from '@/components/reviewer/ReviewCommentsList';
@@ -33,9 +32,6 @@ function ReviewArticleDetailContent(): React.JSX.Element {
     updateComment,
   } = useArticleForReview(id);
   const { toast, showToast } = useToast();
-  const { user } = useUser();
-
-  const canDecideReview = user?.role === UserRoleValue.Admin;
 
   const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
@@ -228,38 +224,27 @@ function ReviewArticleDetailContent(): React.JSX.Element {
           Back to list
         </Link>
 
-        {canDecideReview && (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setIsApproveModalOpen(true)}
-              data-testid="approve-button"
-              className="flex items-center gap-1.5 px-4 py-2 rounded bg-green-600 hover:bg-green-700 text-white text-sm font-bold transition-colors"
-            >
-              <CheckCircle className="w-4 h-4" />
-              Approve &amp; Send to Admin
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsRejectModalOpen(true)}
-              data-testid="reject-button"
-              className="flex items-center gap-1.5 px-4 py-2 rounded border border-brand-red text-brand-red hover:bg-brand-red hover:text-white text-sm font-bold transition-colors"
-            >
-              <XCircle className="w-4 h-4" />
-              Reject
-            </button>
-          </div>
-        )}
-
-        {!canDecideReview && (
-          <p
-            className="text-xs text-brand-text-secondary"
-            data-testid="review-decision-admin-only-note"
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsApproveModalOpen(true)}
+            data-testid="approve-button"
+            className="flex items-center gap-1.5 px-4 py-2 rounded bg-green-600 hover:bg-green-700 text-white text-sm font-bold transition-colors"
           >
-            Only an Admin can approve or reject. You can leave feedback comments.
-          </p>
-        )}
+            <CheckCircle className="w-4 h-4" />
+            Approve &amp; Send to Admin
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsRejectModalOpen(true)}
+            data-testid="reject-button"
+            className="flex items-center gap-1.5 px-4 py-2 rounded border border-brand-red text-brand-red hover:bg-brand-red hover:text-white text-sm font-bold transition-colors"
+          >
+            <XCircle className="w-4 h-4" />
+            Reject
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6 items-stretch">
@@ -377,7 +362,7 @@ function ReviewArticleDetailContent(): React.JSX.Element {
 
 export default function ReviewArticleDetailPage(): React.JSX.Element {
   return (
-    <RoleGuard allowedRoles={[UserRoleValue.Reviewer, UserRoleValue.Admin]}>
+    <RoleGuard allowedRoles={[UserRoleValue.Reviewer]}>
       <ReviewArticleDetailContent />
     </RoleGuard>
   );

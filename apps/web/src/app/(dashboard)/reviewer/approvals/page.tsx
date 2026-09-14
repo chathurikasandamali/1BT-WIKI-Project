@@ -63,7 +63,8 @@ function ReviewerApprovalsContent(): React.JSX.Element {
           Reviewer Approvals
         </h1>
         <p className="mt-1 text-sm text-brand-text-secondary">
-          Review and approve or reject pending article submissions.
+          Review pending submissions. Approve an article to send it to an Admin
+          for publication, or reject it with feedback for the author.
         </p>
       </div>
 
