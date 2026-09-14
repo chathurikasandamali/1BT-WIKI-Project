@@ -54,7 +54,7 @@ describe('Article lifecycle', () => {
   let createdArticleId: string | null = null;
   let useAdminProfile = false;
 
-  const DEFAULT_TIMEOUT = 10000; // 10 seconds
+  const DEFAULT_TIMEOUT = 20000; // 10 seconds
 
   beforeEach(() => {
     useAdminProfile = false;

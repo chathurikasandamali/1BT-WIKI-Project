@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { RoleGuard } from '@/components/auth/RoleGuard';
 import { ConfirmationModal } from '@/components/shared/ConfirmationModal';
+import { RejectCommentModal } from './RejectCommentModal';
 import { Toast } from '@/components/shared/Toast';
 import { usePendingComments } from '@/lib/hooks/useCommentModeration';
 import { useToast } from '@/lib/hooks/useToast';
@@ -37,11 +38,11 @@ function CommentModerationContent(): React.JSX.Element {
     }
   };
 
-  const handleRejectConfirm = async () => {
+  const handleRejectConfirm = async (reason: string) => {
     if (!rejectTargetId) return;
     setIsProcessing(true);
     try {
-      await rejectComment(rejectTargetId);
+      await rejectComment(rejectTargetId, reason);
       showToast('Comment rejected', 'success');
       setRejectTargetId(null);
     } catch (err) {
@@ -156,13 +157,9 @@ function CommentModerationContent(): React.JSX.Element {
         onCancel={() => setApproveTargetId(null)}
       />
 
-      <ConfirmationModal
+      <RejectCommentModal
         isOpen={rejectTargetId !== null}
-        title="Reject this comment?"
-        message="Rejecting this comment will keep it hidden from other readers."
-        confirmText="Reject"
-        cancelText="Cancel"
-        isConfirming={isProcessing}
+        isLoading={isProcessing}
         onConfirm={handleRejectConfirm}
         onCancel={() => setRejectTargetId(null)}
       />

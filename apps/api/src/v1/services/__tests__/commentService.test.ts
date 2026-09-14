@@ -483,17 +483,32 @@ describe('CommentService.approveComment', () => {
 describe('CommentService.rejectComment', () => {
   const commentId = 'comment-123';
   const reviewerId = 'admin-1';
+  const reason = 'This comment violates community guidelines';
 
   beforeEach(() => {
     jest.clearAllMocks();
     (NotificationService.send as jest.Mock<any>).mockResolvedValue(undefined);
   });
 
+  it('should throw AppError if reason is missing', async () => {
+    await expect(
+      CommentService.rejectComment(commentId, reviewerId, undefined)
+    ).rejects.toThrow(new AppError('Rejection reason must be at least 10 characters', 400));
+    expect(CommentRepository.findById).not.toHaveBeenCalled();
+  });
+
+  it('should throw AppError if reason is under 10 trimmed characters', async () => {
+    await expect(
+      CommentService.rejectComment(commentId, reviewerId, '   short  ')
+    ).rejects.toThrow(new AppError('Rejection reason must be at least 10 characters', 400));
+    expect(CommentRepository.findById).not.toHaveBeenCalled();
+  });
+
   it('should throw AppError if comment is not found', async () => {
     (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(null);
 
     await expect(
-      CommentService.rejectComment(commentId, reviewerId)
+      CommentService.rejectComment(commentId, reviewerId, reason)
     ).rejects.toThrow(new AppError('Comment not found', 404));
   });
 
@@ -504,11 +519,11 @@ describe('CommentService.rejectComment', () => {
     });
 
     await expect(
-      CommentService.rejectComment(commentId, reviewerId)
+      CommentService.rejectComment(commentId, reviewerId, reason)
     ).rejects.toThrow(new AppError('Only Pending comments can be rejected', 400));
   });
 
-  it('should reject the comment and notify the comment author', async () => {
+  it('should reject the comment and notify the comment author with the reason', async () => {
     const pendingComment = {
       id: commentId,
       articleId: 'article-123',
@@ -520,6 +535,7 @@ describe('CommentService.rejectComment', () => {
       status: 'Rejected',
       reviewedBy: reviewerId,
       reviewedAt: new Date(),
+      rejectionReason: reason,
     };
 
     (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(
@@ -529,11 +545,12 @@ describe('CommentService.rejectComment', () => {
       rejectedComment
     );
 
-    const result = await CommentService.rejectComment(commentId, reviewerId);
+    const result = await CommentService.rejectComment(commentId, reviewerId, `  ${reason}  `);
 
     expect(CommentRepository.reject).toHaveBeenCalledWith(
       commentId,
-      reviewerId
+      reviewerId,
+      reason
     );
     expect(NotificationService.send).toHaveBeenCalledWith(
       expect.objectContaining({

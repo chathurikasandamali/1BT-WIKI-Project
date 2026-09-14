@@ -156,8 +156,13 @@ const approveComment = async (
 
 const rejectComment = async (
   commentId: string,
-  reviewerId: string
+  reviewerId: string,
+  reason: string | undefined
 ): Promise<Comment> => {
+  if (!reason || reason.trim().length < 10) {
+    throw new AppError('Rejection reason must be at least 10 characters', 400);
+  }
+
   const comment = await CommentRepository.findById(commentId);
 
   if (!comment) {
@@ -168,12 +173,13 @@ const rejectComment = async (
     throw new AppError('Only Pending comments can be rejected', 400);
   }
 
-  const rejected = await CommentRepository.reject(commentId, reviewerId);
+  const trimmedReason = reason.trim();
+  const rejected = await CommentRepository.reject(commentId, reviewerId, trimmedReason);
 
   const notificationPayload = new NotificationBuilder()
     .forUser(rejected.createdBy)
     .regardingComment(rejected.id)
-    .withFailure('Comment Not Approved', 'Your comment was not approved by a moderator.')
+    .withFailure('Comment Not Approved', `Your comment was not approved. Reason: ${trimmedReason}`)
     .build();
 
   NotificationService.send(notificationPayload).catch((error: unknown) => {

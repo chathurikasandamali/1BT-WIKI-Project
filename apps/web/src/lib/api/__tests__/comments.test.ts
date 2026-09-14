@@ -21,6 +21,7 @@ const sampleComment: CommentWithAuthor = {
   status: 'Approved',
   reviewedBy: null,
   reviewedAt: null,
+  rejectionReason: null,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   authorName: 'Test User',
@@ -35,6 +36,7 @@ const sampleCreated: Comment = {
   status: 'Pending',
   reviewedBy: null,
   reviewedAt: null,
+  rejectionReason: null,
   createdAt: '2026-01-02T00:00:00.000Z',
   updatedAt: '2026-01-02T00:00:00.000Z',
 };

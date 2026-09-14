@@ -151,6 +151,12 @@ export class ArticleRepository {
    * @returns The article row after the status change.
    */
   async updateStatus(id: string, status: ArticleStatus): Promise<Article> {
+    // TEMP DIAGNOSTIC — remove once the CI P2007 "Approved" enum bug is root-caused.
+    console.error('[DIAGNOSTIC] ArticleRepository.updateStatus called with', {
+      id,
+      status,
+      statusType: typeof status,
+    });
     const result = await prisma.article.update({
       where: { id },
       data: { status },

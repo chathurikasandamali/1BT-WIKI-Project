@@ -15,6 +15,7 @@ const COMMENT_SELECT = {
   status: true,
   reviewedBy: true,
   reviewedAt: true,
+  rejectionReason: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -100,7 +101,7 @@ const findPending = async (
         createdByUser: { select: { name: true, image: true } },
         article: { select: { title: true } },
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'desc' },
       skip: (page - 1) * limit,
       take: limit,
     }),
@@ -131,13 +132,14 @@ const approve = async (id: string, reviewerId: string): Promise<Comment> => {
   return result as unknown as Comment;
 };
 
-const reject = async (id: string, reviewerId: string): Promise<Comment> => {
+const reject = async (id: string, reviewerId: string, reason: string): Promise<Comment> => {
   const result = await prisma.comment.update({
     where: { id },
     data: {
       status: CommentStatusValue.Rejected,
       reviewedBy: reviewerId,
       reviewedAt: new Date(),
+      rejectionReason: reason,
     },
     select: COMMENT_SELECT,
   });
