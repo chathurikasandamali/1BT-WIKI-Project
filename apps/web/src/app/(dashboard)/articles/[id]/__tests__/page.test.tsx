@@ -4,6 +4,16 @@ import ArticleDetailPage from '../page';
 import { getArticle } from '@/lib/api/articles';
 import React from 'react';
 
+const mockBack = jest.fn();
+const mockPush = jest.fn();
+
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({
+    back: mockBack,
+    push: mockPush,
+  }),
+}));
+
 // Mock dependencies
 jest.mock('@/lib/api/articles', () => ({
   getArticle: jest.fn(),
@@ -95,6 +105,62 @@ describe('ArticleDetailPage', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('goes back in history when Back to Articles is clicked and history exists', async () => {
+    mockGetArticle.mockResolvedValue(mockArticle);
+    const user = userEvent.setup();
+    const originalLength = window.history.length;
+    Object.defineProperty(window.history, 'length', {
+      value: 2,
+      configurable: true,
+    });
+
+    await act(async () => {
+      render(
+        <React.Suspense fallback={<div>Suspense fallback</div>}>
+          <ArticleDetailPage params={Promise.resolve({ id: mockValidId })} />
+        </React.Suspense>
+      );
+    });
+
+    await user.click(await screen.findByTestId('back-to-articles'));
+
+    expect(mockBack).toHaveBeenCalledTimes(1);
+    expect(mockPush).not.toHaveBeenCalled();
+
+    Object.defineProperty(window.history, 'length', {
+      value: originalLength,
+      configurable: true,
+    });
+  });
+
+  it('navigates to /articles when Back to Articles is clicked with no history', async () => {
+    mockGetArticle.mockResolvedValue(mockArticle);
+    const user = userEvent.setup();
+    const originalLength = window.history.length;
+    Object.defineProperty(window.history, 'length', {
+      value: 1,
+      configurable: true,
+    });
+
+    await act(async () => {
+      render(
+        <React.Suspense fallback={<div>Suspense fallback</div>}>
+          <ArticleDetailPage params={Promise.resolve({ id: mockValidId })} />
+        </React.Suspense>
+      );
+    });
+
+    await user.click(await screen.findByTestId('back-to-articles'));
+
+    expect(mockPush).toHaveBeenCalledWith('/articles');
+    expect(mockBack).not.toHaveBeenCalled();
+
+    Object.defineProperty(window.history, 'length', {
+      value: originalLength,
+      configurable: true,
+    });
   });
 
   it('renders loading state initially', async () => {
