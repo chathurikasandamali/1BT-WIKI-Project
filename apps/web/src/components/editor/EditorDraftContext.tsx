@@ -10,6 +10,7 @@ import React, {
   type ReactNode,
 } from 'react';
 import type { Editor, JSONContent } from '@tiptap/react';
+import { tipTapDocHasContent } from '@repo/shared';
 import { apiFetch } from '@/lib/api/client';
 import type { ArticleUpdateInput } from '@/lib/api/articles';
 import {
@@ -167,6 +168,9 @@ export function EditorDraftProvider({
   const titleRef = useRef(initialArticle?.title ?? '');
   const tagsRef = useRef<string[]>(initialArticle?.tags ?? []);
   const editorRef = useRef<Editor | null>(null);
+  const currentBodyRef = useRef<JSONContent>(
+    initialArticle?.body ?? { type: 'doc', content: [] }
+  );
   const attachmentsRef = useRef<ArticleAttachment[]>(
     initialArticle?.attachments ?? []
   );
@@ -202,31 +206,55 @@ export function EditorDraftProvider({
     tagsRef.current = newTags;
   }, []);
 
+  const resolveBodyForSave = useCallback((): JSONContent => {
+    if (editorRef.current) {
+      const editorBody = editorRef.current.getJSON();
+      if (tipTapDocHasContent(editorBody)) {
+        return editorBody;
+      }
+    }
+    return currentBodyRef.current;
+  }, []);
+
   const registerEditor = useCallback((editor: Editor | null) => {
     editorRef.current = editor;
+    if (!editor) {
+      baselineCapturedRef.current = false;
+      return;
+    }
     // Capture the editor's canonical initial content on first mount so the
     // autosave can tell a genuine edit apart from the untouched initial doc.
-    if (editor && !baselineCapturedRef.current) {
+    if (!baselineCapturedRef.current) {
       baselineCapturedRef.current = true;
-      contentBaselineRef.current = JSON.stringify(editor.getJSON());
+      contentBaselineRef.current = JSON.stringify(resolveBodyForSave());
       titleBaselineRef.current = titleRef.current;
       tagsBaselineRef.current = [...tagsRef.current];
     }
-  }, []);
+  }, [resolveBodyForSave]);
 
   const syncSavedBaseline = useCallback(() => {
     titleBaselineRef.current = titleRef.current;
     tagsBaselineRef.current = [...tagsRef.current];
-    contentBaselineRef.current = JSON.stringify(
-      editorRef.current?.getJSON() ?? {}
-    );
-  }, []);
+    contentBaselineRef.current = JSON.stringify(resolveBodyForSave());
+  }, [resolveBodyForSave]);
 
   const insertEditorImage = useCallback((src: string) => {
     const editor = editorRef.current;
-    if (editor) {
-      editor.chain().focus().setImage({ src }).run();
-    }
+    if (!editor) return;
+
+    const inserted = editor.chain().focus().setImage({ src }).run();
+    if (inserted !== false) return;
+
+    // Inline image nodes cannot be inserted at a block gap. Wrap them so
+    // Embed Image still lands in the document after upload or URL embed.
+    editor
+      .chain()
+      .focus()
+      .insertContent({
+        type: 'paragraph',
+        content: [{ type: 'image', attrs: { src } }],
+      })
+      .run();
   }, []);
 
   const notifyContentChanged = useCallback(
@@ -234,6 +262,7 @@ export function EditorDraftProvider({
       setWordCount(words);
       setCharCount(chars);
       setCurrentBody(body);
+      currentBodyRef.current = body;
       setContentChangeCounter((c) => c + 1);
     },
     []
@@ -252,12 +281,12 @@ export function EditorDraftProvider({
     const titleErr = validateArticleTitle(titleRef.current);
     setTitleError(titleErr);
 
-    const body = editorRef.current?.getJSON() ?? {};
+    const body = resolveBodyForSave();
     const contentErr = validateArticleContent(body).error;
     setContentError(contentErr);
 
     return titleErr === null && contentErr === null;
-  }, []);
+  }, [resolveBodyForSave]);
 
   // ── Request serialization lock (Correction 2) ─────────────────────────
   //
@@ -324,7 +353,7 @@ export function EditorDraftProvider({
           'data',
           JSON.stringify({
             title: titleForCreate,
-            body: editorRef.current?.getJSON() ?? {},
+            body: resolveBodyForSave(),
             tags: tagsRef.current,
           })
         );
@@ -373,7 +402,7 @@ export function EditorDraftProvider({
     } finally {
       creatingDraftRef.current = null;
     }
-  }, [withRequestLock, setTitle, syncSavedBaseline]);
+  }, [withRequestLock, setTitle, syncSavedBaseline, resolveBodyForSave]);
 
   // ── saveDraft ─────────────────────────────────────────────────────────
   //
@@ -399,7 +428,7 @@ export function EditorDraftProvider({
         'data',
         JSON.stringify({
           title: safeTitle,
-          body: editorRef.current?.getJSON() ?? {},
+          body: resolveBodyForSave(),
           tags: tagsRef.current,
         })
       );
@@ -438,7 +467,7 @@ export function EditorDraftProvider({
         throw error;
       }
     });
-  }, [ensureDraftExists, withRequestLock, syncSavedBaseline]);
+  }, [ensureDraftExists, withRequestLock, syncSavedBaseline, resolveBodyForSave]);
 
   // ── uploadImage (Correction 1 — id-diffing) ──────────────────────────
   //
@@ -469,7 +498,7 @@ export function EditorDraftProvider({
           'data',
           JSON.stringify({
             title: safeTitle,
-            body: editorRef.current?.getJSON() ?? {},
+            body: resolveBodyForSave(),
             tags: tagsRef.current,
           })
         );
@@ -530,7 +559,7 @@ export function EditorDraftProvider({
         }
       });
     },
-    [ensureDraftExists, withRequestLock, syncSavedBaseline]
+    [ensureDraftExists, withRequestLock, syncSavedBaseline, resolveBodyForSave]
   );
 
   const uploadImage = useCallback(
@@ -556,7 +585,7 @@ export function EditorDraftProvider({
 
         const updateInput: ArticleUpdateInput = {
           title: titleRef.current.trim() || 'Untitled Draft',
-          body: editorRef.current?.getJSON() ?? {},
+          body: resolveBodyForSave(),
           tags: tagsRef.current,
           coverAttachmentId: nextCoverAttachmentId,
         };
@@ -587,7 +616,7 @@ export function EditorDraftProvider({
         }
       });
     },
-    [ensureDraftExists, withRequestLock, syncSavedBaseline]
+    [ensureDraftExists, withRequestLock, syncSavedBaseline, resolveBodyForSave]
   );
 
   const uploadCoverImage = useCallback(
@@ -667,6 +696,8 @@ export function EditorDraftProvider({
     autosaveTimerRef.current = setTimeout(() => {
       autosaveTimerRef.current = null;
       if (!articleIdRef.current) return;
+      // Preview mode unmounts the editor; never PATCH with a stale/empty body.
+      if (!editorRef.current) return;
 
       // Skip the PATCH when nothing has actually changed since the last
       // persisted snapshot. Opening an existing article (e.g. a Rejected one)
@@ -676,8 +707,7 @@ export function EditorDraftProvider({
         tagsBaselineRef.current.join('\u0000') !==
         tagsRef.current.join('\u0000');
       const contentChanged =
-        contentBaselineRef.current !==
-        JSON.stringify(editorRef.current?.getJSON() ?? {});
+        contentBaselineRef.current !== JSON.stringify(resolveBodyForSave());
 
       if (!titleChanged && !tagsChanged && !contentChanged) return;
 
@@ -692,7 +722,7 @@ export function EditorDraftProvider({
         autosaveTimerRef.current = null;
       }
     };
-  }, [title, tags, contentChangeCounter, articleId, saveDraft]);
+  }, [title, tags, contentChangeCounter, articleId, saveDraft, resolveBodyForSave]);
 
   // ── Cleanup on unmount ────────────────────────────────────────────────
 
