@@ -15,6 +15,11 @@ import { useAllTechTalks } from '@/lib/hooks/useTechTalks';
 import { useToast } from '@/lib/hooks/useToast';
 import { Toast } from '@/components/shared/Toast';
 import { ConfirmationModal } from '@/components/shared/ConfirmationModal';
+import { PageLoader } from '@/components/shared/PageLoader';
+import { DashboardWidget } from '@/components/admin/DashboardWidget';
+import { FilterChip } from '@/components/admin/FilterChip';
+import { SortableHeader } from '@/components/admin/SortableHeader';
+import { formatDate } from '@/lib/utils/date';
 import { cn } from '@/lib/utils';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
@@ -22,11 +27,13 @@ import { TechTalkStatus } from '@repo/shared';
 
 import { RefreshIcon } from '@/components/shared/icons/RefreshIcon';
 import { SearchIcon } from '@/components/shared/icons/SearchIcon';
-import { ChevronUpIcon } from '@/components/shared/icons/ChevronUpIcon';
 import { EditIcon } from '@/components/shared/icons/EditIcon';
 import { TrashIcon } from '@/components/shared/icons/TrashIcon';
 import { CheckCircleIcon } from '@/components/shared/icons/CheckCircleIcon';
 import { BanIcon } from '@/components/shared/icons/BanIcon';
+import { FileIcon } from '@/components/shared/icons/FileIcon';
+import { TechTalkIcon } from '@/components/shared/icons/TechTalkIcon';
+import { PlusIcon } from '@/components/shared/icons/PlusIcon';
 
 gsap.registerPlugin(useGSAP);
 
@@ -36,20 +43,19 @@ type SortField = 'title' | 'eventDate';
 type SortDir = 'asc' | 'desc';
 
 const PAGE_SIZE = 12;
+const STATUS_FILTERS: Array<TechTalkStatus | 'All'> = [
+  'All',
+  TechTalkStatus.draft,
+  TechTalkStatus.published,
+  TechTalkStatus.unpublished,
+];
 
-// -- Helpers ------------------------------------------------------------------
-
-function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
-  return (
-    <ChevronUpIcon
-      className={cn(
-        'w-3.5 h-3.5 transition-transform',
-        active ? 'text-brand-red' : 'text-brand-text-secondary/40',
-        active && dir === 'desc' && 'rotate-180'
-      )}
-    />
-  );
-}
+const STATUS_FILTER_LABELS: Record<TechTalkStatus | 'All', string> = {
+  All: 'All statuses',
+  draft: 'Draft',
+  published: 'Published',
+  unpublished: 'Unpublished',
+};
 
 function MoreVerticalIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -238,8 +244,12 @@ function TechTalkManagementContent(): React.JSX.Element {
   };
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const isInitialLoad = loading && techTalks.length === 0 && !error;
 
-  const showSummaryStats = !loading && !error && !!statusCounts;
+  const applyStatusFilter = (status: TechTalkStatus | 'All'): void => {
+    setStatusFilter(status);
+    setPage(1);
+  };
 
   // ── Action modal state — covers Publish, Unpublish, and Delete ────────────────
 
@@ -330,135 +340,151 @@ function TechTalkManagementContent(): React.JSX.Element {
     return 'Confirm';
   };
 
-  // Render
+  if (isInitialLoad) {
+    return (
+      <PageLoader
+        testId="admin-techtalks-loading"
+        message="Loading Tech Talks"
+      />
+    );
+  }
+
   return (
     <>
-    <div className="p-8 max-w-6xl mx-auto" ref={containerRef}>
-      {/* Page Header */}
-      <div className="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-2xl font-semibold text-brand-text-primary">
-            Tech Talk Management
-          </h1>
-          <p className="mt-1 text-sm text-brand-text-secondary">
-            Browse and inspect Tech Talks across every status.
-          </p>
-        </div>
-        <div className="flex items-center gap-3 self-start sm:self-auto">
-          <Link
-            href="/admin/tech-talks/create"
-            data-testid="create-techtalk-btn"
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-brand-red text-white hover:bg-brand-red-hover rounded transition-colors"
-          >
-            + Create Tech Talk
-          </Link>
-          <button
-            type="button"
-            onClick={async () => {
-              await refetch();
-              await loadStatusCounts();
-            }}
-            data-testid="refresh-btn"
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-brand-border text-brand-text-secondary hover:bg-brand-hover rounded transition-colors disabled:opacity-50"
-          >
-            <RefreshIcon className="w-4 h-4" />
-            Refresh
-          </button>
-        </div>
-      </div>
-
-      {/* Summary stat cards — matching Article Management's pattern */}
-      {showSummaryStats && (
-        <div className="page-header grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-          {[
-            {
-              label: 'Total Tech Talks',
-              value: statusCounts!.all,
-              color: 'text-brand-text-primary',
-              testId: 'total-techtalks-stat',
-            },
-            {
-              label: 'Published',
-              value: statusCounts!.published,
-              color: 'text-green-600',
-              testId: 'published-techtalks-stat',
-            },
-            {
-              label: 'Draft',
-              value: statusCounts!.draft,
-              color: 'text-amber-600',
-              testId: 'draft-techtalks-stat',
-            },
-            {
-              label: 'Unpublished',
-              value: statusCounts!.unpublished,
-              color: 'text-brand-red',
-              testId: 'unpublished-techtalks-stat',
-            },
-          ].map(({ label, value, color, testId }) => (
-            <div
-              key={label}
-              className="bg-brand-surface border border-brand-border rounded shadow-sm px-4 py-3"
+      <div className="mx-auto max-w-6xl p-8" ref={containerRef}>
+        <div className="page-header mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-brand-text-primary">
+              Tech Talk Management
+            </h1>
+            <p className="mt-1 text-sm text-brand-text-secondary">
+              Browse and inspect Tech Talks across every status.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 self-start sm:self-auto">
+            <Link
+              href="/admin/tech-talks/create"
+              data-testid="create-techtalk-btn"
+              className="flex items-center gap-2 rounded bg-brand-red px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-red-hover"
             >
-              <p className="text-xs font-medium text-brand-text-secondary uppercase tracking-wider mb-1">
-                {label}
-              </p>
-              <p className={cn('text-2xl font-bold', color)} data-testid={testId}>
-                {value}
-              </p>
-            </div>
-          ))}
+              <PlusIcon className="h-4 w-4" />
+              Create Tech Talk
+            </Link>
+            <button
+              type="button"
+              onClick={async () => {
+                await refetch();
+                await loadStatusCounts();
+              }}
+              data-testid="refresh-btn"
+              disabled={loading}
+              className="flex items-center gap-2 rounded border border-brand-border px-4 py-2 text-sm font-medium text-brand-text-secondary transition-colors hover:bg-brand-hover disabled:opacity-50"
+            >
+              <RefreshIcon className="h-4 w-4" />
+              Refresh
+            </button>
+          </div>
         </div>
-      )}
 
-      {/* Error banner */}
-      {error && (
-        <div
-          className="mb-6 p-4 bg-brand-red/10 border border-brand-red/20 rounded text-brand-red text-sm flex items-center justify-between"
-          data-testid="admin-techtalks-error"
-        >
-          <span>{error}</span>
-          <button
-            onClick={() => refetch()}
-            className="ml-4 underline text-brand-red hover:text-brand-red-hover text-xs"
+        {error && (
+          <div
+            className="mb-6 flex items-center justify-between rounded border border-brand-red/20 bg-brand-red/10 p-4 text-sm text-brand-red"
+            data-testid="admin-techtalks-error"
           >
-            Retry
-          </button>
-        </div>
-      )}
+            <span>{error}</span>
+            <button
+              onClick={() => refetch()}
+              className="ml-4 text-xs text-brand-red underline hover:text-brand-red-hover"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
-      {/* Table Card */}
-      <div className="table-card bg-brand-surface border border-brand-border rounded shadow-sm text-left">
-        {/* Toolbar */}
-        <div className="px-4 py-3 border-b border-brand-border flex flex-col sm:flex-row gap-3 items-start sm:items-center bg-brand-bg/40">
-          {/* Search */}
-          <div className="relative flex-1 max-w-xs">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-              <SearchIcon className="w-4 h-4 text-brand-text-secondary" />
-            </span>
-            <input
-              type="search"
-              placeholder="Search by title…"
-              data-testid="techtalk-search-input"
-              value={search}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm bg-brand-surface border border-brand-border rounded focus:outline-none focus:border-brand-red transition-colors"
+        {!error && statusCounts && (
+          <div className="page-header mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <DashboardWidget
+              label="Total Tech Talks"
+              description="Talks across every status"
+              value={statusCounts.all}
+              onClick={() => applyStatusFilter('All')}
+              selected={statusFilter === 'All'}
+              icon={<TechTalkIcon className="h-4 w-4" />}
+              borderClassName="border-brand-border"
+              testId="total-techtalks-stat"
+            />
+            <DashboardWidget
+              label="Published"
+              description="Visible to everyone"
+              value={statusCounts.published}
+              onClick={() => applyStatusFilter(TechTalkStatus.published)}
+              selected={statusFilter === TechTalkStatus.published}
+              icon={<CheckCircleIcon className="h-4 w-4" />}
+              valueClassName="text-green-600"
+              iconClassName="bg-green-50 text-green-700"
+              borderClassName="border-green-200"
+              testId="published-techtalks-stat"
+            />
+            <DashboardWidget
+              label="Draft"
+              description="Not published yet"
+              value={statusCounts.draft}
+              onClick={() => applyStatusFilter(TechTalkStatus.draft)}
+              selected={statusFilter === TechTalkStatus.draft}
+              icon={<FileIcon className="h-4 w-4" strokeWidth={2} />}
+              valueClassName="text-amber-600"
+              iconClassName="bg-amber-50 text-amber-700"
+              borderClassName="border-amber-200"
+              testId="draft-techtalks-stat"
+            />
+            <DashboardWidget
+              label="Unpublished"
+              description="Removed from the public list"
+              value={statusCounts.unpublished}
+              onClick={() => applyStatusFilter(TechTalkStatus.unpublished)}
+              selected={statusFilter === TechTalkStatus.unpublished}
+              icon={<BanIcon className="h-4 w-4" />}
+              valueClassName="text-brand-red"
+              iconClassName="bg-brand-red/10 text-brand-red"
+              borderClassName="border-brand-red/25"
+              testId="unpublished-techtalks-stat"
             />
           </div>
+        )}
 
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Status filter */}
+        <section className="table-card overflow-visible rounded border border-brand-border bg-brand-surface shadow-sm text-left">
+          <div className="border-b border-brand-border bg-brand-bg/40 px-4 py-4">
+            <div className="mb-4">
+              <h2 className="text-sm font-semibold text-brand-text-primary">
+                Tech Talks
+              </h2>
+              <p className="mt-0.5 text-xs text-brand-text-secondary">
+                Search, filter, and manage talks on the publishing calendar.
+              </p>
+            </div>
+
+            <div className="relative min-w-0">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2">
+                <SearchIcon className="h-4 w-4 text-brand-text-secondary" />
+              </span>
+              <input
+                type="search"
+                placeholder="Search by title"
+                data-testid="techtalk-search-input"
+                value={search}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="w-full rounded border border-brand-border bg-brand-surface py-2.5 pl-9 pr-3 text-sm text-brand-text-primary transition-colors placeholder:text-brand-text-secondary focus:border-brand-red focus:outline-none"
+              />
+            </div>
+
             <select
               value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(
-                  e.target.value as TechTalkStatus | 'All'
-                );
-                setPage(1);
-              }}
+              onChange={(e) =>
+                applyStatusFilter(e.target.value as TechTalkStatus | 'All')
+              }
               data-testid="techtalk-status-filter"
-              className="text-xs font-medium px-3 py-2 bg-brand-surface border border-brand-border rounded text-brand-text-secondary focus:outline-none focus:border-brand-red transition-colors cursor-pointer"
+              className="sr-only"
+              aria-label="Filter Tech Talks by status"
             >
               <option value="All">All Statuses</option>
               <option value="draft">Draft</option>
@@ -466,236 +492,239 @@ function TechTalkManagementContent(): React.JSX.Element {
               <option value="unpublished">Unpublished</option>
             </select>
 
-            {/* Sort controls */}
-            <div className="flex items-center gap-1 border border-brand-border rounded overflow-hidden bg-brand-surface">
-              {(['title', 'eventDate'] as SortField[]).map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => toggleSort(f)}
-                  data-testid={`sort-btn-${f}`}
-                  className={cn(
-                    'flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium transition-colors capitalize',
-                    sortField === f
-                      ? 'bg-brand-red/8 text-brand-red'
-                      : 'text-brand-text-secondary hover:bg-brand-bg'
-                  )}
-                >
-                  {f === 'eventDate' ? 'Date' : f}
-                  <SortIcon active={sortField === f} dir={sortDir} />
-                </button>
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              {STATUS_FILTERS.map((status) => (
+                <FilterChip
+                  key={status}
+                  label={STATUS_FILTER_LABELS[status]}
+                  selected={statusFilter === status}
+                  onClick={() => applyStatusFilter(status)}
+                />
               ))}
             </div>
           </div>
-        </div>
 
-        {/* Table body */}
-        {loading && (
-          <div
-            className="py-20 flex flex-col items-center justify-center gap-3"
-            data-testid="admin-techtalks-loading"
-          >
-            <div className="w-6 h-6 border-2 border-brand-border border-t-brand-red rounded-full animate-spin" />
-            <p className="text-sm text-brand-text-secondary">
-              Loading Tech Talks…
-            </p>
-          </div>
-        )}
-        {!loading && techTalks.length === 0 && (
-          <div
-            className="py-20 text-center text-sm text-brand-text-secondary"
-            data-testid="admin-techtalks-empty"
-          >
-            No Tech Talks found.
-          </div>
-        )}
-        {!loading && techTalks.length > 0 && (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs uppercase tracking-wider text-brand-text-secondary border-b border-brand-border bg-brand-bg/40">
-                    <th className="px-4 py-3 font-medium">Title</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 font-medium">Presenters</th>
-                    <th className="px-4 py-3 font-medium">Event Date</th>
-                    <th className="px-4 py-3 font-medium text-right w-20">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {techTalks.map((tt) => {
-                    const isPublished = tt.status === TechTalkStatus.published;
-                    return (
-                      <tr
-                        key={tt.id}
-                        className="techtalk-row border-b border-brand-border last:border-b-0 hover:bg-brand-hover transition-colors"
-                        data-testid={`techtalk-row-${tt.id}`}
-                      >
-                        <td className="px-4 py-3">
-                          <Link
-                            href={`/admin/tech-talks/${tt.id}`}
-                            className="font-medium text-brand-text-primary hover:text-brand-red transition-colors"
-                            data-testid={`techtalk-link-${tt.id}`}
-                          >
-                            {tt.title}
-                          </Link>
-                        </td>
-                        <td className="px-4 py-3">
-                          <TechTalkStatusBadge status={tt.status} />
-                        </td>
-                        <td className="px-4 py-3 text-brand-text-secondary">
-                          {tt.presenters.join(', ') || '—'}
-                        </td>
-                        <td className="px-4 py-3 text-brand-text-secondary whitespace-nowrap">
-                          {new Date(tt.eventDate).toLocaleDateString()}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className={cn("relative inline-block text-left", activeDropdownId === tt.id ? "z-50" : "z-10")}>
-                            {/* Three-dot dropdown trigger */}
-                            <button
-                              id={`dropdown-trigger-${tt.id}`}
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveDropdownId(activeDropdownId === tt.id ? null : tt.id);
-                              }}
-                              className={cn(
-                                'flex items-center justify-center w-8 h-8 rounded-full transition-colors hover:bg-brand-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red',
-                                activeDropdownId === tt.id && 'bg-brand-hover'
-                              )}
-                              data-testid={`actions-btn-${tt.id}`}
-                              title="More actions"
-                              aria-label="More actions"
-                              aria-haspopup="true"
-                              aria-expanded={activeDropdownId === tt.id}
+          {loading && (
+            <PageLoader
+              testId="admin-techtalks-loading"
+              message="Loading Tech Talks"
+              className="min-h-0 py-20"
+            />
+          )}
+          {!loading && techTalks.length === 0 && (
+            <div
+              className="py-20 text-center text-sm text-brand-text-secondary"
+              data-testid="admin-techtalks-empty"
+            >
+              No Tech Talks found.
+            </div>
+          )}
+          {!loading && techTalks.length > 0 && (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-brand-border bg-brand-bg/40">
+                      <SortableHeader
+                        label="Title"
+                        field="title"
+                        activeField={sortField}
+                        dir={sortDir}
+                        onSort={toggleSort}
+                      />
+                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-brand-text-secondary">
+                        Status
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-brand-text-secondary">
+                        Presenters
+                      </th>
+                      <SortableHeader
+                        label="Event date"
+                        field="eventDate"
+                        activeField={sortField}
+                        dir={sortDir}
+                        onSort={toggleSort}
+                      />
+                      <th className="w-20 px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-brand-text-secondary">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-brand-border">
+                    {techTalks.map((tt) => {
+                      const isPublished = tt.status === TechTalkStatus.published;
+                      return (
+                        <tr
+                          key={tt.id}
+                          className="techtalk-row transition-colors hover:bg-brand-hover"
+                          data-testid={`techtalk-row-${tt.id}`}
+                        >
+                          <td className="px-4 py-3">
+                            <Link
+                              href={`/admin/tech-talks/${tt.id}`}
+                              className="font-medium text-brand-text-primary transition-colors hover:text-brand-red"
+                              data-testid={`techtalk-link-${tt.id}`}
                             >
-                              <MoreVerticalIcon className="w-4 h-4 text-brand-text-secondary" />
-                            </button>
-
-                            {/* Dropdown Menu */}
+                              {tt.title}
+                            </Link>
+                          </td>
+                          <td className="px-4 py-3">
+                            <TechTalkStatusBadge status={tt.status} />
+                          </td>
+                          <td className="px-4 py-3 text-brand-text-secondary">
+                            {tt.presenters.join(', ') || '—'}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 text-brand-text-secondary">
+                            {formatDate(tt.eventDate)}
+                          </td>
+                          <td className="px-4 py-3 text-right">
                             <div
-                              id={`dropdown-menu-${tt.id}`}
-                              role="menu"
-                              aria-label="Actions"
-                              onClick={(e) => e.stopPropagation()}
                               className={cn(
-                                'absolute right-0 w-44 rounded-md shadow-lg bg-white border border-brand-border py-1 z-50 origin-top-right focus:outline-none text-left bottom-full mb-1',
-                                activeDropdownId === tt.id ? 'block' : 'hidden'
+                                'relative inline-block text-left',
+                                activeDropdownId === tt.id ? 'z-50' : 'z-10'
                               )}
                             >
-                              {/* Edit Action */}
-                              <Link
-                                href={`/admin/tech-talks/${tt.id}/edit`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveDropdownId(null);
-                                }}
-                                role="menuitem"
-                                data-testid={`edit-btn-${tt.id}`}
-                                className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium text-brand-text-primary hover:bg-brand-hover transition-colors"
-                              >
-                                <EditIcon className="w-3.5 h-3.5 text-brand-text-secondary" />
-                                Edit
-                              </Link>
-
-                              {/* Publish / Unpublish Actions */}
-                              {isPublished ? (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setActiveDropdownId(null);
-                                    handleOpenUnpublishModal(tt.id);
-                                  }}
-                                  role="menuitem"
-                                  data-testid={`unpublish-btn-${tt.id}`}
-                                  disabled={isMutating}
-                                  className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium text-brand-text-primary hover:bg-brand-hover transition-colors disabled:opacity-50"
-                                >
-                                  <BanIcon className="w-3.5 h-3.5 text-brand-text-secondary" />
-                                  Unpublish
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setActiveDropdownId(null);
-                                    handleOpenPublishModal(tt.id);
-                                  }}
-                                  role="menuitem"
-                                  data-testid={`publish-btn-${tt.id}`}
-                                  disabled={isMutating}
-                                  className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium text-brand-text-primary hover:bg-brand-hover transition-colors disabled:opacity-50"
-                                >
-                                  <CheckCircleIcon className="w-3.5 h-3.5 text-brand-text-secondary" />
-                                  Publish
-                                </button>
-                              )}
-
-                              {/* Divider */}
-                              <div className="border-t border-brand-border my-1" />
-
-                              {/* Delete Action */}
                               <button
+                                id={`dropdown-trigger-${tt.id}`}
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setActiveDropdownId(null);
-                                  handleOpenDeleteModal(tt.id);
+                                  setActiveDropdownId(
+                                    activeDropdownId === tt.id ? null : tt.id
+                                  );
                                 }}
-                                role="menuitem"
-                                data-testid={`delete-btn-${tt.id}`}
-                                disabled={isMutating}
-                                className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium text-brand-red hover:bg-brand-red/5 transition-colors disabled:opacity-50"
+                                className={cn(
+                                  'flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-brand-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red',
+                                  activeDropdownId === tt.id && 'bg-brand-hover'
+                                )}
+                                data-testid={`actions-btn-${tt.id}`}
+                                title="More actions"
+                                aria-label="More actions"
+                                aria-haspopup="true"
+                                aria-expanded={activeDropdownId === tt.id}
                               >
-                                <TrashIcon className="w-3.5 h-3.5 text-brand-red" />
-                                Delete
+                                <MoreVerticalIcon className="h-4 w-4 text-brand-text-secondary" />
                               </button>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
 
-            {/* Pagination */}
-            <div
-              className="px-4 py-3 border-t border-brand-border flex items-center justify-between text-xs text-brand-text-secondary bg-brand-bg/40"
-              data-testid="pagination-controls"
-            >
-              <span>
-                Page {page} of {totalPages} · {total} tech talk
-                {total !== 1 ? 's' : ''}
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1}
-                  data-testid="pagination-prev"
-                  className="px-3 py-1.5 border border-brand-border rounded hover:bg-brand-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                  data-testid="pagination-next"
-                  className="px-3 py-1.5 border border-brand-border rounded hover:bg-brand-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Next
-                </button>
+                              <div
+                                id={`dropdown-menu-${tt.id}`}
+                                role="menu"
+                                aria-label="Actions"
+                                onClick={(e) => e.stopPropagation()}
+                                className={cn(
+                                  'absolute right-0 z-50 mb-1 w-44 origin-top-right rounded border border-brand-border bg-brand-surface py-1 text-left shadow-lg bottom-full focus:outline-none',
+                                  activeDropdownId === tt.id ? 'block' : 'hidden'
+                                )}
+                              >
+                                <Link
+                                  href={`/admin/tech-talks/${tt.id}/edit`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveDropdownId(null);
+                                  }}
+                                  role="menuitem"
+                                  data-testid={`edit-btn-${tt.id}`}
+                                  className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium text-brand-text-primary transition-colors hover:bg-brand-hover"
+                                >
+                                  <EditIcon className="h-3.5 w-3.5 text-brand-text-secondary" />
+                                  Edit
+                                </Link>
+
+                                {isPublished && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveDropdownId(null);
+                                      handleOpenUnpublishModal(tt.id);
+                                    }}
+                                    role="menuitem"
+                                    data-testid={`unpublish-btn-${tt.id}`}
+                                    disabled={isMutating}
+                                    className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium text-brand-text-primary transition-colors hover:bg-brand-hover disabled:opacity-50"
+                                  >
+                                    <BanIcon className="h-3.5 w-3.5 text-brand-text-secondary" />
+                                    Unpublish
+                                  </button>
+                                )}
+                                {!isPublished && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveDropdownId(null);
+                                      handleOpenPublishModal(tt.id);
+                                    }}
+                                    role="menuitem"
+                                    data-testid={`publish-btn-${tt.id}`}
+                                    disabled={isMutating}
+                                    className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium text-brand-text-primary transition-colors hover:bg-brand-hover disabled:opacity-50"
+                                  >
+                                    <CheckCircleIcon className="h-3.5 w-3.5 text-brand-text-secondary" />
+                                    Publish
+                                  </button>
+                                )}
+
+                                <div className="my-1 border-t border-brand-border" />
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveDropdownId(null);
+                                    handleOpenDeleteModal(tt.id);
+                                  }}
+                                  role="menuitem"
+                                  data-testid={`delete-btn-${tt.id}`}
+                                  disabled={isMutating}
+                                  className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium text-brand-red transition-colors hover:bg-brand-red/5 disabled:opacity-50"
+                                >
+                                  <TrashIcon className="h-3.5 w-3.5 text-brand-red" />
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            </div>
-          </>
-        )}
+
+              <div
+                className="flex items-center justify-between border-t border-brand-border bg-brand-bg/40 px-4 py-3 text-xs text-brand-text-secondary"
+                data-testid="pagination-controls"
+              >
+                <span>
+                  Page {page} of {totalPages} · {total} tech talk
+                  {total !== 1 ? 's' : ''}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    data-testid="pagination-prev"
+                    className="rounded border border-brand-border px-3 py-1.5 transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages}
+                    data-testid="pagination-next"
+                    className="rounded border border-brand-border px-3 py-1.5 transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </section>
       </div>
-    </div>
 
       <ConfirmationModal
         isOpen={selectedAction !== null}

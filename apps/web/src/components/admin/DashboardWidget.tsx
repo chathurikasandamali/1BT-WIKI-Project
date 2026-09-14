@@ -6,38 +6,44 @@ interface DashboardWidgetProps {
   label: string;
   description: string;
   value: number;
-  href: string;
+  href?: string;
+  onClick?: () => void;
   icon: React.ReactNode;
   valueClassName?: string;
   iconClassName?: string;
+  borderClassName?: string;
   highlight?: boolean;
+  selected?: boolean;
   testId: string;
 }
 
 /**
- * Clickable Admin Home statistic card. Navigates to the matching management page.
+ * Statistic card used on Admin Home and management pages.
  */
 export function DashboardWidget({
   label,
   description,
   value,
   href,
+  onClick,
   icon,
   valueClassName = 'text-brand-text-primary',
   iconClassName = 'bg-brand-bg text-brand-text-secondary',
+  borderClassName = 'border-brand-border',
   highlight = false,
+  selected = false,
   testId,
 }: DashboardWidgetProps): React.JSX.Element {
-  return (
-    <Link
-      href={href}
-      data-testid={testId}
-      className={cn(
-        'flex items-start gap-3 rounded border border-brand-border bg-brand-surface px-4 py-3 shadow-sm transition-colors hover:bg-brand-hover',
-        'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red/30',
-        highlight && 'border-amber-200 bg-amber-50/60 hover:bg-amber-50'
-      )}
-    >
+  const className = cn(
+    'flex w-full items-start gap-3 rounded border bg-brand-surface px-4 py-3 text-left shadow-sm transition-colors hover:bg-brand-hover',
+    'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red/30',
+    borderClassName,
+    highlight && 'bg-amber-50/60 hover:bg-amber-50',
+    selected && 'ring-1 ring-inset ring-black/5'
+  );
+
+  const body = (
+    <>
       <span
         className={cn(
           'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded',
@@ -65,6 +71,34 @@ export function DashboardWidget({
           {description}
         </span>
       </span>
-    </Link>
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link href={href} data-testid={testId} className={className}>
+        {body}
+      </Link>
+    );
+  }
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        data-testid={testId}
+        aria-pressed={selected}
+        className={className}
+      >
+        {body}
+      </button>
+    );
+  }
+
+  return (
+    <div data-testid={testId} className={className}>
+      {body}
+    </div>
   );
 }

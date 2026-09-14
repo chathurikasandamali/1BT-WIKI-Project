@@ -15,11 +15,11 @@ describe('DashboardWidget', () => {
       />
     );
 
-    const link = screen.getByTestId('widget-total-users');
-    expect(link).toHaveAttribute('href', '/admin/users');
-    expect(link).toHaveTextContent('Registered users');
-    expect(link).toHaveTextContent('42');
-    expect(link).toHaveTextContent('People with access to the wiki');
+    const widget = screen.getByTestId('widget-total-users');
+    expect(widget).toHaveAttribute('href', '/admin/users');
+    expect(widget).toHaveTextContent('Registered users');
+    expect(widget).toHaveTextContent('42');
+    expect(widget).toHaveTextContent('People with access to the wiki');
   });
 
   it('shows a review badge when highlight is true', () => {

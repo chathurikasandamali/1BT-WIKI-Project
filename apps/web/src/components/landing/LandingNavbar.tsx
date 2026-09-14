@@ -3,19 +3,23 @@
 import { useEffect, useState } from 'react';
 import { Menu, X } from 'lucide-react';
 import { BRAND_NAME, BRAND_SUB_NAME } from '@/lib/constants/brand';
+import type { LandingAuthAction } from '@/components/landing/landingAuth';
 
 interface LandingNavbarProps {
-  isAuthenticating: boolean;
-  onAuthenticate: () => void;
+  authenticatingAction: LandingAuthAction | null;
+  onAuthenticate: (action: LandingAuthAction) => void;
   onReset: () => void;
 }
 
 export function LandingNavbar({
-  isAuthenticating,
+  authenticatingAction,
   onAuthenticate,
   onReset,
 }: LandingNavbarProps): React.JSX.Element {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const isAuthenticating = authenticatingAction !== null;
+  const isLoginSigningIn = authenticatingAction === 'login';
+  const isGetStartedSigningIn = authenticatingAction === 'get-started';
 
   useEffect(() => {
     if (!isMenuOpen) return;
@@ -32,6 +36,17 @@ export function LandingNavbar({
     onReset();
     setIsMenuOpen(false);
   };
+
+  const loginLabel = isLoginSigningIn ? 'Signing in...' : 'Log in';
+  const loginAriaLabel = isLoginSigningIn
+    ? 'Signing in'
+    : 'Log in with Google';
+  const getStartedLabel = isGetStartedSigningIn
+    ? 'Signing in...'
+    : 'Get started';
+  const getStartedAriaLabel = isGetStartedSigningIn
+    ? 'Signing in'
+    : 'Get started with Google';
 
   return (
     <header className="relative z-50 border-b border-brand-border/80 bg-white/90 backdrop-blur-xl">
@@ -53,23 +68,21 @@ export function LandingNavbar({
         <div className="ml-auto hidden items-center gap-3 xl:flex">
           <button
             type="button"
-            onClick={onAuthenticate}
+            onClick={() => onAuthenticate('login')}
             disabled={isAuthenticating}
-            aria-label={isAuthenticating ? 'Signing in' : 'Log in with Google'}
+            aria-label={loginAriaLabel}
             className="h-11 rounded-full border border-brand-border bg-white px-5 text-sm font-semibold text-brand-dark transition hover:border-brand-dark hover:bg-brand-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
           >
-            {isAuthenticating ? 'Signing in...' : 'Log in'}
+            {loginLabel}
           </button>
           <button
             type="button"
-            onClick={onAuthenticate}
+            onClick={() => onAuthenticate('get-started')}
             disabled={isAuthenticating}
-            aria-label={
-              isAuthenticating ? 'Signing in' : 'Get started with Google'
-            }
+            aria-label={getStartedAriaLabel}
             className="h-11 rounded-full bg-brand-red px-5 text-sm font-semibold text-white shadow-[0_10px_26px_rgba(204,0,0,0.2)] transition hover:bg-brand-red-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red focus-visible:ring-offset-2 disabled:cursor-wait disabled:bg-brand-red-disabled"
           >
-            {isAuthenticating ? 'Signing in...' : 'Get started'}
+            {getStartedLabel}
           </button>
         </div>
 
@@ -103,25 +116,21 @@ export function LandingNavbar({
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={onAuthenticate}
+                onClick={() => onAuthenticate('login')}
                 disabled={isAuthenticating}
-                aria-label={
-                  isAuthenticating ? 'Signing in' : 'Log in with Google'
-                }
+                aria-label={loginAriaLabel}
                 className="h-12 rounded-xl border border-brand-border text-sm font-semibold text-brand-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red disabled:cursor-wait disabled:opacity-60"
               >
-                {isAuthenticating ? 'Signing in...' : 'Log in'}
+                {loginLabel}
               </button>
               <button
                 type="button"
-                onClick={onAuthenticate}
+                onClick={() => onAuthenticate('get-started')}
                 disabled={isAuthenticating}
-                aria-label={
-                  isAuthenticating ? 'Signing in' : 'Get started with Google'
-                }
+                aria-label={getStartedAriaLabel}
                 className="h-12 rounded-xl bg-brand-red text-sm font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red disabled:cursor-wait disabled:bg-brand-red-disabled"
               >
-                {isAuthenticating ? 'Signing in...' : 'Get started'}
+                {getStartedLabel}
               </button>
             </div>
           </nav>

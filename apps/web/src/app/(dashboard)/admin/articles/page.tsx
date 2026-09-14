@@ -10,22 +10,29 @@ import {
   type AdminArticleStatusFilter,
 } from '@/lib/api/articles';
 import { StatusBadge } from '@/components/shared/StatusBadge';
-import { cn } from '@/lib/utils';
+import { PageLoader } from '@/components/shared/PageLoader';
+import { DashboardWidget } from '@/components/admin/DashboardWidget';
+import { FilterChip } from '@/components/admin/FilterChip';
+import { SortableHeader } from '@/components/admin/SortableHeader';
+import { formatDate } from '@/lib/utils/date';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 
 import { RefreshIcon } from '@/components/shared/icons/RefreshIcon';
 import { SearchIcon } from '@/components/shared/icons/SearchIcon';
-import { ChevronUpIcon } from '@/components/shared/icons/ChevronUpIcon';
+import { ArticleIcon } from '@/components/shared/icons/ArticleIcon';
+import { CheckCircleIcon } from '@/components/shared/icons/CheckCircleIcon';
+import { FileIcon } from '@/components/shared/icons/FileIcon';
+import { BanIcon } from '@/components/shared/icons/BanIcon';
 
 gsap.registerPlugin(useGSAP);
 
-// ── Internal types ────────────────────────────────────────────────────────────
-
 type SortField = 'title' | 'createdAt' | 'views';
 type SortDir = 'asc' | 'desc';
+type ArticleStatusFilter = AdminArticleStatusFilter | 'All';
 
-const STATUS_FILTERS: AdminArticleStatusFilter[] = [
+const STATUS_FILTERS: ArticleStatusFilter[] = [
+  'All',
   'Pending',
   'Approved',
   'Published',
@@ -33,20 +40,6 @@ const STATUS_FILTERS: AdminArticleStatusFilter[] = [
 ];
 
 const PAGE_SIZE = 12;
-
-function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
-  return (
-    <ChevronUpIcon
-      className={cn(
-        'w-3.5 h-3.5 transition-transform',
-        active ? 'text-brand-red' : 'text-brand-text-secondary/40',
-        active && dir === 'desc' && 'rotate-180'
-      )}
-    />
-  );
-}
-
-// ── Main page ─────────────────────────────────────────────────────────────────
 
 function ArticleManagementContent(): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -56,9 +49,7 @@ function ArticleManagementContent(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<
-    AdminArticleStatusFilter | 'All'
-  >('All');
+  const [statusFilter, setStatusFilter] = useState<ArticleStatusFilter>('All');
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [page, setPage] = useState(1);
@@ -67,7 +58,6 @@ function ArticleManagementContent(): React.JSX.Element {
     number
   > | null>(null);
 
-  // Debounce search so we don't refetch on every keystroke
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
@@ -75,8 +65,6 @@ function ArticleManagementContent(): React.JSX.Element {
     }, 400);
     return () => clearTimeout(timer);
   }, [search]);
-
-  // ── Fetch articles (server-side filter/sort/paginate) ───────────────────────
 
   const loadArticles = useCallback(async () => {
     setLoading(true);
@@ -105,8 +93,6 @@ function ArticleManagementContent(): React.JSX.Element {
     loadArticles();
   }, [loadArticles]);
 
-  // ── Summary counts (fetched independently of the filtered list) ─────────────
-
   const loadStatusCounts = useCallback(async () => {
     try {
       const [all, published, pending, approved, unpublished] =
@@ -125,7 +111,6 @@ function ArticleManagementContent(): React.JSX.Element {
         Unpublished: unpublished.total,
       });
     } catch {
-      // Non-blocking: the table still works without summary tiles.
       setStatusCounts(null);
     }
   }, []);
@@ -133,8 +118,6 @@ function ArticleManagementContent(): React.JSX.Element {
   useEffect(() => {
     loadStatusCounts();
   }, [loadStatusCounts]);
-
-  // ── GSAP entrance animation ─────────────────────────────────────────────────
 
   useGSAP(
     () => {
@@ -166,9 +149,12 @@ function ArticleManagementContent(): React.JSX.Element {
     { scope: containerRef, dependencies: [loading, error] }
   );
 
-  // ── Sorting ─────────────────────────────────────────────────────────────────
+  const applyStatusFilter = (status: ArticleStatusFilter): void => {
+    setStatusFilter(status);
+    setPage(1);
+  };
 
-  const toggleSort = (field: SortField) => {
+  const toggleSort = (field: SortField): void => {
     setPage(1);
     if (sortField === field) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -179,14 +165,15 @@ function ArticleManagementContent(): React.JSX.Element {
   };
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const isInitialLoad = loading && articles.length === 0 && !error;
 
-  // ── Render ──────────────────────────────────────────────────────────────────
-  const showSummaryStats = !loading && !error && !!statusCounts;
+  if (isInitialLoad) {
+    return <PageLoader testId="loading-state" message="Loading articles" />;
+  }
 
   return (
-    <div className="p-8 max-w-6xl mx-auto" ref={containerRef}>
-      {/* Page Header */}
-      <div className="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+    <div className="mx-auto max-w-6xl p-8" ref={containerRef}>
+      <div className="page-header mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-brand-text-primary">
             Article Management
@@ -203,153 +190,153 @@ function ArticleManagementContent(): React.JSX.Element {
           }}
           data-testid="refresh-btn"
           disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-brand-border text-brand-text-secondary hover:bg-brand-hover rounded transition-colors disabled:opacity-50 self-start sm:self-auto"
+          className="flex items-center gap-2 self-start rounded border border-brand-border px-4 py-2 text-sm font-medium text-brand-text-secondary transition-colors hover:bg-brand-hover disabled:opacity-50 sm:self-auto"
         >
-          <RefreshIcon className="w-4 h-4" />
+          <RefreshIcon className="h-4 w-4" />
           Refresh
         </button>
       </div>
 
-      {/* Summary */}
-      {showSummaryStats && (
-        <div className="page-header grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
-          {[
-            {
-              label: 'Total Articles',
-              value: statusCounts.All,
-              color: 'text-brand-text-primary',
-              testId: 'total-articles-stat',
-            },
-            {
-              label: 'Published',
-              value: statusCounts.Published,
-              color: 'text-green-600',
-              testId: 'published-articles-stat',
-            },
-            {
-              label: 'Pending',
-              value: statusCounts.Pending,
-              color: 'text-amber-600',
-              testId: 'pending-articles-stat',
-            },
-            {
-              label: 'Approved',
-              value: statusCounts.Approved,
-              color: 'text-blue-600',
-              testId: 'approved-articles-stat',
-            },
-            {
-              label: 'Unpublished',
-              value: statusCounts.Unpublished,
-              color: 'text-brand-red',
-              testId: 'unpublished-articles-stat',
-            },
-          ].map(({ label, value, color, testId }) => (
-            <div
-              key={label}
-              className="bg-brand-surface border border-brand-border rounded shadow-sm px-4 py-3"
-            >
-              <p className="text-xs font-medium text-brand-text-secondary uppercase tracking-wider mb-1">
-                {label}
-              </p>
-              <p className={cn('text-2xl font-bold', color)} data-testid={testId}>
-                {value}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Global error banner */}
       {error && (
         <div
-          className="mb-6 p-4 bg-brand-red/10 border border-brand-red/20 rounded text-brand-red text-sm flex items-center justify-between"
+          className="mb-6 flex items-center justify-between rounded border border-brand-red/20 bg-brand-red/10 p-4 text-sm text-brand-red"
           data-testid="error-banner"
         >
           <span>{error}</span>
           <button
             onClick={() => setError(null)}
-            className="ml-4 text-brand-red hover:text-brand-red-hover text-lg leading-none"
+            className="ml-4 text-lg leading-none text-brand-red hover:text-brand-red-hover"
           >
             ×
           </button>
         </div>
       )}
 
-      {/* Table Card */}
-      <div className="table-card bg-brand-surface border border-brand-border rounded shadow-sm overflow-hidden">
-        {/* Toolbar */}
-        <div className="px-4 py-3 border-b border-brand-border flex flex-col sm:flex-row gap-3 items-start sm:items-center bg-brand-bg/40">
-          {/* Search */}
-          <div className="relative flex-1 max-w-xs">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-              <SearchIcon className="w-4 h-4 text-brand-text-secondary" />
+      {!error && statusCounts && (
+        <div className="page-header mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <DashboardWidget
+            label="Total Articles"
+            description="Articles across every status"
+            value={statusCounts.All}
+            onClick={() => applyStatusFilter('All')}
+            selected={statusFilter === 'All'}
+            icon={<ArticleIcon className="h-4 w-4" />}
+            borderClassName="border-brand-border"
+            testId="total-articles-stat"
+          />
+          <DashboardWidget
+            label="Published"
+            description="Live on the homepage"
+            value={statusCounts.Published}
+            onClick={() => applyStatusFilter('Published')}
+            selected={statusFilter === 'Published'}
+            icon={<CheckCircleIcon className="h-4 w-4" />}
+            valueClassName="text-green-600"
+            iconClassName="bg-green-50 text-green-700"
+            borderClassName="border-green-200"
+            testId="published-articles-stat"
+          />
+          <DashboardWidget
+            label="Pending"
+            description="Waiting for review"
+            value={statusCounts.Pending}
+            onClick={() => applyStatusFilter('Pending')}
+            selected={statusFilter === 'Pending'}
+            icon={<FileIcon className="h-4 w-4" strokeWidth={2} />}
+            valueClassName="text-amber-600"
+            iconClassName="bg-amber-50 text-amber-700"
+            borderClassName="border-amber-200"
+            testId="pending-articles-stat"
+          />
+          <DashboardWidget
+            label="Approved"
+            description="Ready to publish"
+            value={statusCounts.Approved}
+            onClick={() => applyStatusFilter('Approved')}
+            selected={statusFilter === 'Approved'}
+            icon={<CheckCircleIcon className="h-4 w-4" />}
+            valueClassName="text-blue-600"
+            iconClassName="bg-blue-50 text-blue-700"
+            borderClassName="border-blue-200"
+            testId="approved-articles-stat"
+          />
+          <DashboardWidget
+            label="Unpublished"
+            description="Taken off the homepage"
+            value={statusCounts.Unpublished}
+            onClick={() => applyStatusFilter('Unpublished')}
+            selected={statusFilter === 'Unpublished'}
+            icon={<BanIcon className="h-4 w-4" />}
+            valueClassName="text-brand-red"
+            iconClassName="bg-brand-red/10 text-brand-red"
+            borderClassName="border-brand-red/25"
+            testId="unpublished-articles-stat"
+          />
+        </div>
+      )}
+
+      <section
+        className="table-card overflow-visible rounded border border-brand-border bg-brand-surface shadow-sm"
+        data-testid="article-management-section"
+      >
+        <div className="border-b border-brand-border bg-brand-bg/40 px-4 py-4">
+          <div className="mb-4">
+            <h2 className="text-sm font-semibold text-brand-text-primary">
+              Articles
+            </h2>
+            <p className="mt-0.5 text-xs text-brand-text-secondary">
+              Search and filter submissions, then open any row for details.
+            </p>
+          </div>
+
+          <div className="relative min-w-0">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2">
+              <SearchIcon className="h-4 w-4 text-brand-text-secondary" />
             </span>
             <input
               type="search"
-              placeholder="Search by title…"
+              placeholder="Search by title"
               data-testid="article-search-input"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm bg-brand-surface border border-brand-border rounded focus:outline-none focus:border-brand-red transition-colors"
+              className="w-full rounded border border-brand-border bg-brand-surface py-2.5 pl-9 pr-3 text-sm text-brand-text-primary transition-colors placeholder:text-brand-text-secondary focus:border-brand-red focus:outline-none"
             />
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Status filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(
-                  e.target.value as AdminArticleStatusFilter | 'All'
-                );
-                setPage(1);
-              }}
-              data-testid="status-filter-select"
-              className="text-xs font-medium px-3 py-2 bg-brand-surface border border-brand-border rounded text-brand-text-secondary focus:outline-none focus:border-brand-red transition-colors cursor-pointer"
-            >
-              <option value="All">All Statuses</option>
-              {STATUS_FILTERS.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
+          <select
+            value={statusFilter}
+            onChange={(e) =>
+              applyStatusFilter(e.target.value as ArticleStatusFilter)
+            }
+            data-testid="status-filter-select"
+            className="sr-only"
+            aria-label="Filter articles by status"
+          >
+            {STATUS_FILTERS.map((status) => (
+              <option key={status} value={status}>
+                {status === 'All' ? 'All Statuses' : status}
+              </option>
+            ))}
+          </select>
 
-            {/* Sort controls */}
-            <div className="flex items-center gap-1 border border-brand-border rounded overflow-hidden bg-brand-surface">
-              {(['title', 'createdAt', 'views'] as SortField[]).map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => toggleSort(f)}
-                  data-testid={`sort-btn-${f}`}
-                  className={cn(
-                    'flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium transition-colors capitalize',
-                    sortField === f
-                      ? 'bg-brand-red/8 text-brand-red'
-                      : 'text-brand-text-secondary hover:bg-brand-bg'
-                  )}
-                >
-                  {f === 'createdAt' ? 'Created' : f}
-                  <SortIcon active={sortField === f} dir={sortDir} />
-                </button>
-              ))}
-            </div>
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {STATUS_FILTERS.map((status) => (
+              <FilterChip
+                key={status}
+                label={status === 'All' ? 'All statuses' : status}
+                selected={statusFilter === status}
+                onClick={() => applyStatusFilter(status)}
+              />
+            ))}
           </div>
         </div>
 
-        {/* Table body */}
         {loading && (
-          <div
-            className="py-20 flex flex-col items-center justify-center gap-3"
-            data-testid="loading-state"
-          >
-            <div className="w-6 h-6 border-2 border-brand-border border-t-brand-red rounded-full animate-spin" />
-            <p className="text-sm text-brand-text-secondary">
-              Loading articles…
-            </p>
-          </div>
+          <PageLoader
+            testId="loading-state"
+            message="Loading articles"
+            className="min-h-0 py-20"
+          />
         )}
         {!loading && articles.length === 0 && (
           <div
@@ -364,26 +351,50 @@ function ArticleManagementContent(): React.JSX.Element {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-xs uppercase tracking-wider text-brand-text-secondary border-b border-brand-border bg-brand-bg/40">
-                    <th className="px-4 py-3 font-medium">Title</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 font-medium">Author</th>
-                    <th className="px-4 py-3 font-medium">Views</th>
-                    <th className="px-4 py-3 font-medium">Likes</th>
-                    <th className="px-4 py-3 font-medium">Created</th>
+                  <tr className="border-b border-brand-border bg-brand-bg/40">
+                    <SortableHeader
+                      label="Title"
+                      field="title"
+                      activeField={sortField}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-brand-text-secondary">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-brand-text-secondary">
+                      Author
+                    </th>
+                    <SortableHeader
+                      label="Views"
+                      field="views"
+                      activeField={sortField}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-brand-text-secondary">
+                      Likes
+                    </th>
+                    <SortableHeader
+                      label="Created"
+                      field="createdAt"
+                      activeField={sortField}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-brand-border">
                   {articles.map((article) => (
                     <tr
                       key={article.id}
-                      className="article-row border-b border-brand-border last:border-b-0 hover:bg-brand-hover transition-colors"
+                      className="article-row transition-colors hover:bg-brand-hover"
                       data-testid="article-row"
                     >
                       <td className="px-4 py-3">
                         <Link
                           href={`/admin/articles/${article.id}`}
-                          className="font-medium text-brand-text-primary hover:text-brand-red transition-colors"
+                          className="font-medium text-brand-text-primary transition-colors hover:text-brand-red"
                           data-testid={`article-link-${article.id}`}
                         >
                           {article.title}
@@ -408,8 +419,8 @@ function ArticleManagementContent(): React.JSX.Element {
                       <td className="px-4 py-3 text-brand-text-secondary">
                         {article.likeCount}
                       </td>
-                      <td className="px-4 py-3 text-brand-text-secondary whitespace-nowrap">
-                        {new Date(article.createdAt).toLocaleDateString()}
+                      <td className="px-4 py-3 whitespace-nowrap text-brand-text-secondary">
+                        {formatDate(article.createdAt)}
                       </td>
                     </tr>
                   ))}
@@ -417,9 +428,8 @@ function ArticleManagementContent(): React.JSX.Element {
               </table>
             </div>
 
-            {/* Pagination */}
             <div
-              className="px-4 py-3 border-t border-brand-border flex items-center justify-between text-xs text-brand-text-secondary bg-brand-bg/40"
+              className="flex items-center justify-between border-t border-brand-border bg-brand-bg/40 px-4 py-3 text-xs text-brand-text-secondary"
               data-testid="pagination-controls"
             >
               <span>
@@ -432,7 +442,7 @@ function ArticleManagementContent(): React.JSX.Element {
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page <= 1}
                   data-testid="pagination-prev"
-                  className="px-3 py-1.5 border border-brand-border rounded hover:bg-brand-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="rounded border border-brand-border px-3 py-1.5 transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Previous
                 </button>
@@ -441,7 +451,7 @@ function ArticleManagementContent(): React.JSX.Element {
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page >= totalPages}
                   data-testid="pagination-next"
-                  className="px-3 py-1.5 border border-brand-border rounded hover:bg-brand-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="rounded border border-brand-border px-3 py-1.5 transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Next
                 </button>
@@ -449,13 +459,10 @@ function ArticleManagementContent(): React.JSX.Element {
             </div>
           </>
         )}
-      </div>
-
+      </section>
     </div>
   );
 }
-
-// ── Page export (wrapped in RoleGuard) ────────────────────────────────────────
 
 export default function AdminArticlesPage(): React.JSX.Element {
   return (

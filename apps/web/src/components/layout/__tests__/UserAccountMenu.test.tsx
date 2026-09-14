@@ -154,24 +154,20 @@ describe('UserAccountMenu', () => {
 
   // ── 6. Normal-user menu items are displayed ─────────────────────────────
 
-  it('shows My Articles, Settings, and Sign Out for a normal user', () => {
+  it('shows My Articles, My Profile, and Sign Out for a normal user', () => {
     renderOpen(NORMAL_USER);
     expect(screen.getByTestId('menu-item-my-articles')).toBeInTheDocument();
-    expect(screen.getByTestId('menu-item-settings')).toBeInTheDocument();
+    expect(screen.getByTestId('menu-item-settings')).toHaveTextContent('My Profile');
     expect(screen.getByTestId('menu-item-sign-out')).toBeInTheDocument();
   });
 
-  // ── 7. Admin-only item is displayed for an admin ────────────────────────
-
-  it('shows the Admin Dashboard item for an admin user', () => {
+  it('does not show an Admin Dashboard item for an admin user', () => {
     renderOpen(ADMIN_USER);
-    expect(screen.getByTestId('menu-item-admin')).toBeInTheDocument();
-    expect(screen.getByTestId('menu-item-admin')).toHaveTextContent('Admin Dashboard');
+    expect(screen.queryByTestId('menu-item-admin')).not.toBeInTheDocument();
+    expect(screen.queryByText('Admin Dashboard')).not.toBeInTheDocument();
   });
 
-  // ── 8. Admin-only item is hidden from a normal user ─────────────────────
-
-  it('does not show the Admin Dashboard item for a normal user', () => {
+  it('does not show an Admin Dashboard item for a normal user', () => {
     renderOpen(NORMAL_USER);
     expect(screen.queryByTestId('menu-item-admin')).not.toBeInTheDocument();
   });
@@ -186,20 +182,12 @@ describe('UserAccountMenu', () => {
     expect(mockRouterPush).toHaveBeenCalledWith('/my-articles');
   });
 
-  it('navigates to /settings when Settings is clicked', async () => {
+  it('navigates to /settings when My Profile is clicked', async () => {
     const user = userEvent.setup();
     renderOpen(NORMAL_USER);
 
     await user.click(screen.getByTestId('menu-item-settings'));
     expect(mockRouterPush).toHaveBeenCalledWith('/settings');
-  });
-
-  it('navigates to /admin when Admin Dashboard is clicked', async () => {
-    const user = userEvent.setup();
-    renderOpen(ADMIN_USER);
-
-    await user.click(screen.getByTestId('menu-item-admin'));
-    expect(mockRouterPush).toHaveBeenCalledWith('/admin');
   });
 
   // ── 10. Sign Out calls authClient.signOut ────────────────────────────────

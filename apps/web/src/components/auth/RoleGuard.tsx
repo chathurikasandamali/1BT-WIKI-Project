@@ -16,11 +16,13 @@ export function RoleGuard({
   allowedRoles,
   children,
   fallback,
-}: RoleGuardProps) {
+}: RoleGuardProps): React.JSX.Element {
   const { user, loading } = useUser();
 
   if (loading) {
-    return <PageLoader />;
+    return (
+      <PageLoader className="min-h-0 py-8" />
+    );
   }
 
   // user is null (not logged in, though middleware should catch this first)

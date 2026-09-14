@@ -12,7 +12,6 @@ import { ProfileIcon } from '@/components/shared/icons/ProfileIcon';
 import { LockIcon } from '@/components/shared/icons/LockIcon';
 import { BellIcon } from '@/components/shared/icons/BellIcon';
 import { CameraIcon } from '@/components/shared/icons/CameraIcon';
-import { PageLoader } from '@/components/shared/PageLoader';
 
 export default function ProfileSettingsPage() {
   const { user, loading, refetch } = useUser();
@@ -124,7 +123,11 @@ export default function ProfileSettingsPage() {
   );
 
   if (loading) {
-    return <PageLoader />;
+    return (
+      <div className="flex items-center justify-center p-8 text-sm text-brand-text-secondary">
+        Loading...
+      </div>
+    );
   }
 
   if (!user) {
@@ -195,14 +198,18 @@ export default function ProfileSettingsPage() {
   const hasAvatar = avatarUrl || user.avatarUrl;
 
   return (
-    <div className="p-8 max-w-5xl mx-auto" ref={containerRef}>
-      <h1 className="text-2xl font-semibold text-brand-text-primary mb-8">
-        Account Settings
-      </h1>
+    <div className="mx-auto max-w-6xl p-8" ref={containerRef}>
+      <div className="mb-8">
+        <h1 className="text-2xl font-semibold text-brand-text-primary">
+          Account Settings
+        </h1>
+        <p className="mt-1 text-sm text-brand-text-secondary">
+          Update how your name and photo appear across the wiki.
+        </p>
+      </div>
 
-      <div className="flex flex-col md:flex-row gap-8">
-        {/* Sidebar Tabs */}
-        <div className="w-full md:w-56 flex-shrink-0 space-y-1">
+      <div className="flex flex-col gap-8 md:flex-row">
+        <div className="w-full shrink-0 space-y-1 rounded border border-brand-border bg-brand-surface p-2 shadow-sm md:w-56">
           <div
             className="flex items-center gap-3 px-3 py-2.5 bg-brand-red/10 text-brand-red font-medium rounded-r border-l-4 border-brand-red"
             data-testid="tab-profile"

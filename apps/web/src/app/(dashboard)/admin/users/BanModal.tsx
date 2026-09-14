@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { cn } from '@/lib/utils';
@@ -16,6 +17,9 @@ export interface BanModalProps {
   onCancel: () => void;
 }
 
+/**
+ * Confirms activating or deactivating a user account.
+ */
 export function BanModal({
   userName,
   isBanned,
@@ -27,37 +31,42 @@ export function BanModal({
   const [banReason, setBanReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  // Entrance animation
-  useGSAP(() => {
-    if (overlayRef.current) {
-      gsap.fromTo(
-        overlayRef.current,
-        { opacity: 0 },
-        { opacity: 1, duration: 0.2, ease: 'power2.out' }
-      );
-    }
-    if (cardRef.current) {
-      gsap.fromTo(
-        cardRef.current,
-        { scale: 0.92, opacity: 0, y: 12 },
-        { scale: 1, opacity: 1, y: 0, duration: 0.25, ease: 'back.out(1.4)' }
-      );
-    }
-  });
-
-  // Close on Escape key
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel();
+    setMounted(true);
+  }, []);
+
+  useGSAP(() => {
+    if (!mounted || !overlayRef.current || !cardRef.current) {
+      return;
+    }
+
+    gsap.fromTo(
+      overlayRef.current,
+      { opacity: 0 },
+      { opacity: 1, duration: 0.2, ease: 'power2.out' }
+    );
+    gsap.fromTo(
+      cardRef.current,
+      { scale: 0.96, opacity: 0, y: 16 },
+      { scale: 1, opacity: 1, y: 0, duration: 0.28, ease: 'power3.out' }
+    );
+  }, [mounted]);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape' && !isSubmitting) {
+        onCancel();
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [onCancel]);
+  }, [onCancel, isSubmitting]);
 
-  const handleConfirm = async () => {
+  const handleConfirm = async (): Promise<void> => {
     if (!isBanned && banReason.trim().length === 0) {
-      setError('Ban reason is required.');
+      setError('A reason is required to deactivate this account.');
       return;
     }
     setError(null);
@@ -69,82 +78,91 @@ export function BanModal({
     }
   };
 
-  const getConfirmButtonLabel = (): string => {
-    if (isSubmitting) return isBanned ? 'Reactivating...' : 'Deactivating...';
-    return isBanned ? 'Reactivate' : 'Deactivate';
-  };
-  const confirmButtonLabel = getConfirmButtonLabel();
+  const title = isBanned ? 'Activate account' : 'Deactivate account';
+  const confirmLabel = isBanned ? 'Activate' : 'Deactivate';
+  const submittingLabel = isBanned ? 'Activating...' : 'Deactivating...';
 
-  return (
+  if (!mounted) {
+    return <></>;
+  }
+
+  return createPortal(
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-brand-dark/60 p-4 backdrop-blur-sm"
       data-testid="ban-modal-overlay"
-      onClick={(e) => {
-        if (e.target === overlayRef.current) onCancel();
+      onClick={(event) => {
+        if (event.target === overlayRef.current && !isSubmitting) {
+          onCancel();
+        }
       }}
     >
       <div
         ref={cardRef}
-        className="bg-brand-surface border border-brand-border rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="account-status-modal-title"
+        className="w-full max-w-md overflow-hidden rounded border border-brand-border bg-brand-surface shadow-2xl"
         data-testid="ban-modal"
       >
-        {/* Header */}
-        <div
-          className={cn(
-            'px-6 py-4 border-b border-brand-border flex items-center gap-3',
-            isBanned ? 'bg-green-50' : 'bg-brand-red/5'
-          )}
-        >
-          <div
+        <div className="flex items-start gap-3 border-b border-brand-border px-6 py-5">
+          <span
             className={cn(
-              'w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0',
-              isBanned ? 'bg-green-100' : 'bg-brand-red/10'
+              'flex h-11 w-11 shrink-0 items-center justify-center rounded',
+              isBanned
+                ? 'bg-green-50 text-green-700'
+                : 'bg-brand-red/10 text-brand-red'
             )}
           >
             {isBanned ? (
-              <CheckCircleIcon className="w-5 h-5 text-green-600" />
+              <CheckCircleIcon className="h-5 w-5" />
             ) : (
-              <BanIcon className="w-5 h-5 text-brand-red" />
+              <BanIcon className="h-5 w-5" />
             )}
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-brand-text-primary">
-              {isBanned ? 'Reactivate User' : 'Deactivate User'}
+          </span>
+          <div className="min-w-0">
+            <h2
+              id="account-status-modal-title"
+              className="text-base font-semibold text-brand-text-primary"
+            >
+              {title}
             </h2>
-            <p className="text-xs text-brand-text-secondary mt-0.5 truncate max-w-[280px]">
-              {userName}
+            <p className="mt-1 text-sm text-brand-text-secondary">
+              Confirm this change for{' '}
+              <span className="font-medium text-brand-text-primary">
+                {userName}
+              </span>
+              .
             </p>
           </div>
         </div>
 
-        {/* Body */}
         <div className="px-6 py-5">
-          <p className="text-sm text-brand-text-secondary mb-4">
+          <p className="text-sm leading-6 text-brand-text-secondary">
             {isBanned
-              ? "This will restore the user's access to the platform. They will be able to log in immediately."
-              : 'This will prevent the user from logging in. Please provide a reason for the record.'}
+              ? 'This account will be able to sign in again immediately after you confirm.'
+              : 'This account will lose access until an admin activates it again.'}
           </p>
 
           {!isBanned && (
-            <div>
+            <div className="mt-4">
               <label
                 htmlFor="ban-reason-input"
-                className="block text-sm font-medium text-brand-text-primary mb-2"
+                className="mb-2 block text-sm font-medium text-brand-text-primary"
               >
-                Ban Reason <span className="text-brand-red">*</span>
+                Reason <span className="text-brand-red">*</span>
               </label>
               <textarea
                 id="ban-reason-input"
                 data-testid="ban-reason-input"
                 rows={3}
                 value={banReason}
-                onChange={(e) => {
-                  setBanReason(e.target.value);
+                onChange={(event) => {
+                  setBanReason(event.target.value);
                   setError(null);
                 }}
-                placeholder="e.g. Violation of community guidelines"
-                className="w-full px-3 py-2 bg-brand-bg border border-brand-border rounded text-sm text-brand-text-primary placeholder:text-brand-text-secondary/60 focus:outline-none focus:border-brand-red transition-colors resize-none"
+                placeholder="Explain why this account is being deactivated"
+                className="w-full resize-none rounded border border-brand-border bg-brand-bg px-3 py-2 text-sm text-brand-text-primary placeholder:text-brand-text-secondary/60 transition-colors focus:border-brand-red focus:outline-none"
               />
               {error && (
                 <p
@@ -158,14 +176,13 @@ export function BanModal({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-brand-border flex justify-end gap-3 bg-brand-bg/40">
+        <div className="flex justify-end gap-3 border-t border-brand-border bg-brand-bg/40 px-6 py-4">
           <button
             type="button"
             onClick={onCancel}
             data-testid="ban-modal-cancel"
             disabled={isSubmitting}
-            className="px-4 py-2 text-sm font-medium text-brand-text-secondary border border-brand-border rounded hover:bg-brand-bg transition-colors disabled:opacity-50"
+            className="rounded border border-brand-border px-4 py-2 text-sm font-medium text-brand-text-secondary transition-colors hover:bg-brand-hover disabled:opacity-50"
           >
             Cancel
           </button>
@@ -175,16 +192,17 @@ export function BanModal({
             data-testid="ban-modal-confirm"
             disabled={isSubmitting}
             className={cn(
-              'px-4 py-2 text-sm font-medium text-white rounded transition-colors disabled:opacity-50',
+              'rounded px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50',
               isBanned
                 ? 'bg-green-600 hover:bg-green-700'
                 : 'bg-brand-red hover:bg-brand-red-hover'
             )}
           >
-            {confirmButtonLabel}
+            {isSubmitting ? submittingLabel : confirmLabel}
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

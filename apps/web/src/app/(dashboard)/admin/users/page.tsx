@@ -3,39 +3,38 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { RoleGuard } from '@/components/auth/RoleGuard';
 import { apiFetch } from '@/lib/api/client';
-import { UserManagementTable } from '@/app/(dashboard)/admin/users/UserManagementTable';
+import {
+  UserManagementTable,
+  type AdminUser,
+  type UserSortField,
+} from '@/app/(dashboard)/admin/users/UserManagementTable';
 import { BanModal } from '@/app/(dashboard)/admin/users/BanModal';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import type {AdminUser} from '@/app/(dashboard)/admin/users/UserManagementTable';
 import { UserRoleValue } from '@repo/shared';
 import type { UserRole } from '@repo/shared';
-import { cn } from '@/lib/utils';
+import { PageLoader } from '@/components/shared/PageLoader';
+import { RefreshIcon } from '@/components/shared/icons/RefreshIcon';
+import { DashboardWidget } from '@/components/admin/DashboardWidget';
+import { UsersIcon } from '@/components/shared/icons/UsersIcon';
+import { CheckCircleIcon } from '@/components/shared/icons/CheckCircleIcon';
+import { BanIcon } from '@/components/shared/icons/BanIcon';
+import { UserIcon } from '@/components/shared/icons/UserIcon';
+import { SearchIcon } from '@/components/shared/icons/SearchIcon';
+import { FilterChip } from '@/components/admin/FilterChip';
+import type { SortDirection } from '@/components/admin/SortableHeader';
 
 gsap.registerPlugin(useGSAP);
 
-// ── Internal types ────────────────────────────────────────────────────────────
+type StatusFilter = 'All' | 'Active' | 'Deactivated';
 
-type SortField = 'name' | 'role' | 'createdAt' | 'status';
-type SortDir = 'asc' | 'desc';
-
-import { RefreshIcon } from '@/components/shared/icons/RefreshIcon';
-import { SearchIcon } from '@/components/shared/icons/SearchIcon';
-import { ChevronUpIcon } from '@/components/shared/icons/ChevronUpIcon';
-
-function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
-  return (
-    <ChevronUpIcon
-      className={cn(
-        'w-3.5 h-3.5 transition-transform',
-        active ? 'text-brand-red' : 'text-brand-text-secondary/40',
-        active && dir === 'desc' && 'rotate-180'
-      )}
-    />
-  );
-}
-
-// ── Main page ─────────────────────────────────────────────────────────────────
+const ROLE_FILTERS: Array<UserRole | 'All'> = [
+  'All',
+  'Admin',
+  'Reviewer',
+  'User',
+];
+const STATUS_FILTERS: StatusFilter[] = ['All', 'Active', 'Deactivated'];
 
 function UserManagementContent(): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -44,17 +43,11 @@ function UserManagementContent(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState<UserRole | 'All'>('All');
-  const [filterStatus, setFilterStatus] = useState<
-    'All' | 'Active' | 'Deactivated'
-  >('All');
-  const [sortField, setSortField] = useState<SortField>('name');
-  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [filterStatus, setFilterStatus] = useState<StatusFilter>('All');
+  const [sortField, setSortField] = useState<UserSortField>('name');
+  const [sortDir, setSortDir] = useState<SortDirection>('asc');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-
-  // Ban modal state
   const [modalTarget, setModalTarget] = useState<AdminUser | null>(null);
-
-  // ── Fetch users ─────────────────────────────────────────────────────────────
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -78,8 +71,6 @@ function UserManagementContent(): React.JSX.Element {
   useEffect(() => {
     loadUsers();
   }, [loadUsers]);
-
-  // ── GSAP entrance animation ─────────────────────────────────────────────────
 
   useGSAP(
     () => {
@@ -111,9 +102,7 @@ function UserManagementContent(): React.JSX.Element {
     { scope: containerRef, dependencies: [loading, error] }
   );
 
-  // ── Sorting ─────────────────────────────────────────────────────────────────
-
-  const toggleSort = (field: SortField) => {
+  const toggleSort = (field: UserSortField): void => {
     if (sortField === field) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     } else {
@@ -121,8 +110,6 @@ function UserManagementContent(): React.JSX.Element {
       setSortDir('asc');
     }
   };
-
-  // ── Derived list ────────────────────────────────────────────────────────────
 
   const displayedUsers = users
     .filter((u) => {
@@ -149,13 +136,9 @@ function UserManagementContent(): React.JSX.Element {
       return sortDir === 'asc' ? cmp : -cmp;
     });
 
-  // ── Counts for summary ──────────────────────────────────────────────────────
-
   const totalActive = users.filter((u) => !u.banned).length;
   const totalBanned = users.filter((u) => u.banned === true).length;
   const totalAdmins = users.filter((u) => u.role === UserRoleValue.Admin).length;
-
-  // ── Role update ─────────────────────────────────────────────────────────────
 
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
     setUpdatingId(userId);
@@ -177,8 +160,6 @@ function UserManagementContent(): React.JSX.Element {
       setUpdatingId(null);
     }
   };
-
-  // ── Ban toggle via modal ────────────────────────────────────────────────────
 
   const handleBanConfirm = async (banReason?: string) => {
     if (!modalTarget) return;
@@ -215,20 +196,21 @@ function UserManagementContent(): React.JSX.Element {
     }
   };
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  const isInitialLoad = loading && users.length === 0 && !error;
 
-  const isLoadedAndReady = !loading && !error;
+  if (isInitialLoad) {
+    return <PageLoader testId="loading-state" message="Loading users" />;
+  }
 
   return (
-    <div className="p-8 max-w-6xl mx-auto" ref={containerRef}>
-      {/* Page Header */}
-      <div className="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+    <div className="mx-auto max-w-6xl p-8" ref={containerRef}>
+      <div className="page-header mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-brand-text-primary">
             User Management
           </h1>
           <p className="mt-1 text-sm text-brand-text-secondary">
-            Manage roles and access for all platform users.
+            Manage roles and access for all registered accounts.
           </p>
         </div>
         <button
@@ -236,163 +218,174 @@ function UserManagementContent(): React.JSX.Element {
           onClick={loadUsers}
           data-testid="refresh-btn"
           disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-brand-border text-brand-text-secondary hover:bg-brand-hover rounded transition-colors disabled:opacity-50 self-start sm:self-auto"
+          className="flex items-center gap-2 self-start rounded border border-brand-border px-4 py-2 text-sm font-medium text-brand-text-secondary transition-colors hover:bg-brand-hover disabled:opacity-50 sm:self-auto"
         >
-          <RefreshIcon className="w-4 h-4" />
+          <RefreshIcon className="h-4 w-4" />
           Refresh
         </button>
       </div>
 
-      {/* Summary Stats */}
-      {isLoadedAndReady && (
-        <div className="page-header grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-          {[
-            {
-              label: 'Total Users',
-              value: users.length,
-              color: 'text-brand-text-primary',
-            },
-            { label: 'Active', value: totalActive, color: 'text-green-600' },
-            {
-              label: 'Deactivated',
-              value: totalBanned,
-              color: 'text-brand-red',
-            },
-            { label: 'Admins', value: totalAdmins, color: 'text-amber-600' },
-          ].map(({ label, value, color }) => (
-            <div
-              key={label}
-              className="bg-brand-surface border border-brand-border rounded shadow-sm px-4 py-3"
-            >
-              <p className="text-xs font-medium text-brand-text-secondary uppercase tracking-wider mb-1">
-                {label}
-              </p>
-              <p className={cn('text-2xl font-bold', color)}>{value}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Global error banner */}
       {error && (
         <div
-          className="mb-6 p-4 bg-brand-red/10 border border-brand-red/20 rounded text-brand-red text-sm flex items-center justify-between"
+          className="mb-6 flex items-center justify-between rounded border border-brand-red/20 bg-brand-red/10 p-4 text-sm text-brand-red"
           data-testid="error-banner"
         >
           <span>{error}</span>
           <button
             onClick={() => setError(null)}
-            className="ml-4 text-brand-red hover:text-brand-red-hover text-lg leading-none"
+            className="ml-4 text-lg leading-none text-brand-red hover:text-brand-red-hover"
           >
             ×
           </button>
         </div>
       )}
 
-      {/* Table Card */}
-      <div className="table-card bg-brand-surface border border-brand-border rounded shadow-sm overflow-hidden">
-        {/* Toolbar */}
-        <div className="px-4 py-3 border-b border-brand-border flex flex-col sm:flex-row gap-3 items-start sm:items-center bg-brand-bg/40">
-          {/* Search */}
-          <div className="relative flex-1 max-w-xs">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-              <SearchIcon className="w-4 h-4 text-brand-text-secondary" />
-            </span>
-            <input
-              type="search"
-              placeholder="Search name or email…"
-              data-testid="user-search-input"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm bg-brand-surface border border-brand-border rounded focus:outline-none focus:border-brand-red transition-colors"
-            />
+      {!error && (
+        <div className="page-header mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <DashboardWidget
+            label="Total Users"
+            description="Everyone registered on the wiki"
+            value={users.length}
+            onClick={() => {
+              setFilterRole('All');
+              setFilterStatus('All');
+            }}
+            selected={filterRole === 'All' && filterStatus === 'All'}
+            icon={<UsersIcon className="h-4 w-4" />}
+            borderClassName="border-brand-border"
+            testId="widget-total-users"
+          />
+          <DashboardWidget
+            label="Active"
+            description="Accounts that can sign in"
+            value={totalActive}
+            onClick={() => {
+              setFilterRole('All');
+              setFilterStatus('Active');
+            }}
+            selected={filterStatus === 'Active' && filterRole === 'All'}
+            icon={<CheckCircleIcon className="h-4 w-4" />}
+            valueClassName="text-green-600"
+            iconClassName="bg-green-50 text-green-700"
+            borderClassName="border-green-200"
+            testId="widget-active-users"
+          />
+          <DashboardWidget
+            label="Deactivated"
+            description="Accounts currently blocked"
+            value={totalBanned}
+            onClick={() => {
+              setFilterRole('All');
+              setFilterStatus('Deactivated');
+            }}
+            selected={filterStatus === 'Deactivated' && filterRole === 'All'}
+            icon={<BanIcon className="h-4 w-4" />}
+            valueClassName="text-brand-red"
+            iconClassName="bg-brand-red/10 text-brand-red"
+            borderClassName="border-brand-red/25"
+            testId="widget-deactivated-users"
+          />
+          <DashboardWidget
+            label="Admins"
+            description="Users with admin privileges"
+            value={totalAdmins}
+            onClick={() => {
+              setFilterRole('Admin');
+              setFilterStatus('All');
+            }}
+            selected={filterRole === 'Admin' && filterStatus === 'All'}
+            icon={<UserIcon className="h-4 w-4" />}
+            valueClassName="text-amber-600"
+            iconClassName="bg-amber-50 text-amber-700"
+            borderClassName="border-amber-200"
+            testId="widget-admin-users"
+          />
+        </div>
+      )}
+
+      <section
+        className="table-card overflow-visible rounded border border-brand-border bg-brand-surface shadow-sm"
+        data-testid="user-management-section"
+      >
+        <div className="border-b border-brand-border bg-brand-bg/40 px-4 py-4">
+          <div className="mb-4">
+            <h2 className="text-sm font-semibold text-brand-text-primary">
+              Registered users
+            </h2>
+            <p className="mt-0.5 text-xs text-brand-text-secondary">
+              Search, filter, and update roles or access for each account.
+            </p>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Role filter */}
-            <select
-              value={filterRole}
-              onChange={(e) =>
-                setFilterRole(e.target.value as UserRole | 'All')
-              }
-              data-testid="role-filter-select"
-              className="text-xs font-medium px-3 py-2 bg-brand-surface border border-brand-border rounded text-brand-text-secondary focus:outline-none focus:border-brand-red transition-colors cursor-pointer"
-            >
-              <option value="All">All Roles</option>
-              <option value="Admin">Admin</option>
-              <option value="Reviewer">Reviewer</option>
-              <option value="User">User</option>
-            </select>
-
-            {/* Status filter */}
-            <select
-              value={filterStatus}
-              onChange={(e) =>
-                setFilterStatus(
-                  e.target.value as 'All' | 'Active' | 'Deactivated'
-                )
-              }
-              data-testid="status-filter-select"
-              className="text-xs font-medium px-3 py-2 bg-brand-surface border border-brand-border rounded text-brand-text-secondary focus:outline-none focus:border-brand-red transition-colors cursor-pointer"
-            >
-              <option value="All">All Statuses</option>
-              <option value="Active">Active</option>
-              <option value="Deactivated">Deactivated</option>
-            </select>
-
-            {/* Sort controls */}
-            <div className="flex items-center gap-1 border border-brand-border rounded overflow-hidden bg-brand-surface">
-              {(['name', 'role', 'status', 'createdAt'] as SortField[]).map(
-                (f) => (
-                  <button
-                    key={f}
-                    type="button"
-                    onClick={() => toggleSort(f)}
-                    data-testid={`sort-btn-${f}`}
-                    className={cn(
-                      'flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium transition-colors capitalize',
-                      sortField === f
-                        ? 'bg-brand-red/8 text-brand-red'
-                        : 'text-brand-text-secondary hover:bg-brand-bg'
-                    )}
-                  >
-                    {f === 'createdAt' ? 'Joined' : f}
-                    <SortIcon active={sortField === f} dir={sortDir} />
-                  </button>
-                )
-              )}
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="relative min-w-0 flex-1">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2">
+                <SearchIcon className="h-4 w-4 text-brand-text-secondary" />
+              </span>
+              <input
+                type="search"
+                placeholder="Search by name or email"
+                data-testid="user-search-input"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full rounded border border-brand-border bg-brand-surface py-2.5 pl-9 pr-3 text-sm text-brand-text-primary transition-colors placeholder:text-brand-text-secondary focus:border-brand-red focus:outline-none"
+              />
             </div>
+
+            <div
+              className="flex flex-wrap items-center gap-1.5"
+              data-testid="role-filter-select"
+            >
+              {ROLE_FILTERS.map((role) => (
+                <FilterChip
+                  key={role}
+                  label={role === 'All' ? 'All roles' : role}
+                  selected={filterRole === role}
+                  onClick={() => setFilterRole(role)}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-1.5" data-testid="status-filter-select">
+            {STATUS_FILTERS.map((status) => (
+              <FilterChip
+                key={status}
+                label={status === 'All' ? 'All statuses' : status}
+                selected={filterStatus === status}
+                onClick={() => setFilterStatus(status)}
+              />
+            ))}
           </div>
         </div>
 
-        {/* Table body */}
         {loading ? (
-          <div
-            className="py-20 flex flex-col items-center justify-center gap-3"
-            data-testid="loading-state"
-          >
-            <div className="w-6 h-6 border-2 border-brand-border border-t-brand-red rounded-full animate-spin" />
-            <p className="text-sm text-brand-text-secondary">Loading users…</p>
-          </div>
+          <PageLoader
+            testId="loading-state"
+            message="Loading users"
+            className="min-h-0 py-20"
+          />
         ) : (
           <>
             <UserManagementTable
               users={displayedUsers}
               updatingUserId={updatingId}
+              sortField={sortField}
+              sortDir={sortDir}
+              onSort={toggleSort}
               onRoleChange={handleRoleChange}
               onBanToggle={(user) => setModalTarget(user)}
             />
             {displayedUsers.length > 0 && (
-              <div className="px-4 py-3 border-t border-brand-border text-xs text-brand-text-secondary bg-brand-bg/40">
+              <div className="border-t border-brand-border bg-brand-bg/40 px-4 py-3 text-xs text-brand-text-secondary">
                 Showing {displayedUsers.length} of {users.length} user
                 {users.length !== 1 ? 's' : ''}
               </div>
             )}
           </>
         )}
-      </div>
+      </section>
 
-      {/* Ban / Unban modal */}
       {modalTarget && (
         <BanModal
           userName={modalTarget.name}
@@ -404,8 +397,6 @@ function UserManagementContent(): React.JSX.Element {
     </div>
   );
 }
-
-// ── Page export (wrapped in RoleGuard) ────────────────────────────────────────
 
 export default function AdminUsersPage(): React.JSX.Element {
   return (

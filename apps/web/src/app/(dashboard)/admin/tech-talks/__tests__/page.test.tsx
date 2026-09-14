@@ -230,7 +230,7 @@ describe('AdminTechTalksPage', () => {
 
   it('Create Tech Talk button links to the correct route', async () => {
     render(<AdminTechTalksPage />);
-    const btn = screen.getByTestId('create-techtalk-btn');
+    const btn = await screen.findByTestId('create-techtalk-btn');
     expect(btn).toHaveAttribute('href', '/admin/tech-talks/create');
   });
 
