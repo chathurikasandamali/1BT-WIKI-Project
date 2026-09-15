@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
@@ -187,12 +187,12 @@ export function RichTextEditor({ onOpenImageEmbed }: RichTextEditorProps) {
 
   const hydratedRef = useRef(false);
 
-  const reportCounts = (ed: Editor) => {
+  const reportCounts = useCallback((ed: Editor) => {
     const text = ed.state.doc.textContent;
     const words = text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
     const chars = text.length;
     notifyContentChanged(words, chars, ed.getJSON());
-  };
+  }, [notifyContentChanged]);
 
   const editor = useEditor({
     extensions: [
@@ -233,7 +233,7 @@ export function RichTextEditor({ onOpenImageEmbed }: RichTextEditorProps) {
       }
       reportCounts(editor);
     }
-  }, [editor, currentBody]);
+  }, [editor, currentBody, reportCounts]);
 
   // Register the TipTap editor instance in context so saveDraft/uploadImage
   // can call editor.getJSON()

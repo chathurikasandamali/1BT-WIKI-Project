@@ -10,10 +10,7 @@ jest.mock('@/components/editor/EditorDraftContext', () => ({
 }));
 
 jest.mock('@tiptap/react', () => ({
-  useEditor: jest.fn((options: {
-    onCreate?: (value: { editor: unknown }) => void;
-    onUpdate?: (value: { editor: unknown }) => void;
-  }) => {
+  useEditor: jest.fn(() => {
     const editor = {
     isActive: jest.fn().mockReturnValue(false),
     can: jest.fn().mockReturnValue({ undo: jest.fn().mockReturnValue(true), redo: jest.fn().mockReturnValue(true) }),
