@@ -55,7 +55,8 @@ describe('Auth flow: login -> session -> protected route -> logout', () => {
     cy.wait('@usersMe');
     cy.contains('h1', 'Admin Dashboard').should('be.visible');
 
-    cy.get('[data-testid="logout-btn"]').click();
+    cy.get('[data-testid="user-account-trigger"]').click();
+    cy.get('[data-testid="menu-item-sign-out"]').click();
     cy.wait('@signOut');
     cy.url().should('include', '/signin');
 

@@ -129,7 +129,7 @@ const validateTitle = (title: string | undefined): string => {
   return title.trim();
 };
 
-const validateBody = (body: JSONContent | undefined): JSONContent => {
+const validateBodyShape = (body: JSONContent | undefined): JSONContent => {
   const safeBody = body ?? {};
   if (typeof safeBody === 'string') {
     throw new AppError(
@@ -150,10 +150,14 @@ const validateBody = (body: JSONContent | undefined): JSONContent => {
     throw new AppError('Body must have a "type" field', HttpStatusCode.BAD_REQUEST);
   }
 
+  return safeBody;
+};
+
+const assertBodyMeetsMinimumLength = (body: JSONContent | undefined): void => {
   // Measure the actual meaningful plain text inside the TipTap document —
   // empty paragraphs, whitespace-only text and raw markup must NOT pass.
   const contentLength = getArticleContentLength(
-    safeBody as TipTapJsonContent
+    (body ?? {}) as TipTapJsonContent
   );
 
   if (contentLength === 0) {
@@ -166,8 +170,6 @@ const validateBody = (body: JSONContent | undefined): JSONContent => {
       HttpStatusCode.BAD_REQUEST
     );
   }
-
-  return safeBody;
 };
 
 const assertTransition = (
@@ -187,8 +189,6 @@ const assertTransition = (
   );
 };
 
-// Draft articles are private to their authors and never appear in the admin
-// oversight list, so 'Draft' is not an accepted filter value.
 const ALLOWED_STATUS_FILTERS = [
   'Pending',
   ArticleStatusValue.Approved,
@@ -260,8 +260,7 @@ export class ArticleService {
     // Validate title
     const title = validateTitle(input.title);
 
-    // Validate body
-    const body = validateBody(input.body);
+    const body = validateBodyShape(input.body);
 
     // Create article via repository
     const article = await this.repository.create({
@@ -346,7 +345,7 @@ export class ArticleService {
       if (input.title !== undefined)
         updateFields.title = validateTitle(input.title);
       if (input.body !== undefined)
-        updateFields.body = validateBody(input.body);
+        updateFields.body = validateBodyShape(input.body);
       if (input.tags !== undefined) updateFields.tags = input.tags;
       if (input.coverAttachmentId !== undefined)
         updateFields.coverAttachmentId = input.coverAttachmentId;
@@ -378,6 +377,9 @@ export class ArticleService {
     const article = await this.findOwned(articleId, userId);
 
     assertTransition(article.status, ArticleStatusValue.Pending);
+
+    validateTitle(article.title);
+    assertBodyMeetsMinimumLength(article.body as JSONContent | undefined);
 
     const updatedArticle = await this.repository.updateStatus(
       articleId,

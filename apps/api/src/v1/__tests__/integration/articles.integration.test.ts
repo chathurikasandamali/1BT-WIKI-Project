@@ -282,7 +282,7 @@ describe('Articles API Integration', () => {
       expect(mockUpdate).not.toHaveBeenCalled();
     });
 
-    it('should return 400 when updating with an empty TipTap body', async () => {
+    it('should save a draft update with an empty TipTap body', async () => {
       const existingArticle = {
         id: articleId,
         authorId: 'user-123',
@@ -290,6 +290,10 @@ describe('Articles API Integration', () => {
         title: 'Old Title',
       };
       mockFindById.mockResolvedValueOnce(existingArticle);
+      mockUpdate.mockResolvedValueOnce({
+        ...existingArticle,
+        body: { type: 'doc', content: [] },
+      });
 
       const response = await request(app)
         .patch(articlePath)
@@ -299,39 +303,36 @@ describe('Articles API Integration', () => {
           JSON.stringify({ body: { type: 'doc', content: [] } })
         );
 
-      expect(response.status).toBe(HttpStatusCode.BAD_REQUEST);
-      expect(mockUpdate).not.toHaveBeenCalled();
+      expect(response.status).toBe(HttpStatusCode.OK);
+      expect(mockUpdate).toHaveBeenCalled();
     });
 
-    it('should return 400 when updating with content below the minimum length', async () => {
+    it('should save a draft update with content below the minimum length', async () => {
       const existingArticle = {
         id: articleId,
         authorId: 'user-123',
         status: 'Draft',
         title: 'Old Title',
       };
+      const shortBody = {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'short content' }],
+          },
+        ],
+      };
       mockFindById.mockResolvedValueOnce(existingArticle);
+      mockUpdate.mockResolvedValueOnce({ ...existingArticle, body: shortBody });
 
       const response = await request(app)
         .patch(articlePath)
         .set(userHeaders)
-        .field(
-          'data',
-          JSON.stringify({
-            body: {
-              type: 'doc',
-              content: [
-                {
-                  type: 'paragraph',
-                  content: [{ type: 'text', text: 'short content' }],
-                },
-              ],
-            },
-          })
-        );
+        .field('data', JSON.stringify({ body: shortBody }));
 
-      expect(response.status).toBe(HttpStatusCode.BAD_REQUEST);
-      expect(mockUpdate).not.toHaveBeenCalled();
+      expect(response.status).toBe(HttpStatusCode.OK);
+      expect(mockUpdate).toHaveBeenCalled();
     });
   });
 
@@ -771,6 +772,20 @@ describe('Articles API Integration', () => {
         authorId: 'user-123',
         title: 'Integration Test Article',
         status: 'Draft',
+        body: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                {
+                  type: 'text',
+                  text: 'This submitted article body carries well over fifty meaningful characters of content.',
+                },
+              ],
+            },
+          ],
+        },
       };
       const updatedArticle = { ...existingArticle, status: 'Pending' };
 

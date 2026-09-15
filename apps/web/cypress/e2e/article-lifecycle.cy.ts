@@ -168,9 +168,6 @@ describe('Article lifecycle', () => {
       }
     });
 
-    // Type the article content FIRST so the create request already carries at
-    // least MIN_ARTICLE_CONTENT_LENGTH meaningful characters — the backend
-    // rejects articles that are created with empty content.
     cy.get('[data-cy="article-content-editor"]')
       .click()
       .type(articleContent, { delay: 0 });

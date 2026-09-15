@@ -82,6 +82,7 @@ interface EditorDraftContextValue {
 
   // Validation
   validate: () => boolean;
+  validateDraft: () => boolean;
   clearTitleError: () => void;
   clearContentError: () => void;
 
@@ -288,12 +289,13 @@ export function EditorDraftProvider({
     return titleErr === null && contentErr === null;
   }, [resolveBodyForSave]);
 
-  // ── Request serialization lock (Correction 2) ─────────────────────────
-  //
-  // Every method that sends a POST or PATCH must go through this lock.
-  // If a previous request is in flight, the new one awaits it first,
-  // then starts its own. This serialises all writes through a single
-  // promise chain so out-of-order responses cannot clobber fresher state.
+  const validateDraft = useCallback((): boolean => {
+    const titleErr = validateArticleTitle(titleRef.current);
+    setTitleError(titleErr);
+    setContentError(null);
+
+    return titleErr === null;
+  }, []);
 
   const withRequestLock = useCallback(
     async <T,>(fn: () => Promise<T>): Promise<T> => {
@@ -301,12 +303,10 @@ export function EditorDraftProvider({
 
       const myPromise = (async () => {
         if (prev) {
-          // Wait for the previous request to finish (don't let its failure
-          // block us — we still want to proceed with our own request)
           try {
             await prev;
           } catch {
-            /* swallow — error state is handled by the previous caller */
+            // Previous request failure is surfaced by its own caller.
           }
         }
         return fn();
@@ -317,7 +317,6 @@ export function EditorDraftProvider({
       try {
         return await myPromise;
       } finally {
-        // Only clear if we are still the latest link in the chain
         if (pendingRequestRef.current === myPromise) {
           pendingRequestRef.current = null;
         }
@@ -325,11 +324,6 @@ export function EditorDraftProvider({
     },
     []
   );
-
-  // ── ensureDraftExists ─────────────────────────────────────────────────
-  //
-  // Idempotent: if the draft already exists, returns its ID immediately.
-  // Uses a mutex ref to prevent duplicate concurrent POSTs.
 
   const ensureDraftExists = useCallback(async (): Promise<string> => {
     // Fast path — draft already created
@@ -468,13 +462,6 @@ export function EditorDraftProvider({
       }
     });
   }, [ensureDraftExists, withRequestLock, syncSavedBaseline, resolveBodyForSave]);
-
-  // ── uploadImage (Correction 1 — id-diffing) ──────────────────────────
-  //
-  // Triggers lazy-create if needed (trigger b), then PATCHes with the
-  // file. Identifies the newly created attachment by diffing the
-  // response's attachment IDs against a pre-call snapshot — never by
-  // filename, which can collide.
 
   const uploadImageAttachment = useCallback(
     async (file: File): Promise<ArticleAttachment> => {
@@ -755,6 +742,7 @@ export function EditorDraftProvider({
     setTitle,
     setTags,
     validate,
+    validateDraft,
     clearTitleError,
     clearContentError,
     registerEditor,

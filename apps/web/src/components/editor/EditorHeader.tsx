@@ -34,11 +34,7 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
     articleStatus,
     initialStatus,
     title = '',
-    tags = [],
     currentBody,
-    featuredImageUrl,
-    coverAttachmentId,
-    attachments = [],
     wordCount,
     saveStatus,
     lastSavedAt,
@@ -46,15 +42,13 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
     saveDraft,
     submitForReview,
     validate,
+    validateDraft,
   } = useEditorDraft();
 
-  const hasAnyInput = React.useMemo(() => {
+  // Preview only makes sense once there is something to read, so it is gated
+  // on the title or the body. Tags and a cover image alone are not enough.
+  const canPreview = React.useMemo(() => {
     const hasTitle = Boolean(title && title.trim().length > 0);
-    const hasTags = Array.isArray(tags) && tags.length > 0;
-    const hasImages =
-      (Array.isArray(attachments) && attachments.length > 0) ||
-      Boolean(featuredImageUrl) ||
-      Boolean(coverAttachmentId);
 
     let hasBody = false;
     if (currentBody && typeof currentBody === 'object') {
@@ -78,8 +72,8 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
       }
     }
 
-    return hasTitle || hasBody || hasTags || hasImages;
-  }, [title, currentBody, tags, attachments, featuredImageUrl, coverAttachmentId]);
+    return hasTitle || hasBody;
+  }, [title, currentBody]);
   const statusDotRef = useRef<HTMLDivElement>(null);
   const {
     isVisible: isToastVisible,
@@ -147,7 +141,7 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
   }, [saveStatus]);
 
   const handleSaveDraft = async () => {
-    if (!validate()) {
+    if (!validateDraft()) {
       setToastType('error');
       showToast('Please fix the highlighted errors before saving.');
       return;
@@ -291,7 +285,7 @@ export function EditorHeader({ mode, setMode }: EditorHeaderProps) {
             <button
               type='button'
               onClick={() => setMode('preview')}
-              disabled={!hasAnyInput}
+              disabled={!canPreview}
               data-testid="preview-button"
               data-cy="preview-mode-button"
               className={cn(

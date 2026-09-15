@@ -4,14 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import {
-  X,
-  Image as ImageIcon,
-  UploadCloud,
-  Link as LinkIcon,
-  Search,
-  Loader2,
-} from 'lucide-react';
+import { X, UploadCloud, Link as LinkIcon, Loader2 } from 'lucide-react';
 import { useEditorDraft } from '@/components/editor/EditorDraftContext';
 import { cn } from '@/lib/utils';
 
@@ -39,17 +32,9 @@ function normalizeImageUploadError(error: unknown): string {
   return GENERIC_UPLOAD_ERROR;
 }
 
-function stockGradientClass(i: number): string {
-  if (i % 3 === 0) return 'from-blue-400 to-purple-500';
-  if (i % 2 === 0) return 'from-orange-400 to-pink-500';
-  return 'from-green-400 to-teal-500';
-}
-
 export function ImageEmbedModal({ isOpen, onClose }: ImageEmbedModalProps) {
   const { uploadImage, insertEditorImage } = useEditorDraft();
-  const [activeTab, setActiveTab] = useState<'preset' | 'upload' | 'url'>(
-    'preset'
-  );
+  const [activeTab, setActiveTab] = useState<'upload' | 'url'>('upload');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [webUrl, setWebUrl] = useState('');
@@ -105,7 +90,7 @@ export function ImageEmbedModal({ isOpen, onClose }: ImageEmbedModalProps) {
     icon: Icon,
     label,
   }: {
-    id: 'preset' | 'upload' | 'url';
+    id: 'upload' | 'url';
     icon: React.ElementType;
     label: string;
   }) => (
@@ -155,41 +140,11 @@ export function ImageEmbedModal({ isOpen, onClose }: ImageEmbedModalProps) {
         </div>
 
         <div className="flex w-full border-b border-brand-border bg-brand-bg/50 px-2">
-          <TabButton id="preset" icon={ImageIcon} label="Preset Stock" />
           <TabButton id="upload" icon={UploadCloud} label="Upload File" />
           <TabButton id="url" icon={LinkIcon} label="Web URL" />
         </div>
 
         <div className="p-6">
-          {activeTab === 'preset' && (
-            <div className="flex flex-col gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search stock library..."
-                  className="w-full rounded-lg border border-brand-border bg-brand-bg py-3 pl-10 pr-4 text-sm text-brand-text-primary placeholder-gray-400 focus:border-brand-red focus:outline-none focus:ring-1 focus:ring-brand-red transition-all"
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-4 h-64 overflow-y-auto pr-2 custom-scrollbar">
-                {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <div
-                    key={i}
-                    className="group relative aspect-video cursor-pointer overflow-hidden rounded-lg bg-gray-200"
-                  >
-                    <div
-                      className={cn(
-                        'absolute inset-0 transition-transform duration-500 group-hover:scale-110 bg-gradient-to-br',
-                        stockGradientClass(i)
-                      )}
-                    />
-                    <div className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/20" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {activeTab === 'upload' &&
             (isUploading ? (
               <div className="flex h-64 flex-col items-center justify-center rounded-xl border-2 border-dashed border-brand-red/30 bg-red-50">

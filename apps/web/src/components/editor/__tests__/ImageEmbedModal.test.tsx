@@ -35,10 +35,22 @@ describe('ImageEmbedModal', () => {
   it('renders tabs correctly when open', () => {
     render(<ImageEmbedModal isOpen={true} onClose={mockOnClose} />);
     expect(screen.getByText('Embed Image')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /preset stock/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /upload file/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /web url/i })).toBeInTheDocument();
     expect(screen.getByRole('dialog')).not.toHaveClass('pointer-events-none');
+    expect(
+      screen.queryByRole('button', { name: /preset stock/i })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText('Search stock library...')
+    ).not.toBeInTheDocument();
+  });
+
+  it('opens on the Upload File tab by default', () => {
+    render(<ImageEmbedModal isOpen={true} onClose={mockOnClose} />);
+    expect(
+      screen.getByLabelText(/click to upload or drag and drop/i)
+    ).toBeInTheDocument();
   });
 
   it('handles URL embedding via button click', async () => {
