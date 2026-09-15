@@ -302,27 +302,14 @@ describe('ArticleService.createArticle', () => {
       );
     });
 
-    it('should throw AppError if body is missing or empty', async () => {
-      const input = { title: 'Valid Title', body: undefined };
-      await expect(service.createArticle(input, authorId)).rejects.toThrow(
-        new AppError('Article content is required', HttpStatusCode.BAD_REQUEST)
-      );
-    });
-
-    it('should throw AppError if the TipTap document has no content', async () => {
-      const input = {
-        title: 'Valid Title',
-        body: { type: 'doc', content: [] },
-      };
-      await expect(service.createArticle(input, authorId)).rejects.toThrow(
-        new AppError('Article content is required', HttpStatusCode.BAD_REQUEST)
-      );
-    });
-
-    it('should throw AppError if the TipTap document has only empty paragraphs', async () => {
-      const input = {
-        title: 'Valid Title',
-        body: {
+    // Drafts are saved incrementally (e.g. embedding an image before writing
+    // any text), so content length is only enforced on submit for review.
+    it.each([
+      ['a missing body', undefined],
+      ['an empty TipTap document', { type: 'doc', content: [] }],
+      [
+        'only empty paragraphs',
+        {
           type: 'doc',
           content: [
             { type: 'paragraph' },
@@ -330,34 +317,19 @@ describe('ArticleService.createArticle', () => {
             { type: 'paragraph' },
           ],
         },
-      };
-      await expect(service.createArticle(input, authorId)).rejects.toThrow(
-        new AppError('Article content is required', HttpStatusCode.BAD_REQUEST)
-      );
-    });
-
-    it('should throw AppError if the TipTap content is whitespace-only', async () => {
-      const input = {
-        title: 'Valid Title',
-        body: {
+      ],
+      [
+        'whitespace-only content',
+        {
           type: 'doc',
           content: [
-            {
-              type: 'paragraph',
-              content: [{ type: 'text', text: '   ' }],
-            },
+            { type: 'paragraph', content: [{ type: 'text', text: '   ' }] },
           ],
         },
-      };
-      await expect(service.createArticle(input, authorId)).rejects.toThrow(
-        new AppError('Article content is required', HttpStatusCode.BAD_REQUEST)
-      );
-    });
-
-    it('should throw AppError if the content is below the minimum length', async () => {
-      const input = {
-        title: 'Valid Title',
-        body: {
+      ],
+      [
+        'content below the minimum length',
+        {
           type: 'doc',
           content: [
             {
@@ -366,13 +338,22 @@ describe('ArticleService.createArticle', () => {
             },
           ],
         },
-      };
-      await expect(service.createArticle(input, authorId)).rejects.toThrow(
-        new AppError(
-          'Article content must be at least 50 characters',
-          HttpStatusCode.BAD_REQUEST
-        )
-      );
+      ],
+    ])('should create a draft with %s', async (_label, body) => {
+      const input = { title: 'Valid Title', body: body as never };
+      mockRepo.create.mockResolvedValue({
+        id: 'article-draft',
+        title: 'Valid Title',
+        body: body ?? {},
+        tags: [],
+        authorId,
+        status: 'Draft',
+      } as never);
+
+      await expect(service.createArticle(input, authorId)).resolves.toMatchObject({
+        id: 'article-draft',
+      });
+      expect(mockRepo.create).toHaveBeenCalled();
     });
 
     it('should accept content exactly at the minimum length', async () => {
@@ -918,6 +899,19 @@ describe('ArticleService.submitForReview', () => {
   let mockRepo: ReturnType<typeof makeRepo>;
   let service: InstanceType<typeof ArticleService>;
 
+  // A Draft that already satisfies the submission gate (valid title plus a
+  // body over MIN_ARTICLE_CONTENT_LENGTH).
+  const makeSubmittableDraft = (
+    overrides: Record<string, unknown> = {}
+  ): Record<string, unknown> => ({
+    id: articleId,
+    authorId,
+    title: 'Submittable Draft',
+    body: VALID_BODY,
+    status: 'Draft',
+    ...overrides,
+  });
+
   beforeEach(() => {
     mockRepo = makeRepo();
     service = new ArticleService(
@@ -934,6 +928,52 @@ describe('ArticleService.submitForReview', () => {
     await expect(service.submitForReview(articleId, authorId)).rejects.toThrow(
       new AppError('Article not found', HttpStatusCode.NOT_FOUND)
     );
+  });
+
+  it('should throw AppError if the draft has no content', async () => {
+    mockRepo.findById.mockResolvedValue(
+      makeSubmittableDraft({ body: { type: 'doc', content: [] } }) as never
+    );
+
+    await expect(service.submitForReview(articleId, authorId)).rejects.toThrow(
+      new AppError('Article content is required', HttpStatusCode.BAD_REQUEST)
+    );
+    expect(mockRepo.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it('should throw AppError if the draft content is below the minimum length', async () => {
+    mockRepo.findById.mockResolvedValue(
+      makeSubmittableDraft({
+        body: {
+          type: 'doc',
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'too short' }] },
+          ],
+        },
+      }) as never
+    );
+
+    await expect(service.submitForReview(articleId, authorId)).rejects.toThrow(
+      new AppError(
+        'Article content must be at least 50 characters',
+        HttpStatusCode.BAD_REQUEST
+      )
+    );
+    expect(mockRepo.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it('should throw AppError if the draft still has a placeholder empty title', async () => {
+    mockRepo.findById.mockResolvedValue(
+      makeSubmittableDraft({ title: '   ' }) as never
+    );
+
+    await expect(service.submitForReview(articleId, authorId)).rejects.toThrow(
+      new AppError(
+        'Title is required and cannot be empty',
+        HttpStatusCode.BAD_REQUEST
+      )
+    );
+    expect(mockRepo.updateStatus).not.toHaveBeenCalled();
   });
 
   it('should throw AppError if user is not the author', async () => {
@@ -956,7 +996,7 @@ describe('ArticleService.submitForReview', () => {
   });
 
   it('should submit article for review successfully', async () => {
-    const existingArticle = { id: articleId, authorId, status: 'Draft' };
+    const existingArticle = makeSubmittableDraft();
     const updatedArticle = { ...existingArticle, status: 'Pending' };
 
     mockRepo.findById.mockResolvedValue(existingArticle as never);
@@ -970,12 +1010,9 @@ describe('ArticleService.submitForReview', () => {
 
   it('should notify an active Reviewer after successful submission', async () => {
     const reviewer = makeReviewer('reviewer-1');
-    const existingArticle = {
-      id: articleId,
-      authorId,
+    const existingArticle = makeSubmittableDraft({
       title: 'Notification Test Article',
-      status: 'Draft',
-    };
+    });
     const updatedArticle = { ...existingArticle, status: 'Pending' };
 
     mockRepo.findById.mockResolvedValue(existingArticle as never);
@@ -995,7 +1032,7 @@ describe('ArticleService.submitForReview', () => {
       referenceId: articleId,
       notificationType: 'info',
       notificationTitle: 'New Article for Review',
-      message: expect.stringContaining(existingArticle.title),
+      message: expect.stringContaining(String(existingArticle.title)),
     });
     expect(mockRepo.updateStatus.mock.invocationCallOrder[0]).toBeLessThan(
       mockFindActiveByRole.mock.invocationCallOrder[0]
@@ -1007,12 +1044,9 @@ describe('ArticleService.submitForReview', () => {
       makeReviewer('reviewer-1'),
       makeReviewer('reviewer-2'),
     ];
-    const existingArticle = {
-      id: articleId,
-      authorId,
+    const existingArticle = makeSubmittableDraft({
       title: 'Multi-reviewer Article',
-      status: 'Draft',
-    };
+    });
     const updatedArticle = { ...existingArticle, status: 'Pending' };
 
     mockRepo.findById.mockResolvedValue(existingArticle as never);
@@ -1029,12 +1063,9 @@ describe('ArticleService.submitForReview', () => {
   });
 
   it('should succeed without sending notifications when there are no active Reviewers', async () => {
-    const existingArticle = {
-      id: articleId,
-      authorId,
+    const existingArticle = makeSubmittableDraft({
       title: 'No Reviewers Article',
-      status: 'Draft',
-    };
+    });
     const updatedArticle = { ...existingArticle, status: 'Pending' };
 
     mockRepo.findById.mockResolvedValue(existingArticle as never);
@@ -1054,12 +1085,9 @@ describe('ArticleService.submitForReview', () => {
     const consoleErrorSpy = jest
       .spyOn(console, 'error')
       .mockImplementation(() => undefined);
-    const existingArticle = {
-      id: articleId,
-      authorId,
+    const existingArticle = makeSubmittableDraft({
       title: 'Lookup Failure Article',
-      status: 'Draft',
-    };
+    });
     const updatedArticle = { ...existingArticle, status: 'Pending' };
 
     mockRepo.findById.mockResolvedValue(existingArticle as never);
@@ -1080,12 +1108,9 @@ describe('ArticleService.submitForReview', () => {
       .spyOn(console, 'error')
       .mockImplementation(() => undefined);
     const reviewer = makeReviewer('reviewer-1');
-    const existingArticle = {
-      id: articleId,
-      authorId,
+    const existingArticle = makeSubmittableDraft({
       title: 'Send Failure Article',
-      status: 'Draft',
-    };
+    });
     const updatedArticle = { ...existingArticle, status: 'Pending' };
 
     mockRepo.findById.mockResolvedValue(existingArticle as never);

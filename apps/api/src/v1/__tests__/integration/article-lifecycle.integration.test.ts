@@ -333,50 +333,47 @@ describe('Article Lifecycle Integration', () => {
     expect(res.body.error).toBe('Title is required and cannot be empty');
   });
 
-  it('rejects article creation with empty TipTap content', async () => {
-    const res = await request(app)
-      .post('/api/v1/articles')
-      .set(authorHeaders)
-      .field(
-        'data',
-        JSON.stringify({
-          title: 'Valid Title',
-          body: { type: 'doc', content: [] },
-          tags: ['test'],
-        })
-      );
-
-    expect(res.status).toBe(HttpStatusCode.BAD_REQUEST);
-    expect(res.body.error).toBe('Article content is required');
-  });
-
-  it('rejects article creation with whitespace-only content', async () => {
-    const res = await request(app)
-      .post('/api/v1/articles')
-      .set(authorHeaders)
-      .field(
-        'data',
-        JSON.stringify({
-          title: 'Valid Title',
-          body: {
-            type: 'doc',
-            content: [
-              {
-                type: 'paragraph',
-                content: [{ type: 'text', text: '   ' }],
-              },
-            ],
+  // A draft is a work in progress — authors embed images and save partial
+  // text before the body is long enough to publish.
+  it.each([
+    ['empty TipTap content', { type: 'doc', content: [] }],
+    [
+      'whitespace-only content',
+      {
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: '   ' }] },
+        ],
+      },
+    ],
+    [
+      'content below the minimum length',
+      {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'short content' }],
           },
-          tags: ['test'],
-        })
+        ],
+      },
+    ],
+  ])('allows draft creation with %s', async (_label, body) => {
+    const res = await request(app)
+      .post('/api/v1/articles')
+      .set(authorHeaders)
+      .field(
+        'data',
+        JSON.stringify({ title: 'Valid Title', body, tags: ['test'] })
       );
 
-    expect(res.status).toBe(HttpStatusCode.BAD_REQUEST);
-    expect(res.body.error).toBe('Article content is required');
+    expect(res.status).toBe(HttpStatusCode.CREATED);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.status).toBe(ArticleStatusValue.Draft);
   });
 
-  it('rejects article creation with content below the minimum length', async () => {
-    const res = await request(app)
+  it('rejects submit for review when the draft content is below the minimum length', async () => {
+    const createRes = await request(app)
       .post('/api/v1/articles')
       .set(authorHeaders)
       .field(
@@ -396,9 +393,38 @@ describe('Article Lifecycle Integration', () => {
         })
       );
 
-    expect(res.status).toBe(HttpStatusCode.BAD_REQUEST);
-    expect(res.body.error).toBe(
+    expect(createRes.status).toBe(HttpStatusCode.CREATED);
+
+    const submitRes = await request(app)
+      .post(`/api/v1/articles/${createRes.body.data.id}/submit`)
+      .set(authorHeaders);
+
+    expect(submitRes.status).toBe(HttpStatusCode.BAD_REQUEST);
+    expect(submitRes.body.error).toBe(
       'Article content must be at least 50 characters'
     );
+  });
+
+  it('rejects submit for review when the draft has no content', async () => {
+    const createRes = await request(app)
+      .post('/api/v1/articles')
+      .set(authorHeaders)
+      .field(
+        'data',
+        JSON.stringify({
+          title: 'Valid Title',
+          body: { type: 'doc', content: [] },
+          tags: ['test'],
+        })
+      );
+
+    expect(createRes.status).toBe(HttpStatusCode.CREATED);
+
+    const submitRes = await request(app)
+      .post(`/api/v1/articles/${createRes.body.data.id}/submit`)
+      .set(authorHeaders);
+
+    expect(submitRes.status).toBe(HttpStatusCode.BAD_REQUEST);
+    expect(submitRes.body.error).toBe('Article content is required');
   });
 });

@@ -4,11 +4,11 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { authClient } from '@/lib/auth/client';
 import { UserAvatar } from '@/components/UserAvatar';
 import { useUser } from '@/lib/hooks/useUser';
 import { UserRoleValue } from '@repo/shared';
 import { cn } from '@/lib/utils';
+import { BRAND_NAME, BRAND_SUB_NAME } from '@/lib/constants/brand';
 
 interface NavItem {
   label: string;
@@ -26,7 +26,6 @@ import { ArticleIcon } from '@/components/shared/icons/ArticleIcon';
 import { TechTalkIcon } from '@/components/shared/icons/TechTalkIcon';
 import { BookOpenIcon } from '@/components/shared/icons/BookOpenIcon';
 import { ProfileIcon } from '@/components/shared/icons/ProfileIcon';
-import { LogoutIcon } from '@/components/shared/icons/LogoutIcon';
 import { UsersIcon } from '@/components/shared/icons/UsersIcon';
 import { CommentIcon } from '@/components/shared/icons/CommentIcon';
 
@@ -111,15 +110,6 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
     { scope: sidebarRef, dependencies: [pathname, isCollapsed] }
   );
 
-  const handleSignOut = async () => {
-    try {
-      await authClient.signOut();
-      window.location.assign('/signin'); // Redirect to the sign-in page after sign-out
-    } catch (error) {
-      console.error('Error during sign-out:', error);
-    }
-  };
-
   const Tooltip = ({ text }: { text: string }) => {
     if (!isCollapsed) return null;
     return (
@@ -146,30 +136,35 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
       )}
       data-testid="sidebar"
     >
-      {isCollapsed ? (
-        <div className="flex h-16 w-full items-center justify-center pt-2">
-          <Link
-            href="/"
-            className="flex items-center justify-center hover:opacity-80 transition-opacity"
-            data-testid="compact-logo"
-            aria-label="1BT Wiki home"
-          >
-            <div className="h-10 w-10 bg-brand-red rounded flex items-center justify-center">
-              <span className="text-white text-xs font-black leading-none">
-                1BT
-              </span>
-            </div>
-          </Link>
-        </div>
-      ) : (
-        <div className="pr-4 pt-6 pb-2 pl-[36px] sidebar-item">
-          <span className="text-xs font-semibold uppercase tracking-widest text-brand-text-secondary">
-            Menu
-          </span>
-        </div>
-      )}
-      
-      <nav className={`flex flex-col gap-1 ${isCollapsed ? 'px-2 pt-4' : 'px-4'}`}>
+      <div
+        className={cn(
+          'sticky top-0 z-10 flex h-16 w-full shrink-0 items-center bg-brand-dark',
+          isCollapsed ? 'justify-center' : 'gap-1.5 px-4'
+        )}
+      >
+        <Link
+          href="/"
+          className={cn(
+            'flex items-center hover:opacity-80 transition-opacity',
+            isCollapsed ? 'justify-center' : 'gap-1.5'
+          )}
+          data-testid={isCollapsed ? 'compact-logo' : 'sidebar-logo'}
+          aria-label="1BT Wiki home"
+        >
+          <div className="h-10 w-10 bg-brand-red rounded flex items-center justify-center flex-shrink-0">
+            <span className="text-white text-xs font-black leading-none">
+              {BRAND_NAME}
+            </span>
+          </div>
+          {!isCollapsed && (
+            <span className="text-white font-semibold text-base leading-none tracking-tight">
+              {BRAND_SUB_NAME}
+            </span>
+          )}
+        </Link>
+      </div>
+
+      <nav className={`flex flex-col gap-1 ${isCollapsed ? 'px-2 pt-4' : 'px-4 pt-2'}`}>
         {mainNavItems.map((item) => {
           const showCompactLiveBadge = isCollapsed && item.showLiveBadge;
           
@@ -335,24 +330,13 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
       <div
         className={cn(
           'sidebar-item border-t border-white/10 py-4 flex items-center',
-          isCollapsed ? 'justify-center flex-col gap-4' : 'pr-4 gap-3 pl-[36px]'
+          isCollapsed ? 'justify-center' : 'pr-4 pl-[36px]'
         )}
       >
         <div className="relative group flex items-center justify-center">
           <UserAvatar format={isCollapsed ? 'collapsed' : 'expanded'} />
           <Tooltip text="Profile" />
         </div>
-        
-        <button
-          type="submit"
-          onClick={handleSignOut}
-          className="text-brand-text-secondary hover:text-white transition-colors flex-shrink-0 relative group"
-          data-testid="logout-btn"
-          aria-label="Logout"
-        >
-          <LogoutIcon className="h-4 w-4" />
-          <Tooltip text="Logout" />
-        </button>
       </div>
     </aside>
   );

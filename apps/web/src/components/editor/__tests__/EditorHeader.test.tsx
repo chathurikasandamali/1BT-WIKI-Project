@@ -19,6 +19,7 @@ const mockSubmitForReview = jest.fn();
 let mockContextState: Record<string, unknown> = {};
 const mockEnsureDraftExists = jest.fn();
 const mockValidate = jest.fn(() => true);
+const mockValidateDraft = jest.fn(() => true);
 
 jest.mock('@/components/editor/EditorDraftContext', () => ({
   useEditorDraft: () => ({
@@ -34,6 +35,7 @@ jest.mock('@/components/editor/EditorDraftContext', () => ({
     submitForReview: mockSubmitForReview,
     ensureDraftExists: mockEnsureDraftExists,
     validate: mockValidate,
+    validateDraft: mockValidateDraft,
     ...mockContextState,
   }),
 }));
@@ -173,14 +175,14 @@ describe('EditorHeader', () => {
       });
     });
 
-    it('blocks saving and shows an error toast when validation fails', async () => {
-      mockValidate.mockReturnValueOnce(false);
+    it('blocks saving and shows an error toast when draft validation fails', async () => {
+      mockValidateDraft.mockReturnValueOnce(false);
       render(<EditorHeader mode="compose" setMode={jest.fn()} />);
       
       const saveBtn = screen.getByRole('button', { name: /save draft/i });
       await userEvent.click(saveBtn);
       
-      expect(mockValidate).toHaveBeenCalled();
+      expect(mockValidateDraft).toHaveBeenCalled();
       expect(mockSaveDraft).not.toHaveBeenCalled();
       await waitFor(() => {
         expect(mockShowToast).toHaveBeenCalledWith('Please fix the highlighted errors before saving.');
@@ -344,10 +346,20 @@ describe('EditorHeader', () => {
       expect(previewBtn).toBeEnabled();
     });
 
-    it('becomes enabled after adding a tag', () => {
+    it('becomes enabled after embedding an image in the body', () => {
       mockContextState = {
         ...emptyFormContext,
-        tags: ['TypeScript'],
+        currentBody: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                { type: 'image', attrs: { src: 'https://example.com/a.png' } },
+              ],
+            },
+          ],
+        },
       };
       render(<EditorHeader mode="compose" setMode={jest.fn()} />);
 
@@ -355,15 +367,28 @@ describe('EditorHeader', () => {
       expect(previewBtn).toBeEnabled();
     });
 
-    it('becomes enabled after adding an image attachment or cover image', () => {
+    // There is nothing worth previewing yet when only metadata is filled in.
+    it('stays disabled when only a tag is added', () => {
       mockContextState = {
         ...emptyFormContext,
-        featuredImageUrl: 'https://example.com/cover.png',
+        tags: ['TypeScript'],
       };
       render(<EditorHeader mode="compose" setMode={jest.fn()} />);
 
       const previewBtn = screen.getByTestId('preview-button');
-      expect(previewBtn).toBeEnabled();
+      expect(previewBtn).toBeDisabled();
+    });
+
+    it('stays disabled when only a cover image is added', () => {
+      mockContextState = {
+        ...emptyFormContext,
+        featuredImageUrl: 'https://example.com/cover.png',
+        coverAttachmentId: 'attachment-1',
+      };
+      render(<EditorHeader mode="compose" setMode={jest.fn()} />);
+
+      const previewBtn = screen.getByTestId('preview-button');
+      expect(previewBtn).toBeDisabled();
     });
 
     it('stays disabled if all fields are cleared again', () => {

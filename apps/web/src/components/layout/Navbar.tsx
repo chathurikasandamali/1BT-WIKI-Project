@@ -1,12 +1,9 @@
 'use client';
 
-import Link from 'next/link';
-
 import React, { useRef, useState, useEffect } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { isE2E } from '@/lib/e2e';
-import { BRAND_NAME, BRAND_SUB_NAME } from '@/lib/constants/brand';
 import { BellIcon } from '@/components/shared/icons/BellIcon';
 import { NotificationDropdown } from './NotificationDropdown';
 import { UserAccountMenu } from './UserAccountMenu';
@@ -179,24 +176,6 @@ export function Navbar({
         >
           {isSidebarOpen ? <PanelLeftClose className="w-5 h-5" /> : <PanelLeftOpen className="w-5 h-5" />}
         </button>
-      )}
-
-      {isSidebarOpen && (
-        <Link
-          href="/"
-          className="flex items-center gap-1.5 flex-shrink-0 hover:opacity-80 transition-opacity ml-2"
-          data-testid="logo"
-          aria-label="1BT Wiki home"
-        >
-          <div className="h-10 w-10 bg-brand-red rounded flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-xs font-black leading-none">
-              {BRAND_NAME}
-            </span>
-          </div>
-          <span className="text-brand-text-secondary font-semibold text-base leading-none tracking-tight">
-            {BRAND_SUB_NAME}
-          </span>
-        </Link>
       )}
 
       <div className="flex-1 px-4">

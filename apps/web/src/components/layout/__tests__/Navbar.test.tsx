@@ -238,16 +238,10 @@ describe('Navbar Logo Link', () => {
     setupNotificationContext();
   });
 
-  it('renders a logo link pointing to home when sidebar is open', () => {
+  it('does not render the brand logo — it lives in the sidebar', () => {
     render(<Navbar notificationCount={0} isSidebarOpen={true} />);
-    const logoLink = screen.getByRole('link', { name: /1bt wiki home/i });
-    expect(logoLink).toBeInTheDocument();
-    expect(logoLink).toHaveAttribute('href', '/');
-  });
-
-  it('hides the logo link when sidebar is collapsed', () => {
-    render(<Navbar notificationCount={0} isSidebarOpen={false} />);
     expect(screen.queryByRole('link', { name: /1bt wiki home/i })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('logo')).not.toBeInTheDocument();
   });
 });
 
