@@ -32,13 +32,12 @@ export default function EditorWorkspacePage() {
             id="editor-scroll-container"
           >
             <div className="min-h-full">
-              {mode === 'compose' ? (
+              <div className={mode === 'preview' ? 'hidden' : undefined}>
                 <ComposerView
                   onOpenImageEmbed={() => setIsImageModalOpen(true)}
                 />
-              ) : (
-                <ReadingPreview />
-              )}
+              </div>
+              {mode === 'preview' && <ReadingPreview />}
             </div>
           </main>
         </div>

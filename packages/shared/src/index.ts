@@ -206,3 +206,33 @@ export const PAGINATION_CONFIG = {
     DEFAULT_PAGE: 1,
     PAGE_SIZE: 20,
 } as const;
+
+export function tipTapDocHasContent(
+  body: TipTapJsonContent | null | undefined
+): boolean {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return false;
+  }
+
+  const hasMediaNode = (node: TipTapJsonContent): boolean => {
+    if (node.type === 'image' || node.type === 'media') {
+      return true;
+    }
+    const content = node.content;
+    if (!Array.isArray(content)) {
+      return false;
+    }
+    return content.some(
+      (child) =>
+        typeof child === 'object' &&
+        child !== null &&
+        hasMediaNode(child as TipTapJsonContent)
+    );
+  };
+
+  if (hasMediaNode(body)) {
+    return true;
+  }
+
+  return extractTextFromTipTap(body).length > 0;
+}

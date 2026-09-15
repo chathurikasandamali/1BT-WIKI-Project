@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import {
@@ -54,42 +55,21 @@ export function ImageEmbedModal({ isOpen, onClose }: ImageEmbedModalProps) {
   const [webUrl, setWebUrl] = useState('');
   const overlayRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useGSAP(() => {
-    if (!overlayRef.current || !modalRef.current) return;
+    if (!mounted || !isOpen || !modalRef.current) return;
 
-    if (isOpen) {
-      gsap.to(overlayRef.current, {
-        opacity: 1,
-        pointerEvents: 'auto',
-        duration: 0.3,
-      });
-      gsap.fromTo(
-        modalRef.current,
-        { y: 30, opacity: 0, scale: 0.95 },
-        { y: 0, opacity: 1, scale: 1, duration: 0.4, ease: 'back.out(1.2)' }
-      );
-    } else {
-      gsap.to(overlayRef.current, {
-        opacity: 0,
-        pointerEvents: 'none',
-        duration: 0.3,
-      });
-      gsap.to(modalRef.current, {
-        y: 20,
-        opacity: 0,
-        scale: 0.95,
-        duration: 0.3,
-        ease: 'power2.in',
-      });
-    }
-  }, [isOpen]);
-
-  if (!isOpen) {
-    // We still render it invisible to let GSAP animate out, but React will unmount if we completely hide.
-    // However, with our GSAP logic, pointerEvents 'none' hides it enough for now.
-    // In a production app, we'd wait for animation to complete before unmounting.
-  }
+    gsap.fromTo(
+      modalRef.current,
+      { y: 30, opacity: 0, scale: 0.95 },
+      { y: 0, opacity: 1, scale: 1, duration: 0.4, ease: 'back.out(1.2)' }
+    );
+  }, [isOpen, mounted]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -130,6 +110,7 @@ export function ImageEmbedModal({ isOpen, onClose }: ImageEmbedModalProps) {
     label: string;
   }) => (
     <button
+      type="button"
       onClick={() => setActiveTab(id)}
       className={cn(
         'flex flex-1 items-center justify-center gap-2 border-b-2 py-4 text-sm font-semibold transition-colors',
@@ -143,10 +124,18 @@ export function ImageEmbedModal({ isOpen, onClose }: ImageEmbedModalProps) {
     </button>
   );
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-brand-dark/60 backdrop-blur-sm opacity-0 pointer-events-none"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden={!isOpen}
+      className={cn(
+        'fixed inset-0 z-[100] flex items-center justify-center bg-brand-dark/60 backdrop-blur-sm',
+        isOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
+      )}
     >
       <div
         ref={modalRef}
@@ -157,6 +146,7 @@ export function ImageEmbedModal({ isOpen, onClose }: ImageEmbedModalProps) {
             Embed Image
           </h2>
           <button
+            type="button"
             onClick={onClose}
             className="rounded p-1 text-brand-text-secondary hover:bg-brand-hover hover:text-brand-text-primary transition-colors"
           >
@@ -249,6 +239,7 @@ export function ImageEmbedModal({ isOpen, onClose }: ImageEmbedModalProps) {
                 }}
               />
               <button
+                type="button"
                 onClick={handleEmbedUrl}
                 disabled={!webUrl.trim()}
                 className="self-end rounded-lg bg-brand-red px-6 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-brand-red-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -259,6 +250,7 @@ export function ImageEmbedModal({ isOpen, onClose }: ImageEmbedModalProps) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

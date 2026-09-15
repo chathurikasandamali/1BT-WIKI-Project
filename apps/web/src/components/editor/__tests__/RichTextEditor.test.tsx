@@ -10,10 +10,7 @@ jest.mock('@/components/editor/EditorDraftContext', () => ({
 }));
 
 jest.mock('@tiptap/react', () => ({
-  useEditor: jest.fn((options: {
-    onCreate?: (value: { editor: unknown }) => void;
-    onUpdate?: (value: { editor: unknown }) => void;
-  }) => {
+  useEditor: jest.fn(() => {
     const editor = {
     isActive: jest.fn().mockReturnValue(false),
     can: jest.fn().mockReturnValue({ undo: jest.fn().mockReturnValue(true), redo: jest.fn().mockReturnValue(true) }),
@@ -31,10 +28,12 @@ jest.mock('@tiptap/react', () => ({
         redo: jest.fn().mockReturnValue({ run: jest.fn() }),
       })
     }),
+    commands: {
+      setContent: jest.fn(),
+    },
     state: { doc: { textContent: 'Mock content' } },
     getJSON: jest.fn().mockReturnValue({ type: 'doc', content: [{ type: 'paragraph' }] }),
     };
-    options.onCreate?.({ editor });
     return editor;
   }),
   EditorContent: () => <div data-testid="tiptap-content">EditorContent</div>,
@@ -165,6 +164,37 @@ describe('RichTextEditor', () => {
     expect(mockOnOpenImageEmbed).toHaveBeenCalled();
   });
   
+  it('hydrates the editor from context when TipTap boots empty', () => {
+    const savedBody = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'Saved draft body' }],
+        },
+      ],
+    };
+    (useEditorDraft as jest.Mock).mockReturnValue({
+      title: 'Initial Title',
+      setTitle: mockSetTitle,
+      tags: ['React'],
+      setTags: mockSetTags,
+      registerEditor: mockRegisterEditor,
+      handleTitleBlur: mockHandleTitleBlur,
+      notifyContentChanged: mockNotifyContentChanged,
+      currentBody: savedBody,
+    });
+
+    render(<RichTextEditor onOpenImageEmbed={mockOnOpenImageEmbed} />);
+
+    const editor = mockRegisterEditor.mock.calls[0][0] as {
+      commands: { setContent: jest.Mock };
+    };
+    expect(editor.commands.setContent).toHaveBeenCalledWith(savedBody, {
+      emitUpdate: false,
+    });
+  });
+
   it('registers and unregisters the editor on mount and unmount', () => {
     const { unmount } = render(<RichTextEditor onOpenImageEmbed={mockOnOpenImageEmbed} />);
     

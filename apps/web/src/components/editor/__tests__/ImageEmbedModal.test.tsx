@@ -38,6 +38,7 @@ describe('ImageEmbedModal', () => {
     expect(screen.getByRole('button', { name: /preset stock/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /upload file/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /web url/i })).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).not.toHaveClass('pointer-events-none');
   });
 
   it('handles URL embedding via button click', async () => {
