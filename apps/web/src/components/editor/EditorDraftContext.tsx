@@ -306,6 +306,7 @@ export function EditorDraftProvider({
           try {
             await prev;
           } catch {
+            // Previous request failure is surfaced by its own caller.
           }
         }
         return fn();
