@@ -81,16 +81,28 @@ function makeArticleDetail(overrides: Partial<ArticleDetail> = {}): ArticleDetai
   };
 }
 
+const ADMIN_USER = {
+  id: 'adm1',
+  name: 'Admin User',
+  role: 'Admin',
+  email: 'admin@1billiontech.com',
+};
+
+const REVIEWER_USER = {
+  id: 'rev1',
+  name: 'Reviewer User',
+  role: 'Reviewer',
+  email: 'rev@1billiontech.com',
+};
+
 describe('ReviewArticleDetailPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockUseUser.mockReturnValue({
-      user: { id: 'rev1', name: 'Reviewer User', role: 'Reviewer', email: 'rev@1billiontech.com' },
-      loading: false,
-    });
+    // The review queue belongs to the Reviewer role alone.
+    mockUseUser.mockReturnValue({ user: REVIEWER_USER, loading: false });
   });
 
-  it('renders permission denied message when user is not Reviewer or Admin', () => {
+  it('renders permission denied message when user is not a Reviewer', () => {
     mockUseUser.mockReturnValue({
       user: { id: 'u1', name: 'Regular User', role: 'User', email: 'user@1billiontech.com' },
       loading: false,
@@ -99,6 +111,15 @@ describe('ReviewArticleDetailPage', () => {
     render(<ReviewArticleDetailPage />);
 
     expect(screen.getByText(/you don't have permission to view this page/i)).toBeInTheDocument();
+  });
+
+  it('renders permission denied message for an Admin — Admins only publish', () => {
+    mockUseUser.mockReturnValue({ user: ADMIN_USER, loading: false });
+
+    render(<ReviewArticleDetailPage />);
+
+    expect(screen.getByText(/you don't have permission to view this page/i)).toBeInTheDocument();
+    expect(mockGetArticleForReview).not.toHaveBeenCalled();
   });
 
   it('shows loading state while fetching article', () => {
@@ -119,6 +140,20 @@ describe('ReviewArticleDetailPage', () => {
     expect(await screen.findByTestId('review-article-error')).toHaveTextContent(
       'Only Pending articles can be reviewed'
     );
+  });
+
+  it('shows Approve and Reject to a Reviewer', async () => {
+    mockGetArticleForReview.mockResolvedValueOnce({
+      article: makeArticleDetail(),
+      review: null,
+    });
+
+    render(<ReviewArticleDetailPage />);
+
+    await screen.findByRole('heading', { name: 'Pending Review Article Title' });
+
+    expect(screen.getByTestId('approve-button')).toBeInTheDocument();
+    expect(screen.getByTestId('reject-button')).toBeInTheDocument();
   });
 
   it('renders article title, author, status badge, and content correctly', async () => {

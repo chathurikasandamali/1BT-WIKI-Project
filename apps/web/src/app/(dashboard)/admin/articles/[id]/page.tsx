@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { RoleGuard } from '@/components/auth/RoleGuard';
 import { UserRoleValue } from '@repo/shared';
 import {
@@ -38,6 +39,12 @@ function AdminArticleDetailContent({
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const { toast, showToast } = useToast();
+  const searchParams = useSearchParams();
+  const fromApprovals = searchParams.get('from') === 'approvals';
+  const backHref = fromApprovals ? '/admin/approvals' : '/admin/articles';
+  const backLabel = fromApprovals
+    ? 'Back to Approvals'
+    : 'Back to Article Management';
 
   useEffect(() => {
     let mounted = true;
@@ -99,11 +106,12 @@ function AdminArticleDetailContent({
           {error || 'Article not found'}
         </p>
         <Link
-          href="/admin/articles"
+          href={backHref}
           className="inline-flex items-center text-sm font-medium text-brand-text-secondary hover:text-brand-red transition-colors"
+          data-testid="back-link"
         >
           <ArrowLeftIcon width="16" height="16" className="mr-1" />
-          Back to Article Management
+          {backLabel}
         </Link>
       </div>
     );
@@ -113,12 +121,12 @@ function AdminArticleDetailContent({
     <div className="max-w-4xl mx-auto px-4 py-8 pb-24">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <Link
-          href="/admin/articles"
+          href={backHref}
           className="inline-flex items-center text-sm font-medium text-brand-text-secondary hover:text-brand-red transition-colors"
           data-testid="back-link"
         >
           <ArrowLeftIcon width="16" height="16" className="mr-1" />
-          Back to Article Management
+          {backLabel}
         </Link>
 
         {article.status === 'Approved' && (
@@ -247,7 +255,9 @@ export default function AdminArticleDetailPage(
 
   return (
     <RoleGuard allowedRoles={[UserRoleValue.Admin]}>
-      <AdminArticleDetailContent id={params.id} />
+      <React.Suspense fallback={<PageLoader testId="loading-skeleton" />}>
+        <AdminArticleDetailContent id={params.id} />
+      </React.Suspense>
     </RoleGuard>
   );
 }

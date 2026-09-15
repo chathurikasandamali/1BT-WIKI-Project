@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import { prisma } from '@repo/db';
-import { E2E_AUTHOR, E2E_REVIEWER } from './e2e-identities.js';
+import { E2E_AUTHOR, E2E_REVIEWER, E2E_ADMIN } from './e2e-identities.js';
 
 async function seedE2E() {
   // 1. Validate safety guards
@@ -65,6 +65,29 @@ async function seedE2E() {
     });
 
     console.log(`✅ Upserted E2E Reviewer: ${reviewer.id}`);
+
+    // 4. Upsert Admin — approves/rejects reviews and publishes articles, so the
+    // row must exist for the article_reviews foreign keys to resolve.
+    const admin = await prisma.user.upsert({
+      where: { id: E2E_ADMIN.id },
+      update: {
+        email: E2E_ADMIN.email,
+        name: 'E2E Admin',
+        role: E2E_ADMIN.role,
+        emailVerified: true,
+        banned: false,
+      },
+      create: {
+        id: E2E_ADMIN.id,
+        name: 'E2E Admin',
+        email: E2E_ADMIN.email,
+        role: E2E_ADMIN.role,
+        emailVerified: true,
+        banned: false,
+      },
+    });
+
+    console.log(`✅ Upserted E2E Admin: ${admin.id}`);
 
     console.log('E2E seeding completed successfully.');
   } catch (error) {

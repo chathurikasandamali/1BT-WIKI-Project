@@ -221,6 +221,18 @@ describe('Article Lifecycle Integration', () => {
       })
     );
 
+    // The Admin's only role in the review workflow is publishing — approving
+    // is the Reviewer's decision.
+    const adminApproveRes = await request(app)
+      .patch(`/api/v1/reviewer/articles/${articleId}/approve`)
+      .set(adminHeaders);
+
+    expect(adminApproveRes.status).toBe(HttpStatusCode.FORBIDDEN);
+    expect(adminApproveRes.body.error).toBe('Insufficient permissions');
+    expect(articleStore.get(articleId)?.status).toBe(
+      ArticleStatusValue.Pending
+    );
+
     const approveRes = await request(app)
       .patch(`/api/v1/reviewer/articles/${articleId}/approve`)
       .set(reviewerHeaders);

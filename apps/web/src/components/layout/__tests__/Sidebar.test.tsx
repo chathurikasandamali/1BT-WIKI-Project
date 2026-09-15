@@ -115,16 +115,17 @@ describe('Sidebar navigation', () => {
     expect(link).toHaveTextContent('Approvals');
   });
 
-  it('renders the Approvals link for Admin role', () => {
+  it('renders the Approvals link for Admin role pointing at the publish queue', () => {
     mockUseUser.mockReturnValue({
       user: { id: 'u3', name: 'Admin User', role: 'Admin' },
       loading: false,
     });
 
     render(<Sidebar />);
-    const link = screen.getByTestId('nav-reviewer-approvals');
-    expect(link).toHaveAttribute('href', '/reviewer/approvals');
+    const link = screen.getByTestId('nav-admin-approvals');
+    expect(link).toHaveAttribute('href', '/admin/approvals');
     expect(link).toHaveTextContent('Approvals');
+    expect(screen.queryByTestId('nav-reviewer-approvals')).not.toBeInTheDocument();
   });
 
   it('does NOT render the Tech Talk Management link for a plain User role', () => {

@@ -4,6 +4,8 @@ import UserRepository from '@repositories/userRepository.js';
 import { AppError } from '@errors/AppError.js';
 import type { Article, ArticleReviewComment } from '@models/article.types.js';
 import { ReviewStatus, ArticleStatus, ReviewCommentStatus } from '@repo/db';
+import { PAGINATION_CONFIG } from '@repo/shared';
+import { UserRoleValue } from '@/types/userTypes.js';
 import notificationService from '@services/notificationService.js';
 import defaultQuizService, { type QuizService } from '@services/quizService.js';
 import { NotificationBuilder } from '@v1/lib/NotificationBuilder.js';
@@ -20,8 +22,8 @@ export class ReviewerService {
   ) {}
 
   async listPending(
-    page: number = 1,
-    limit: number = 20
+    page: number = PAGINATION_CONFIG.DEFAULT_PAGE,
+    limit: number = PAGINATION_CONFIG.PAGE_SIZE
   ): Promise<{ articles: (Article & { authorName: string; authorEmail: string | null })[]; total: number; page: number; limit: number }> {
     const { articles, total } = await this.articleRepository.findByStatus(
       ArticleStatus.Pending,
@@ -93,7 +95,44 @@ export class ReviewerService {
       );
     });
 
+    void this.notifyAdminsOfPendingPublication(articleId, article.title);
+
     return approved;
+  }
+
+  /**
+   * Hands the article off to the Admins, who own publication. Fire-and-forget:
+   * a notification failure must never roll back the approval.
+   */
+  private async notifyAdminsOfPendingPublication(
+    articleId: string,
+    articleTitle: string
+  ): Promise<void> {
+    try {
+      const admins = await this.userRepository.findActiveByRole(
+        UserRoleValue.Admin
+      );
+
+      const notificationTasks = admins.map(async (admin) => {
+        const payload = new NotificationBuilder()
+          .forUser(admin.id)
+          .regardingArticle(articleId)
+          .withInfo(
+            'Article Ready to Publish',
+            `The article "${articleTitle}" was approved by a Reviewer and is awaiting publication.`
+          )
+          .build();
+
+        return notificationService.send(payload);
+      });
+
+      await Promise.allSettled(notificationTasks);
+    } catch (error) {
+      console.error(
+        '[ReviewerService] Failed to notify Admins of an approved article:',
+        error
+      );
+    }
   }
 
   async rejectArticle(

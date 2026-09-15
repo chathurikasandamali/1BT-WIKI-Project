@@ -362,7 +362,7 @@ function ReviewArticleDetailContent(): React.JSX.Element {
 
 export default function ReviewArticleDetailPage(): React.JSX.Element {
   return (
-    <RoleGuard allowedRoles={[UserRoleValue.Reviewer, UserRoleValue.Admin]}>
+    <RoleGuard allowedRoles={[UserRoleValue.Reviewer]}>
       <ReviewArticleDetailContent />
     </RoleGuard>
   );

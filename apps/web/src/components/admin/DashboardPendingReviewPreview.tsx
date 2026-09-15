@@ -2,13 +2,13 @@ import React from 'react';
 import Link from 'next/link';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { formatDate } from '@/lib/utils/date';
-import type { PendingArticleListItem } from '@/lib/api/reviewer.api';
+import type { AdminArticleListItem } from '@/lib/api/articles';
 import { DashboardPreviewTable } from '@/components/admin/DashboardPreviewTable';
 
 const PENDING_REVIEW_HEADERS = ['Title', 'Status', 'Author', 'Submitted'] as const;
 
 interface DashboardPendingReviewPreviewProps {
-  articles: PendingArticleListItem[];
+  articles: AdminArticleListItem[];
   loading: boolean;
 }
 
@@ -35,7 +35,7 @@ export function DashboardPendingReviewPreview({
         >
           <td className="px-4 py-3">
             <Link
-              href={`/reviewer/approvals/${article.id}`}
+              href={`/admin/articles/${article.id}`}
               className="font-medium text-brand-text-primary transition-colors hover:text-brand-red"
             >
               {article.title}

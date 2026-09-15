@@ -77,6 +77,14 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
   const isAdmin = user?.role === UserRoleValue.Admin;
   const isReviewerOrAdmin = user?.role === UserRoleValue.Reviewer || user?.role === UserRoleValue.Admin;
 
+  // Both roles get an "Approvals" tab, but they own different halves of the
+  // workflow: Reviewers decide on pending submissions, Admins publish what
+  // Reviewers approved.
+  const approvalsHref = isAdmin ? '/admin/approvals' : '/reviewer/approvals';
+  const approvalsTestId = isAdmin
+    ? 'nav-admin-approvals'
+    : 'nav-reviewer-approvals';
+
   const isCollapsed = !isOpen;
 
   const isActive = (href: string): boolean =>
@@ -225,15 +233,15 @@ export function Sidebar({ isOpen = true }: SidebarProps): React.JSX.Element {
         ))}
         {isReviewerOrAdmin && (
           <Link
-            href="/reviewer/approvals"
+            href={approvalsHref}
             className={cn(
-              itemClasses('/reviewer/approvals'),
+              itemClasses(approvalsHref),
               isCollapsed ? 'pl-[31px] gap-0' : 'pl-[20px] gap-[16px]'
             )}
-            data-testid="nav-reviewer-approvals"
+            data-testid={approvalsTestId}
             aria-label={isCollapsed ? "Approvals" : undefined}
           >
-            {isActive('/reviewer/approvals') && (
+            {isActive(approvalsHref) && (
               <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-3/4 bg-brand-red active-indicator rounded-r-full" />
             )}
             <CheckCircleIcon className="w-4 h-4 relative z-10" />

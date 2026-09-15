@@ -76,6 +76,7 @@ const MockArticleReviewRepository = {
 const MockUserRepository = {
   findById: jest.fn<() => Promise<unknown>>().mockResolvedValue(null),
   findManyByIds: jest.fn<() => Promise<unknown>>().mockResolvedValue([]),
+  findActiveByRole: jest.fn<() => Promise<unknown>>().mockResolvedValue([]),
 };
 
 const mockUserCtor = jest.fn().mockImplementation(() => MockUserRepository);
@@ -132,6 +133,8 @@ const mockReviewCreate = MockArticleReviewRepository.create as jest.Mock<any>;
 const mockUserFindById = MockUserRepository.findById as jest.Mock<any>;
 const mockUserFindManyByIds =
   MockUserRepository.findManyByIds as jest.Mock<any>;
+const mockUserFindActiveByRole =
+  MockUserRepository.findActiveByRole as jest.Mock<any>;
 const mockDate = new Date().toISOString();
 const mockAuthor = {
   id: 'user-1',
@@ -170,6 +173,7 @@ describe('Reviewer API Integration', () => {
     mockReviewCreate.mockResolvedValue({});
     mockUserFindById.mockResolvedValue(mockAuthor);
     mockUserFindManyByIds.mockResolvedValue([mockAuthor]);
+    mockUserFindActiveByRole.mockResolvedValue([]);
   });
 
   describe('GET /api/v1/reviewer/articles/pending', () => {
@@ -186,6 +190,16 @@ describe('Reviewer API Integration', () => {
       const response = await request(app)
         .get('/api/v1/reviewer/articles/pending')
         .set(userHeaders);
+
+      expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
+      expect(response.body.error).toBe('Insufficient permissions');
+      expect(mockFindByStatus).not.toHaveBeenCalled();
+    });
+
+    it('should return 403 for an Admin — the review queue belongs to Reviewers', async () => {
+      const response = await request(app)
+        .get('/api/v1/reviewer/articles/pending')
+        .set(adminHeaders);
 
       expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
       expect(response.body.error).toBe('Insufficient permissions');
@@ -242,12 +256,23 @@ describe('Reviewer API Integration', () => {
       expect(response.body.success).toBe(false);
     });
 
-    it('should return 403 for a non-Reviewer non-Admin role', async () => {
+    it('should return 403 for a plain User role', async () => {
       const response = await request(app).patch(approvePath).set(userHeaders);
 
       expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
       expect(response.body.error).toBe('Insufficient permissions');
       expect(mockFindById).not.toHaveBeenCalled();
+    });
+
+    it('should return 403 for an Admin — approval is the Reviewer\'s decision', async () => {
+      const response = await request(app)
+        .patch(approvePath)
+        .set(adminHeaders);
+
+      expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
+      expect(response.body.error).toBe('Insufficient permissions');
+      expect(mockFindById).not.toHaveBeenCalled();
+      expect(mockUpdateStatus).not.toHaveBeenCalled();
     });
 
     it('should return 404 when article does not exist', async () => {
@@ -337,7 +362,7 @@ describe('Reviewer API Integration', () => {
       expect(response.body.success).toBe(false);
     });
 
-    it('should return 403 for a non-Reviewer non-Admin role', async () => {
+    it('should return 403 for a plain User role', async () => {
       const response = await request(app)
         .patch(rejectPath)
         .set(userHeaders)
@@ -346,6 +371,18 @@ describe('Reviewer API Integration', () => {
       expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
       expect(response.body.error).toBe('Insufficient permissions');
       expect(mockFindById).not.toHaveBeenCalled();
+    });
+
+    it('should return 403 for an Admin — rejection is the Reviewer\'s decision', async () => {
+      const response = await request(app)
+        .patch(rejectPath)
+        .set(adminHeaders)
+        .send({ feedback: 'this is a valid reject feedback' });
+
+      expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
+      expect(response.body.error).toBe('Insufficient permissions');
+      expect(mockFindById).not.toHaveBeenCalled();
+      expect(mockUpdateStatus).not.toHaveBeenCalled();
     });
 
     it('should return 400 when feedback is missing or under 10 characters', async () => {
@@ -449,10 +486,20 @@ describe('Reviewer API Integration', () => {
       expect(response.body.success).toBe(false);
     });
 
-    it('should return 403 for a non-Reviewer non-Admin role', async () => {
+    it('should return 403 for a non-Reviewer role', async () => {
       const response = await request(app)
         .get(viewPath)
         .set(userHeaders);
+
+      expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
+      expect(response.body.error).toBe('Insufficient permissions');
+      expect(mockFindById).not.toHaveBeenCalled();
+    });
+
+    it('should return 403 for an Admin — review detail belongs to Reviewers', async () => {
+      const response = await request(app)
+        .get(viewPath)
+        .set(adminHeaders);
 
       expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
       expect(response.body.error).toBe('Insufficient permissions');

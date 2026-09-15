@@ -5,7 +5,6 @@ const mockFetchDashboardSummary = jest.fn();
 const mockFetchDashboardUsers = jest.fn();
 const mockFetchAllArticles = jest.fn();
 const mockListAll = jest.fn();
-const mockListPending = jest.fn();
 
 jest.mock('@/lib/api/adminDashboard', () => ({
   fetchDashboardSummary: (...args: unknown[]) =>
@@ -19,10 +18,6 @@ jest.mock('@/lib/api/articles', () => ({
 
 jest.mock('@/lib/api/techTalks', () => ({
   listAll: (...args: unknown[]) => mockListAll(...args),
-}));
-
-jest.mock('@/lib/api/reviewer.api', () => ({
-  listPending: (...args: unknown[]) => mockListPending(...args),
 }));
 
 describe('AdminDashboard', () => {
@@ -46,27 +41,45 @@ describe('AdminDashboard', () => {
         createdAt: '2026-04-01T00:00:00.000Z',
       },
     ]);
-    mockFetchAllArticles.mockResolvedValue({
-      articles: [
-        {
-          id: 'a1',
-          title: 'Intro to Prisma',
-          authorId: 'u1',
-          tags: [],
-          status: 'Published',
-          createdAt: '2026-04-02T00:00:00.000Z',
-          updatedAt: '2026-04-02T00:00:00.000Z',
-          likeCount: 0,
-          commentCount: 0,
-          views: 10,
-          rejectionFeedback: null,
-          authorName: 'Ada Lovelace',
-          authorEmail: 'ada@example.com',
-        },
-      ],
-      total: 1,
-      page: 1,
-      limit: 4,
+    // Pending reviews are read through the admin article listing, so the same
+    // mock serves both the "latest articles" and "pending reviews" previews.
+    mockFetchAllArticles.mockImplementation((params: { status?: string }) => {
+      const article =
+        params?.status === 'Pending'
+          ? {
+              id: 'p1',
+              title: 'Draft for review',
+              status: 'Pending',
+              createdAt: '2026-04-04T00:00:00.000Z',
+              updatedAt: '2026-04-04T00:00:00.000Z',
+            }
+          : {
+              id: 'a1',
+              title: 'Intro to Prisma',
+              status: 'Published',
+              createdAt: '2026-04-02T00:00:00.000Z',
+              updatedAt: '2026-04-02T00:00:00.000Z',
+            };
+
+      return Promise.resolve({
+        articles: [
+          {
+            authorId: 'u1',
+            tags: [],
+            likeCount: 0,
+            commentCount: 0,
+            views: 10,
+            rejectionFeedback: null,
+            inlineCommentCount: 0,
+            authorName: 'Ada Lovelace',
+            authorEmail: 'ada@example.com',
+            ...article,
+          },
+        ],
+        total: 1,
+        page: 1,
+        limit: 4,
+      });
     });
     mockListAll.mockResolvedValue({
       techTalks: [
@@ -82,24 +95,6 @@ describe('AdminDashboard', () => {
           status: 'published',
           createdAt: '2026-04-03T00:00:00.000Z',
           updatedAt: '2026-04-03T00:00:00.000Z',
-        },
-      ],
-      total: 1,
-      page: 1,
-      limit: 4,
-    });
-    mockListPending.mockResolvedValue({
-      articles: [
-        {
-          id: 'p1',
-          title: 'Draft for review',
-          authorId: 'u1',
-          authorName: 'Ada Lovelace',
-          authorEmail: 'ada@example.com',
-          tags: [],
-          status: 'Pending',
-          createdAt: '2026-04-04T00:00:00.000Z',
-          updatedAt: '2026-04-04T00:00:00.000Z',
         },
       ],
       total: 1,
@@ -158,7 +153,7 @@ describe('AdminDashboard', () => {
     ).toHaveAttribute('href', '/admin/tech-talks');
     expect(
       screen.getByTestId('dashboard-pending-reviews-section-show-more')
-    ).toHaveAttribute('href', '/reviewer/approvals');
+    ).toHaveAttribute('href', '/admin/articles');
   });
 
   it('requests preview lists with a page size of 4', async () => {
@@ -180,7 +175,26 @@ describe('AdminDashboard', () => {
       sort: 'eventDate',
       order: 'desc',
     });
-    expect(mockListPending).toHaveBeenCalledWith(1, 4);
+    expect(mockFetchAllArticles).toHaveBeenCalledWith({
+      page: 1,
+      limit: 4,
+      status: 'Pending',
+      sort: 'createdAt',
+      order: 'desc',
+    });
+  });
+
+  it('links the Approvals widget to the Admin publish queue', async () => {
+    render(<AdminDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('widget-approvals')).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('widget-approvals')).toHaveAttribute(
+      'href',
+      '/admin/approvals'
+    );
   });
 
   it('shows an error when the dashboard summary fails', async () => {

@@ -2,7 +2,11 @@
 // strictly maps to apps/web/src in tsconfig.json. Cypress's default bundler does not
 // natively support tsconfig paths without additional preprocessor dependencies, so
 // adding a custom @e2e alias merely to hide this cross-workspace dependency is unwarranted.
-import { E2E_AUTHOR, E2E_REVIEWER } from '../../../api/scripts/e2e-identities.js';
+import {
+  E2E_AUTHOR,
+  E2E_REVIEWER,
+  E2E_ADMIN,
+} from '../../../api/scripts/e2e-identities.js';
 import type { Interception } from 'cypress/types/net-stubbing';
 import {
   setE2EIdentity,
@@ -11,14 +15,6 @@ import {
   mintE2EFrontendSession,
   SESSION_TOKEN_COOKIE,
 } from '../support/e2e-auth';
-
-type E2EIdentity = NonNullable<Parameters<typeof setE2EIdentity>[0]>;
-
-const E2E_ADMIN = {
-  id: '00000000-0000-4000-8000-000000000103',
-  email: 'e2e-admin@1billiontech.com',
-  role: 'Admin',
-} as unknown as E2EIdentity;
 
 interface PendingArticle {
   id: string;
@@ -427,6 +423,8 @@ describe('Article lifecycle', () => {
       cy.get('[data-testid="article-status-badge"]').should('contain.text', 'Pending');
       cy.get('[data-testid="review-article-content"]').should('contain.text', 'Cypress article lifecycle test');
 
+      // 30b. The Reviewer owns the decision: both controls are present, but
+      // publishing is never offered here — that is the Admin's step.
       cy.get('[data-testid="approve-button"]')
         .should('be.visible')
         .and('contain.text', 'Approve & Send to Admin');
@@ -463,7 +461,7 @@ describe('Article lifecycle', () => {
 
         expect(interception.request.headers['x-test-user-id']).to.eq(E2E_REVIEWER.id);
         expect(interception.request.headers['x-test-user-email']).to.eq(E2E_REVIEWER.email);
-        expect(interception.request.headers['x-test-user-role']).to.eq(E2E_REVIEWER.role);
+        expect(interception.request.headers['x-test-user-role']).to.eq('Reviewer');
 
         expect(interception.response?.statusCode).to.eq(200);
         const responseBody = interception.response?.body;
@@ -511,6 +509,8 @@ describe('Article lifecycle', () => {
       });
 
       cy.then(() => {
+        // Back to the author's own /users/me response, not the Admin stub.
+        useAdminProfile = false;
         setE2EIdentity(E2E_AUTHOR);
       });
 
@@ -599,6 +599,58 @@ describe('Article lifecycle', () => {
             cy.getCookie(SESSION_TOKEN_COOKIE).should('exist');
           },
         }
+      );
+
+      // The Admin's Approvals tab is the hand-off point: it lists exactly the
+      // articles a Reviewer approved, each ready to publish.
+      cy.visit('/admin/approvals');
+
+      cy.wait('@getAdminUser', { timeout: DEFAULT_TIMEOUT }).then(
+        (interception) => {
+          expect(interception.response?.statusCode).to.eq(200);
+          expect(interception.response?.body.data.role).to.eq('Admin');
+        }
+      );
+
+      cy.wait('@getAdminApprovalsQueue', {
+        timeout: DEFAULT_TIMEOUT,
+      }).then((interception) => {
+        expect(interception.request.method).to.eq('GET');
+        const reqUrl = new URL(interception.request.url);
+        expect(reqUrl.pathname).to.eq('/api/v1/admin/articles');
+        expect(reqUrl.searchParams.get('status')).to.eq('Approved');
+
+        expect(interception.request.headers['x-test-user-id']).to.eq(
+          E2E_ADMIN.id
+        );
+        expect(interception.request.headers['x-test-user-role']).to.eq('Admin');
+
+        expect(interception.response?.statusCode).to.eq(200);
+
+        interface QueuedArticle {
+          id: string;
+          title: string;
+          status: string;
+        }
+
+        const queuedArticle = interception.response?.body.data.articles.find(
+          (article: QueuedArticle) => article.id === articleId
+        );
+        if (!queuedArticle) {
+          throw new Error(
+            'Reviewer-approved article was not found in the Admin Approvals queue'
+          );
+        }
+        expect(queuedArticle.title).to.eq(articleTitle);
+        expect(queuedArticle.status).to.eq('Approved');
+      });
+
+      cy.get('[data-testid="admin-approvals-page"]').should('be.visible');
+      cy.get(`[data-testid="approved-article-card-${articleId}"]`)
+        .should('be.visible')
+        .and('contain.text', articleTitle);
+      cy.get(`[data-testid="publish-article-${articleId}"]`).should(
+        'be.visible'
       );
 
       cy.visit('/admin/articles');
