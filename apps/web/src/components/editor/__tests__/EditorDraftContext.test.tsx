@@ -451,6 +451,14 @@ describe('EditorDraftContext', () => {
             expect(mockApiFetch).toHaveBeenCalledTimes(2);
             expect(mockApiFetch.mock.calls[0][0]).toBe('/articles');
             expect(mockApiFetch.mock.calls[1][0]).toBe('/articles/draft-for-image');
+
+            const createForm = mockApiFetch.mock.calls[0][1].body as FormData;
+            const createPayload = JSON.parse(createForm.get('data') as string) as {
+                title: string;
+                body: unknown;
+            };
+            expect(createPayload.title).toBe('Untitled Draft');
+            expect(createPayload.body).toBeDefined();
         });
 
         it('throws if image upload succeeded but no new attachment was returned', async () => {
@@ -919,6 +927,71 @@ describe('EditorDraftContext', () => {
             });
             
             expect(mockApiFetch).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('Validation', () => {
+        it('validate requires both a title and publishable body content', () => {
+            const { result } = renderHook(() => useEditorDraft(), { wrapper });
+
+            act(() => {
+                result.current.setTitle('Draft title');
+            });
+
+            let isValid = true;
+            act(() => {
+                isValid = result.current.validate();
+            });
+
+            expect(isValid).toBe(false);
+            expect(result.current.titleError).toBeNull();
+            expect(result.current.contentError).toBe('Article content is required.');
+        });
+
+        it('validateDraft only requires a title so an empty body can still be saved', () => {
+            const { result } = renderHook(() => useEditorDraft(), { wrapper });
+
+            act(() => {
+                result.current.setTitle('Draft title');
+            });
+
+            let isValid = false;
+            act(() => {
+                isValid = result.current.validateDraft();
+            });
+
+            expect(isValid).toBe(true);
+            expect(result.current.titleError).toBeNull();
+            expect(result.current.contentError).toBeNull();
+        });
+
+        it('validateDraft fails when the title is empty', () => {
+            const { result } = renderHook(() => useEditorDraft(), { wrapper });
+
+            let isValid = true;
+            act(() => {
+                isValid = result.current.validateDraft();
+            });
+
+            expect(isValid).toBe(false);
+            expect(result.current.titleError).toBe('Title is required.');
+        });
+
+        it('validateDraft clears a previous content error', () => {
+            const { result } = renderHook(() => useEditorDraft(), { wrapper });
+
+            act(() => {
+                result.current.setTitle('Draft title');
+                result.current.validate();
+            });
+            expect(result.current.contentError).toBe('Article content is required.');
+
+            act(() => {
+                result.current.validateDraft();
+            });
+
+            expect(result.current.contentError).toBeNull();
+            expect(result.current.titleError).toBeNull();
         });
     });
 });

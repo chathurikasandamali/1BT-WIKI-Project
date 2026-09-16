@@ -125,7 +125,7 @@ function CommentModerationContent(): React.JSX.Element {
         <div className="border-b border-brand-border bg-brand-bg/40 px-4 py-4">
           <div className="mb-4">
             <h2 className="text-sm font-semibold text-brand-text-primary">
-              Moderation queue
+              Comments Moderation Queue
             </h2>
             <p className="mt-0.5 text-xs text-brand-text-secondary">
               Search by author, article, or comment text, then approve or reject.
