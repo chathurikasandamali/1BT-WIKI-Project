@@ -183,6 +183,7 @@ describe('EditorHeader', () => {
       await userEvent.click(saveBtn);
       
       expect(mockValidateDraft).toHaveBeenCalled();
+      expect(mockValidate).not.toHaveBeenCalled();
       expect(mockSaveDraft).not.toHaveBeenCalled();
       await waitFor(() => {
         expect(mockShowToast).toHaveBeenCalledWith('Please fix the highlighted errors before saving.');
@@ -308,12 +309,13 @@ describe('EditorHeader', () => {
       coverAttachmentId: null,
     };
 
-    it('is disabled on initial render when form is completely empty', () => {
+    it('does not switch to preview when the form is empty', async () => {
+      const setMode = jest.fn();
       mockContextState = emptyFormContext;
-      render(<EditorHeader mode="compose" setMode={jest.fn()} />);
+      render(<EditorHeader mode="compose" setMode={setMode} />);
 
-      const previewBtn = screen.getByTestId('preview-button');
-      expect(previewBtn).toBeDisabled();
+      await userEvent.click(screen.getByTestId('preview-button'));
+      expect(setMode).not.toHaveBeenCalled();
     });
 
     it('becomes enabled after typing a title', () => {

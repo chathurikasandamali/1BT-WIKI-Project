@@ -4,7 +4,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { X } from 'lucide-react';
+import { X, AlertTriangle } from 'lucide-react';
 
 interface ConfirmationModalProps {
   isOpen: boolean;
@@ -15,6 +15,8 @@ interface ConfirmationModalProps {
   onConfirm: () => void;
   onCancel: () => void;
   isConfirming?: boolean;
+  /** Renders a single dismiss button instead of Cancel/Confirm — for blocked-action warnings. */
+  variant?: 'default' | 'warning';
 }
 
 export function ConfirmationModal({
@@ -26,6 +28,7 @@ export function ConfirmationModal({
   onConfirm,
   onCancel,
   isConfirming = false,
+  variant = 'default',
 }: ConfirmationModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -78,7 +81,10 @@ export function ConfirmationModal({
         className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
       >
         <div className="flex items-center justify-between border-b border-brand-border px-6 py-4">
-          <h2 className="text-lg font-bold text-brand-text-primary font-display">
+          <h2 className="flex items-center gap-2 text-lg font-bold text-brand-text-primary font-display">
+            {variant === 'warning' && (
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+            )}
             {title}
           </h2>
           <button
@@ -93,13 +99,15 @@ export function ConfirmationModal({
         <div className="px-6 py-6 text-sm text-gray-600">{message}</div>
 
         <div className="flex items-center justify-end gap-3 border-t border-brand-border bg-gray-50 px-6 py-4">
-          <button
-            onClick={onCancel}
-            disabled={isConfirming}
-            className="rounded-lg px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-brand-border hover:text-brand-text-primary transition-colors disabled:opacity-50"
-          >
-            {cancelText}
-          </button>
+          {variant === 'default' && (
+            <button
+              onClick={onCancel}
+              disabled={isConfirming}
+              className="rounded-lg px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-brand-border hover:text-brand-text-primary transition-colors disabled:opacity-50"
+            >
+              {cancelText}
+            </button>
+          )}
           <button
             data-cy="confirm-submit-button"
             onClick={onConfirm}

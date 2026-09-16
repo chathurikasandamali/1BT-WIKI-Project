@@ -8,6 +8,7 @@ await jest.unstable_mockModule('@repositories/userRepository.js', () => ({
   default: {
     findByEmail: jest.fn(),
     findById: jest.fn(),
+    findActiveByRole: jest.fn(),
     updateRole: jest.fn(),
     updateBanStatus: jest.fn(),
   },
@@ -114,6 +115,62 @@ describe('UserService', () => {
 
       expect(mockedRepo.updateRole).not.toHaveBeenCalled();
       expect(mockPusherTrigger).not.toHaveBeenCalled();
+    });
+
+    it('should reject demoting the last active admin', async () => {
+      mockedRepo.findById.mockResolvedValue(
+        makeUser({ id: 'admin-1', role: 'Admin', banned: false })
+      );
+      mockedRepo.findActiveByRole.mockResolvedValue([
+        makeUser({ id: 'admin-1', role: 'Admin', banned: false }),
+      ]);
+
+      await expect(
+        UserService.updateUserRole('admin-1', 'User')
+      ).rejects.toMatchObject({
+        message:
+          'Cannot change the role of the last active admin. Promote another user to Admin first.',
+        statusCode: 400,
+      });
+
+      expect(mockedRepo.findActiveByRole).toHaveBeenCalledWith('Admin');
+      expect(mockedRepo.updateRole).not.toHaveBeenCalled();
+    });
+
+    it('should allow demoting an admin when another active admin exists', async () => {
+      const updatedUser = makeUser({ id: 'admin-1', role: 'Reviewer' });
+      mockedRepo.findById.mockResolvedValue(
+        makeUser({ id: 'admin-1', role: 'Admin', banned: false })
+      );
+      mockedRepo.findActiveByRole.mockResolvedValue([
+        makeUser({ id: 'admin-1', role: 'Admin', banned: false }),
+        makeUser({ id: 'admin-2', role: 'Admin', banned: false }),
+      ]);
+      mockedRepo.updateRole.mockResolvedValue(updatedUser);
+
+      const result = await UserService.updateUserRole('admin-1', 'Reviewer');
+
+      expect(mockedRepo.findActiveByRole).toHaveBeenCalledWith('Admin');
+      expect(mockedRepo.updateRole).toHaveBeenCalledWith('admin-1', 'Reviewer');
+      expect(result).toEqual(updatedUser);
+    });
+
+    it('should allow demoting a banned admin without checking active admin count', async () => {
+      const updatedUser = makeUser({
+        id: 'admin-1',
+        role: 'User',
+        banned: true,
+      });
+      mockedRepo.findById.mockResolvedValue(
+        makeUser({ id: 'admin-1', role: 'Admin', banned: true })
+      );
+      mockedRepo.updateRole.mockResolvedValue(updatedUser);
+
+      const result = await UserService.updateUserRole('admin-1', 'User');
+
+      expect(mockedRepo.findActiveByRole).not.toHaveBeenCalled();
+      expect(mockedRepo.updateRole).toHaveBeenCalledWith('admin-1', 'User');
+      expect(result).toEqual(updatedUser);
     });
   });
 

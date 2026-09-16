@@ -7,13 +7,13 @@ import {
 } from '@v1/lib/pusherEvents.js';
 import type {
   User,
-  CreateUserInput,
   UserRole,
   UpdateUserBanInput,
 } from '@/types/userTypes.js';
+import { UserRoleValue } from '@/types/userTypes.js';
 
 // Accepted role values
-const VALID_ROLES: UserRole[] = ['Admin', 'Reviewer', 'User'];
+const VALID_ROLES: UserRole[] = Object.values(UserRoleValue);
 
 const updateUserRole = async (
   userId: string,
@@ -26,6 +26,21 @@ const updateUserRole = async (
   const existingUser = await UserRepository.findById(userId);
   if (!existingUser) {
     throw new AppError('User not found', 404);
+  }
+
+  
+  const isDemotingAdmin =
+    existingUser.role === UserRoleValue.Admin && role !== UserRoleValue.Admin;
+  if (isDemotingAdmin && !existingUser.banned) {
+    const activeAdmins = await UserRepository.findActiveByRole(
+      UserRoleValue.Admin
+    );
+    if (activeAdmins.length <= 1) {
+      throw new AppError(
+        'Cannot change the role of the last active admin. Promote another user to Admin first.',
+        400
+      );
+    }
   }
 
   // Persist first — the DB is the source of truth. Only after the role update

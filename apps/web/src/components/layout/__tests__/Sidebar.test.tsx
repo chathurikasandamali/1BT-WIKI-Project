@@ -134,6 +134,7 @@ describe('Sidebar collapsed state', () => {
     expect(logo).toHaveTextContent('WIKI');
     expect(screen.queryByTestId('compact-logo')).not.toBeInTheDocument();
     expect(screen.queryByTestId('logout-btn')).not.toBeInTheDocument();
+    expect(screen.queryByText('Menu')).not.toBeInTheDocument();
   });
 
   it('renders compact logo when collapsed', () => {
