@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getPusherClient } from '@/lib/pusher';
+import { authClient } from '@/lib/auth/client';
 import {
   getNotifications,
   getUnreadCount,
@@ -18,8 +19,8 @@ import type {
   PusherNotificationPayload,
 } from '@/lib/api/notifications';
 
-// The event name must match the backend constant in pusherEvents.ts
 const NOTIFICATION_EVENT = 'notification:new';
+const FORCE_LOGOUT_EVENT = 'session:force-logout';
 
 interface UseNotificationsOptions {
   userId: string | null;
@@ -110,6 +111,20 @@ export function useNotifications({
       if (!payload.isRead) {
         setUnreadCount((prev) => prev + 1);
       }
+    });
+
+    // An admin changed this user's role — sign out immediately so they
+    // re-authenticate and pick up the new role/permissions on next login.
+    // The "your role changed" message itself arrives separately via the
+    // normal notification:new event above, so it shows in the bell panel
+    // rather than as a one-off alert here.
+    channel.bind(FORCE_LOGOUT_EVENT, () => {
+      void authClient
+        .signOut()
+        .catch((err) => console.error('[useNotifications] Sign-out failed:', err))
+        .finally(() => {
+          window.location.assign('/signin');
+        });
     });
 
     // On reconnect, reconcile the unread count to cover events missed offline

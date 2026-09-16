@@ -1,14 +1,16 @@
 import { authClient } from '@/lib/auth/client';
 
-/**
- * ⚠️ ARCHITECTURE FLAG (Malindu/Lahiru)
- * This file belongs to the frontend consumer domain (e.g., admin dashboard, articles).
- * It integrates with the shared Auth infrastructure, but note that the core
- * `lib/auth/client.ts` is strictly untouched here.
- *
- * JWT cache is stored exclusively in-memory (module scope) per the project's
- * security requirements (NO localStorage/sessionStorage is used).
- */
+function forceSignOutAndRedirect(): void {
+  cachedToken = null;
+  cachedTokenExpiry = null;
+  void authClient
+    .signOut()
+    .catch((error) => console.error('[API Client] Sign-out failed:', error))
+    .finally(() => {
+      window.location.assign('/signin');
+    });
+}
+
 
 const API_BASE_URL = `${process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000'}/api/v1`;
 
@@ -174,7 +176,13 @@ export async function apiFetch<T = unknown>(
     // Clear cache and force a fresh fetch from the auth client
     cachedToken = null;
     cachedTokenExpiry = null;
-    token = await getValidToken(true);
+
+    try {
+      token = await getValidToken(true);
+    } catch (err) {
+      forceSignOutAndRedirect();
+      throw err;
+    }
 
     const retryHeaders = new Headers(options.headers);
     retryHeaders.set('Authorization', `Bearer ${token}`);
@@ -185,6 +193,7 @@ export async function apiFetch<T = unknown>(
     response = await fetch(url, { ...options, headers: retryHeaders });
 
     if (response.status === 401) {
+      forceSignOutAndRedirect();
       throw new Error('Authentication failed (401) even after token refresh.');
     }
   }

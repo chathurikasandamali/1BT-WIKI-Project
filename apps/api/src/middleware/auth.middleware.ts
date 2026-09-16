@@ -4,6 +4,7 @@ import type { Request, Response, NextFunction } from 'express';
 import type { AuthenticatedUser, UserRole } from '@/types/userTypes.js';
 import { errorResponse, capitalizeRole } from '@/types/userTypes.js';
 import UserRepository from '@repositories/userRepository.js';
+import SessionRevocationRepository from '@repositories/sessionRevocationRepository.js';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
 // ── NEON AUTH CONFIG ─────────────────────────────────────────────────────────
@@ -105,6 +106,17 @@ export const authenticate = async (
   if (!dbUser) {
     res.status(401).json(errorResponse('Authentication required'));
     return;
+  }
+
+  const invalidatedAtMs = SessionRevocationRepository.getInvalidatedAt(userId);
+  if (invalidatedAtMs !== null && typeof payload.iat === 'number') {
+    const issuedAtMs = payload.iat * 1000;
+    if (issuedAtMs < invalidatedAtMs) {
+      res
+        .status(401)
+        .json(errorResponse('Session invalidated. Please log in again.'));
+      return;
+    }
   }
 
   if (dbUser.banned === true) {
