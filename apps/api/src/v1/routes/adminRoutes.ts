@@ -8,7 +8,7 @@
  *   2. requireRole('Admin') — caller must hold the Admin role (A-02)
  */
 
-import { Router, type NextFunction, type Request, type Response } from 'express';
+import { Router } from 'express';
 import UserController from '@controllers/userController.js';
 import AdminController from '@controllers/adminController.js';
 import ArticleController from '@controllers/articleController.js';
@@ -57,13 +57,6 @@ router.patch(
   '/users/:userId/role',
   authenticate,
   requireRole('Admin'),
-  (req: Request, _res: Response, next: NextFunction) => {
-    console.log('[DIAG][RoleRoute] PATCH /users/:userId/role reached', {
-      userId: req.params.userId,
-      body: req.body,
-    });
-    next();
-  },
   UserController.updateUserRole
 );
 

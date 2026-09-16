@@ -28,12 +28,6 @@ export function getPusherClient(): Pusher {
   const key = process.env.NEXT_PUBLIC_PUSHER_KEY || 'dummy-key';
   const cluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER || 'dummy-cluster';
 
-  // Temporary diagnosis: confirm real keys (not the dummy fallback) were baked
-  // into the client bundle at build time.
-  console.log(
-    `[DIAG][Pusher] Creating client: key=${key.slice(0, 8)}... cluster=${cluster}`
-  );
-
   pusherInstance = new Pusher(key, {
     cluster,
 
@@ -42,9 +36,6 @@ export function getPusherClient(): Pusher {
     authorizer: (channel) => ({
       authorize: async (socketId, callback) => {
         try {
-          console.log(
-            `[DIAG][Pusher] Authorizing channel=${channel.name} socket_id_len=${socketId.length}`
-          );
           const response = await apiFetch<{ auth: string }>('/pusher/auth', {
             method: 'POST',
             body: JSON.stringify({
@@ -55,35 +46,16 @@ export function getPusherClient(): Pusher {
 
           // response.data is { auth: "key:signature" } — exactly what Pusher expects.
           if (!response.success || !response.data) {
-            console.error(
-              '[DIAG][Pusher] Auth FAILED: invalid response',
-              response
-            );
             callback(new Error('Pusher auth failed: invalid response'), null);
             return;
           }
 
-          console.log('[DIAG][Pusher] Auth response OK');
           callback(null, response.data as Parameters<typeof callback>[1]);
         } catch (err) {
-          console.error('[DIAG][Pusher] Authorizer threw:', err);
           callback(err instanceof Error ? err : new Error(String(err)), null);
         }
       },
     }),
-  });
-
-  // Temporary diagnosis: surface connection lifecycle and errors.
-  pusherInstance.connection.bind('state_change', (states: {
-    previous?: string;
-    current?: string;
-  }) => {
-    console.log(
-      `[DIAG][Pusher] Connection state: ${states.previous} -> ${states.current}`
-    );
-  });
-  pusherInstance.connection.bind('error', (err: unknown) => {
-    console.error('[DIAG][Pusher] Connection error:', err);
   });
 
   return pusherInstance;

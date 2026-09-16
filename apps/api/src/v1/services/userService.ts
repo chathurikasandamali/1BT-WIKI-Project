@@ -28,43 +28,19 @@ const updateUserRole = async (
     throw new AppError('User not found', 404);
   }
 
-  console.log(
-    `[DIAG][RoleChange] updateUserRole start: userId=${userId} role=${role}`
-  );
-
   // Persist first — the DB is the source of truth. Only after the role update
   // succeeds do we broadcast so the affected user's open tabs are signed out.
   const updatedUser = await UserRepository.updateRole(userId, role);
 
-  console.log(
-    `[DIAG][RoleChange] DB role update committed: userId=${userId} role=${role}`
-  );
-
   const channelName = pusherChannelName(userId);
-  console.log(
-    `[DIAG][RoleChange] Triggering Pusher channel=${channelName} ` +
-      `event=${PUSHER_ROLE_CHANGED_EVENT} payload=${JSON.stringify({ role })}`
-  );
 
   // Fire-and-forget real-time signal to every private-user-{userId} channel.
   // A Pusher failure is logged but never propagates — the role is already
   // committed, and the DB-backed role check on the next request enforces it.
   void pusherClient
     .trigger(channelName, PUSHER_ROLE_CHANGED_EVENT, { role })
-    .then(() => {
-      console.log(
-        `[DIAG][RoleChange] Pusher trigger RESOLVED OK: channel=${channelName} event=${PUSHER_ROLE_CHANGED_EVENT}`
-      );
-    })
     .catch((error: unknown) => {
-      console.error(
-        `[DIAG][RoleChange] Pusher trigger REJECTED: channel=${channelName} event=${PUSHER_ROLE_CHANGED_EVENT}`,
-        error
-      );
-      console.error(
-        '[Pusher] Failed to trigger role-changed event:',
-        error
-      );
+      console.error('[Pusher] Failed to trigger role-changed event:', error);
     });
 
   return updatedUser;

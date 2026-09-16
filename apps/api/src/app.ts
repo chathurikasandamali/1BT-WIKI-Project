@@ -11,17 +11,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// [DIAG] Temporary — proves whether Admin role-change PATCHes reach this process.
-app.use((req, _res, next) => {
-  if (req.method === 'PATCH' && req.path.startsWith('/api/v1/admin/users')) {
-    // eslint-disable-next-line no-console
-    console.log(
-      `[DIAG][HTTP] ${req.method} ${req.originalUrl} PID=${process.pid} ${new Date().toISOString()}`
-    );
-  }
-  next();
-});
-
 // Health check — always available even if DB is down
 app.get('/api/v1/health', (_req, res) => {
   res.status(200).json({ success: true, data: { status: 'ok' } });

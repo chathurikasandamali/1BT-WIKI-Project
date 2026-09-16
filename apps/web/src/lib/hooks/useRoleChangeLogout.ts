@@ -28,9 +28,7 @@ const performRoleChangeLogout = async (): Promise<void> => {
   logoutInFlight = true;
 
   try {
-    console.log('[DIAG][RoleChangeLogout] Event received — calling authClient.signOut()');
     await authClient.signOut();
-    console.log('[DIAG][RoleChangeLogout] signOut() resolved — navigating to /signin');
     window.location.assign('/signin');
   } catch (error) {
     console.error(
@@ -52,15 +50,10 @@ export function useRoleChangeLogout(userId: string | null): void {
   useEffect(() => {
     if (!userId) return;
 
-    console.log(
-      `[DIAG][RoleChangeLogout] Subscribing to role-changed for userId=${userId}`
-    );
-
     const unsubscribe = subscribeToUserChannelEvent(
       userId,
       PUSHER_ROLE_CHANGED_EVENT,
       () => {
-        console.log('[DIAG][RoleChangeLogout] RECEIVED role-changed event');
         // The payload carries the new role for forward-compatibility; the
         // sign-out itself does not depend on it.
         void performRoleChangeLogout();
@@ -68,7 +61,6 @@ export function useRoleChangeLogout(userId: string | null): void {
     );
 
     return () => {
-      console.log('[DIAG][RoleChangeLogout] Cleanup — unsubscribing');
       unsubscribe();
     };
   }, [userId]);

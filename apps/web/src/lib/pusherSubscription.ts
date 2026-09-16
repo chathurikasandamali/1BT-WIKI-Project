@@ -44,21 +44,6 @@ export function subscribeToUserChannelEvent<T>(
     (channelRefCounts.get(channelName) ?? 0) + 1
   );
 
-  // Temporary diagnosis: confirm subscription attempts and their outcome.
-  const refsAfter = channelRefCounts.get(channelName) ?? 0;
-  console.log(
-    `[DIAG][Pusher] subscribe: channel=${channelName} event=${event} refs=${refsAfter}`
-  );
-  channel.bind('pusher:subscription_succeeded', () => {
-    console.log(`[DIAG][Pusher] subscription_succeeded: channel=${channelName}`);
-  });
-  channel.bind('pusher:subscription_error', (err: unknown) => {
-    console.error(
-      `[DIAG][Pusher] subscription_error: channel=${channelName}`,
-      err
-    );
-  });
-
   let disposed = false;
 
   return () => {
@@ -70,19 +55,11 @@ export function subscribeToUserChannelEvent<T>(
     if (remaining <= 0) {
       // Last consumer — nothing else is listening on this channel any more.
       channelRefCounts.delete(channelName);
-
-      // Temporary diagnosis: capture why the channel is being torn down.
-      console.log(
-        `[DIAG][Pusher] unsubscribe (last consumer): channel=${channelName}`
-      );
       channel.unbind_all();
       getPusherClient().unsubscribe(channelName);
     } else {
       // Other consumers remain — remove only this handler.
       channelRefCounts.set(channelName, remaining);
-      console.log(
-        `[DIAG][Pusher] unsubscribe (one consumer, refs left): channel=${channelName} refs=${remaining}`
-      );
       channel.unbind(event, handler);
     }
   };
