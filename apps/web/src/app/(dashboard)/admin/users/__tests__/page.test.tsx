@@ -122,3 +122,81 @@ describe('Admin user management role change', () => {
     expect(screen.queryByTestId('role-change-details')).not.toBeInTheDocument();
   });
 });
+
+describe('Admin user management last active admin', () => {
+  const lastAdmin = {
+    id: 'admin-1',
+    name: 'Sole Admin',
+    email: 'admin@1billiontech.com',
+    role: UserRoleValue.Admin,
+    banned: false,
+    banReason: null,
+    image: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+  };
+
+  const secondAdmin = {
+    id: 'admin-2',
+    name: 'Second Admin',
+    email: 'second@1billiontech.com',
+    role: UserRoleValue.Admin,
+    banned: false,
+    banReason: null,
+    image: null,
+    createdAt: '2026-01-02T00:00:00.000Z',
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('blocks changing the last active admin and shows a warning instead of the role-change modal', async () => {
+    mockApiFetch.mockResolvedValue({ success: true, data: [lastAdmin] });
+    const user = userEvent.setup();
+    render(<AdminUsersPage />);
+
+    await selectRole(user, 'admin-1', UserRoleValue.User);
+
+    const warning = await screen.findByTestId('last-admin-warning');
+    expect(screen.getByText('Cannot change role')).toBeInTheDocument();
+    expect(warning).toHaveTextContent('Sole Admin');
+    expect(warning).toHaveTextContent('last active admin');
+    expect(screen.queryByTestId('role-change-details')).not.toBeInTheDocument();
+    expectRoleBadge('admin-1', UserRoleValue.Admin);
+    expect(mockApiFetch).toHaveBeenCalledTimes(1);
+    expect(mockApiFetch).toHaveBeenCalledWith('/admin/getAllUsers');
+  });
+
+  it('dismisses the last-admin warning without calling the role API', async () => {
+    mockApiFetch.mockResolvedValue({ success: true, data: [lastAdmin] });
+    const user = userEvent.setup();
+    render(<AdminUsersPage />);
+
+    await selectRole(user, 'admin-1', UserRoleValue.Reviewer);
+    await screen.findByTestId('last-admin-warning');
+
+    fireEvent.click(getConfirmButton());
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('last-admin-warning')).not.toBeInTheDocument();
+    });
+    expectRoleBadge('admin-1', UserRoleValue.Admin);
+    expect(mockApiFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows demoting an admin when another active admin exists', async () => {
+    mockApiFetch.mockResolvedValue({
+      success: true,
+      data: [lastAdmin, secondAdmin],
+    });
+    const user = userEvent.setup();
+    render(<AdminUsersPage />);
+
+    await selectRole(user, 'admin-1', UserRoleValue.User);
+
+    const details = await screen.findByTestId('role-change-details');
+    expect(details).toHaveTextContent('Sole Admin');
+    expect(screen.queryByTestId('last-admin-warning')).not.toBeInTheDocument();
+    expect(mockApiFetch).toHaveBeenCalledTimes(1);
+  });
+});

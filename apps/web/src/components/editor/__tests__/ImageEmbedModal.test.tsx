@@ -53,6 +53,22 @@ describe('ImageEmbedModal', () => {
     ).toBeInTheDocument();
   });
 
+  it('lets the user upload a file without requiring body text first', async () => {
+    mockUploadImage.mockResolvedValue('https://uploaded.com/img.png');
+    render(<ImageEmbedModal isOpen={true} onClose={mockOnClose} />);
+
+    const file = new File(['hello'], 'hello.png', { type: 'image/png' });
+    const input = screen.getByLabelText(/click to upload or drag and drop/i);
+    await userEvent.upload(input, file);
+
+    expect(mockUploadImage).toHaveBeenCalledWith(file);
+    await waitFor(() => {
+      expect(mockInsertEditorImage).toHaveBeenCalledWith(
+        'https://uploaded.com/img.png'
+      );
+    });
+  });
+
   it('handles URL embedding via button click', async () => {
     render(<ImageEmbedModal isOpen={true} onClose={mockOnClose} />);
     

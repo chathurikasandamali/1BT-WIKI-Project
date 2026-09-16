@@ -53,6 +53,8 @@ function UserManagementContent(): React.JSX.Element {
     user: AdminUser;
     newRole: UserRole;
   } | null>(null);
+  const [lastAdminWarningUser, setLastAdminWarningUser] =
+    useState<AdminUser | null>(null);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -144,6 +146,9 @@ function UserManagementContent(): React.JSX.Element {
   const totalActive = users.filter((u) => !u.banned).length;
   const totalBanned = users.filter((u) => u.banned === true).length;
   const totalAdmins = users.filter((u) => u.role === UserRoleValue.Admin).length;
+  const activeAdminCount = users.filter(
+    (u) => u.role === UserRoleValue.Admin && !u.banned
+  ).length;
 
   // ── Role update ─────────────────────────────────────────────────────────────
 
@@ -153,6 +158,16 @@ function UserManagementContent(): React.JSX.Element {
   const handleRoleSelect = (userId: string, newRole: UserRole): void => {
     const user = users.find((u) => u.id === userId);
     if (!user || user.role === newRole) return;
+
+    const isLastActiveAdmin =
+      user.role === UserRoleValue.Admin &&
+      !user.banned &&
+      activeAdminCount <= 1;
+    if (isLastActiveAdmin) {
+      setLastAdminWarningUser(user);
+      return;
+    }
+
     setPendingRoleChange({ user, newRole });
   };
 
@@ -414,6 +429,32 @@ function UserManagementContent(): React.JSX.Element {
           isBanned={modalTarget.banned === true}
           onConfirm={handleBanConfirm}
           onCancel={() => setModalTarget(null)}
+        />
+      )}
+
+      {lastAdminWarningUser && (
+        <ConfirmationModal
+          isOpen
+          variant="warning"
+          title="Cannot change role"
+          confirmText="Got it"
+          onConfirm={() => setLastAdminWarningUser(null)}
+          onCancel={() => setLastAdminWarningUser(null)}
+          message={
+            <div className="space-y-3" data-testid="last-admin-warning">
+              <p>
+                <span className="font-semibold text-brand-text-primary">
+                  {lastAdminWarningUser.name}
+                </span>{' '}
+                is the last active admin on the wiki. Their role can&apos;t be
+                changed, or the system would be left without an admin.
+              </p>
+              <p>
+                Promote another user to Admin first, then you&apos;ll be able
+                to change this account&apos;s role.
+              </p>
+            </div>
+          }
         />
       )}
 
