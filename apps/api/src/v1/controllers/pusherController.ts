@@ -54,6 +54,9 @@ const auth = async (
     };
 
     if (!socket_id || !channel_name) {
+      console.log(
+        '[DIAG][Pusher] Auth 400: missing socket_id or channel_name'
+      );
       res.status(400).json({
         success: false,
         error: 'Missing socket_id or channel_name',
@@ -61,14 +64,26 @@ const auth = async (
       return;
     }
 
+    // Temporary diagnosis: confirm the browser's subscription request reaches
+    // the backend with the expected channel and a real socket id.
+    console.log(
+      `[DIAG][Pusher] Auth request: userId=${userId} socket_id_len=${socket_id.length} channel_name=${channel_name}`
+    );
+
     // Enforce channel ownership — a user may only subscribe to their own channel.
     const expectedChannel = pusherChannelName(userId);
     if (channel_name !== expectedChannel) {
+      console.log(
+        `[DIAG][Pusher] Auth 403: requested=${channel_name} expected=${expectedChannel}`
+      );
       res.status(403).json({ success: false, error: 'Forbidden' });
       return;
     }
 
     const authToken = pusherClient.authorizeChannel(socket_id, channel_name);
+    console.log(
+      `[DIAG][Pusher] Auth OK: channel=${channel_name} auth_present=${!!authToken?.auth}`
+    );
 
     // Wrap in the project's standard response envelope.
     // The frontend custom authorizer extracts `response.data` and passes it

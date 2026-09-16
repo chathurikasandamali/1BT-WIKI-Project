@@ -11,6 +11,12 @@
 export const PUSHER_NOTIFICATION_EVENT = 'notification:new' as const;
 
 /**
+ * The event name broadcast to a user when an Admin changes their role.
+ * Frontend: channel.bind(PUSHER_ROLE_CHANGED_EVENT, handler)
+ */
+export const PUSHER_ROLE_CHANGED_EVENT = 'role-changed' as const;
+
+/**
  * Derives the private channel name for a given user.
  *
  * Pusher private channels require the "private-" prefix and authenticate

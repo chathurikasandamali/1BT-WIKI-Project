@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getPusherClient } from '@/lib/pusher';
+import { subscribeToUserChannelEvent } from '@/lib/pusherSubscription';
 import {
   getNotifications,
   getUnreadCount,
@@ -80,39 +81,41 @@ export function useNotifications({
   useEffect(() => {
     if (!userId) return;
 
-    const pusher = getPusherClient();
-    const channelName = `private-user-${userId}`;
-    const channel = pusher.subscribe(channelName);
+    // The shared channel is also used by useRoleChangeLogout — the ref-counted
+    // subscription helper ensures this hook only ever removes its own handlers.
+    const unsubscribe = subscribeToUserChannelEvent(
+      userId,
+      NOTIFICATION_EVENT,
+      (payload: PusherNotificationPayload) => {
+        if (notificationIdsRef.current.has(payload.id)) return;
+        notificationIdsRef.current.add(payload.id);
 
-    // Handle incoming real-time notifications
-    channel.bind(NOTIFICATION_EVENT, (payload: PusherNotificationPayload) => {
-      if (notificationIdsRef.current.has(payload.id)) return;
-      notificationIdsRef.current.add(payload.id);
+        // Construct a Notification shape from the Pusher payload.
+        // The full Notification object will be fetched on next page load;
+        // this is the optimistic representation for immediate UI update.
+        const newNotification: Notification = {
+          id: payload.id,
+          recipientId: payload.recipientId,
+          notificationTitle: payload.title,
+          notificationReferenceType: 'article',
+          referenceId: '',
+          notificationType: 'info',
+          message: payload.message,
+          isRead: payload.isRead,
+          readAt: null,
+          deletedAt: null,
+          createdAt: payload.createdAt,
+        };
 
-      // Construct a Notification shape from the Pusher payload.
-      // The full Notification object will be fetched on next page load;
-      // this is the optimistic representation for immediate UI update.
-      const newNotification: Notification = {
-        id: payload.id,
-        recipientId: payload.recipientId,
-        notificationTitle: payload.title,
-        notificationReferenceType: 'article',
-        referenceId: '',
-        notificationType: 'info',
-        message: payload.message,
-        isRead: payload.isRead,
-        readAt: null,
-        deletedAt: null,
-        createdAt: payload.createdAt,
-      };
-
-      setNotifications((prev) => [newNotification, ...prev]);
-      if (!payload.isRead) {
-        setUnreadCount((prev) => prev + 1);
+        setNotifications((prev) => [newNotification, ...prev]);
+        if (!payload.isRead) {
+          setUnreadCount((prev) => prev + 1);
+        }
       }
-    });
+    );
 
     // On reconnect, reconcile the unread count to cover events missed offline
+    const pusher = getPusherClient();
     pusher.connection.bind('connected', async () => {
       try {
         const count = await getUnreadCount();
@@ -125,10 +128,7 @@ export function useNotifications({
       }
     });
 
-    return () => {
-      channel.unbind_all();
-      pusher.unsubscribe(channelName);
-    };
+    return unsubscribe;
   }, [userId]);
 
   // ---------------------------------------------------------------------------
