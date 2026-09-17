@@ -19,6 +19,7 @@
 import React from 'react';
 import { useUser } from '@/lib/hooks/useUser';
 import { useRoleChangeLogout } from '@/lib/hooks/useRoleChangeLogout';
+import { Toast } from '@/components/shared/Toast';
 
 interface RoleChangeProviderProps {
   children: React.ReactNode;
@@ -26,15 +27,20 @@ interface RoleChangeProviderProps {
 
 /**
  * Automatically signs the user out across all open tabs when an Admin changes
- * their role. Must be rendered inside <UserProvider> so it can read the
- * authenticated user's ID to build the Pusher private channel name.
+ * their role, showing an explanatory toast just before the logout. Must be
+ * rendered inside <UserProvider> so it can read the authenticated user's ID
+ * to build the Pusher private channel name.
  */
 export function RoleChangeProvider({
   children,
 }: RoleChangeProviderProps): React.JSX.Element {
   const { user } = useUser();
+  const { toast } = useRoleChangeLogout(user?.id ?? null);
 
-  useRoleChangeLogout(user?.id ?? null);
-
-  return <>{children}</>;
+  return (
+    <>
+      <Toast visible={toast.visible} message={toast.message} type={toast.type} />
+      {children}
+    </>
+  );
 }

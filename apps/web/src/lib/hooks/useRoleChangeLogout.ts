@@ -18,6 +18,15 @@ import { useEffect } from 'react';
 import { authClient } from '@/lib/auth/client';
 import { PUSHER_ROLE_CHANGED_EVENT } from '@/lib/pusherEvents';
 import { subscribeToUserChannelEvent } from '@/lib/pusherSubscription';
+import { useToast } from '@/lib/hooks/useToast';
+import type { ToastType } from '@/components/shared/Toast';
+import { ROLE_CHANGE_TOAST_DELAY_MS, ROLE_CHANGE_TOAST_MESSAGE } from '@repo/shared';
+
+interface RoleChangeToast {
+  visible: boolean;
+  message: string;
+  type: ToastType;
+}
 
 // Session-level guard: one logout per tab. Prevents a second role-change event
 // delivered before navigation completes from re-invoking authClient.signOut().
@@ -28,6 +37,11 @@ const performRoleChangeLogout = async (): Promise<void> => {
   logoutInFlight = true;
 
   try {
+    // Give the exit toast time to appear before window.location.assign('/signin')
+    // tears the current page down.
+    await new Promise<void>((resolve) =>
+      setTimeout(resolve, ROLE_CHANGE_TOAST_DELAY_MS)
+    );
     await authClient.signOut();
     window.location.assign('/signin');
   } catch (error) {
@@ -42,11 +56,17 @@ const performRoleChangeLogout = async (): Promise<void> => {
 
 /**
  * Automatically signs the user out when the backend broadcasts
- * role-changed on their private Pusher channel.
+ * role-changed on their private Pusher channel. Surfaces an explanatory
+ * toast just before the sign-out so the user knows why they were logged out.
  *
  * @param userId - The authenticated user's ID (null when signed out)
+ * @returns The toast state to render via the app's <Toast /> component
  */
-export function useRoleChangeLogout(userId: string | null): void {
+export function useRoleChangeLogout(userId: string | null): {
+  toast: RoleChangeToast;
+} {
+  const { toast, showToast } = useToast();
+
   useEffect(() => {
     if (!userId) return;
 
@@ -56,6 +76,7 @@ export function useRoleChangeLogout(userId: string | null): void {
       () => {
         // The payload carries the new role for forward-compatibility; the
         // sign-out itself does not depend on it.
+        showToast(ROLE_CHANGE_TOAST_MESSAGE, 'info');
         void performRoleChangeLogout();
       }
     );
@@ -63,5 +84,7 @@ export function useRoleChangeLogout(userId: string | null): void {
     return () => {
       unsubscribe();
     };
-  }, [userId]);
+  }, [userId, showToast]);
+
+  return { toast };
 }
