@@ -1,5 +1,4 @@
 import { renderHook, act } from '@testing-library/react';
-import { useRoleChangeLogout } from '../useRoleChangeLogout';
 import { getPusherClient } from '@/lib/pusher';
 import { authClient } from '@/lib/auth/client';
 
@@ -14,6 +13,24 @@ jest.mock('@/lib/pusher', () => ({
 jest.mock('@/lib/auth/client', () => ({
   authClient: { signOut: jest.fn().mockResolvedValue(undefined) },
 }));
+
+// Defined before the useToast mock so its module factory sees an initialized
+// reference once the hook below is imported.
+const mockShowToast = jest.fn();
+
+jest.mock('@/lib/hooks/useToast', () => ({
+  useToast: () => ({
+    toast: { visible: false, message: '', type: 'info' },
+    showToast: mockShowToast,
+  }),
+}));
+
+// Imported after the mocks so the useToast factory captures mockShowToast.
+import { useRoleChangeLogout } from '../useRoleChangeLogout';
+import {
+  ROLE_CHANGE_TOAST_DELAY_MS,
+  ROLE_CHANGE_TOAST_MESSAGE,
+} from '@repo/shared';
 
 const mockGetPusherClient = getPusherClient as jest.Mock;
 const mockSignOut = authClient.signOut as jest.Mock;
@@ -38,6 +55,7 @@ describe('useRoleChangeLogout', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.useFakeTimers();
 
     boundHandlers = [];
 
@@ -67,6 +85,10 @@ describe('useRoleChangeLogout', () => {
     mockSignOut.mockResolvedValue(undefined);
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it('subscribes to the user private channel and listens for role-changed', () => {
     renderHook(() => useRoleChangeLogout('user-1'));
 
@@ -82,15 +104,45 @@ describe('useRoleChangeLogout', () => {
     expect(mockPusherClient.subscribe).not.toHaveBeenCalled();
   });
 
+  it('shows the role-change toast when role-changed is received', async () => {
+    renderHook(() => useRoleChangeLogout('user-1'));
+
+    await act(async () => {
+      bindRoleChangeHandler();
+      jest.advanceTimersByTime(ROLE_CHANGE_TOAST_DELAY_MS);
+    });
+
+    expect(mockShowToast).toHaveBeenCalledWith(
+      ROLE_CHANGE_TOAST_MESSAGE,
+      'info'
+    );
+  });
+
   it('signs out and redirects to /signin when role-changed is received', async () => {
     renderHook(() => useRoleChangeLogout('user-1'));
 
     await act(async () => {
       bindRoleChangeHandler();
+      jest.advanceTimersByTime(ROLE_CHANGE_TOAST_DELAY_MS);
     });
 
     expect(mockSignOut).toHaveBeenCalledTimes(1);
     expect(window.location.assign).toHaveBeenCalledWith('/signin');
+  });
+
+  it('shows the toast before signing out', async () => {
+    renderHook(() => useRoleChangeLogout('user-1'));
+
+    await act(async () => {
+      bindRoleChangeHandler();
+      jest.advanceTimersByTime(ROLE_CHANGE_TOAST_DELAY_MS);
+    });
+
+    expect(mockShowToast).toHaveBeenCalled();
+    expect(mockSignOut).toHaveBeenCalled();
+    expect(mockShowToast.mock.invocationCallOrder[0]!).toBeLessThan(
+      mockSignOut.mock.invocationCallOrder[0]!
+    );
   });
 
   it('does not call signOut twice for rapid duplicate events', async () => {
@@ -99,6 +151,7 @@ describe('useRoleChangeLogout', () => {
     await act(async () => {
       bindRoleChangeHandler();
       bindRoleChangeHandler();
+      jest.advanceTimersByTime(ROLE_CHANGE_TOAST_DELAY_MS);
     });
 
     expect(mockSignOut).toHaveBeenCalledTimes(1);
@@ -114,6 +167,7 @@ describe('useRoleChangeLogout', () => {
 
     await act(async () => {
       bindRoleChangeHandler();
+      jest.advanceTimersByTime(ROLE_CHANGE_TOAST_DELAY_MS);
     });
 
     expect(mockSignOut).toHaveBeenCalledTimes(1);

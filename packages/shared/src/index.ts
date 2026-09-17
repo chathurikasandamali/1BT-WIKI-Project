@@ -236,3 +236,10 @@ export function tipTapDocHasContent(
 
   return extractTextFromTipTap(body).length > 0;
 }
+
+// Role change toast delay in milliseconds
+export const ROLE_CHANGE_TOAST_DELAY_MS = 1500;
+
+// Role change toast message
+export const ROLE_CHANGE_TOAST_MESSAGE =
+  'Your role has been changed. Please sign in again to continue.';
