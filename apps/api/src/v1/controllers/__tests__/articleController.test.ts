@@ -4,6 +4,7 @@ import type { ArticleService } from '../../services/articleService.js';
 import { AppError } from '../../../errors/AppError.js';
 import { makeMockReqResNext } from '../../__tests__/helpers/mockExpress.helpers.js';
 import { UserRoleValue } from '@/types/userTypes.js';
+import { HttpStatusCode } from '@/v1/utils/httpStatus.js';
 
 // articleController.ts imports ArticleService by its named class export (for the
 // constructor's default-parameter `new ArticleService()`); tests always inject a mock
@@ -27,6 +28,7 @@ const makeMockService = (): jest.Mocked<
     | 'listMine'
     | 'getArticleById'
     | 'deleteArticle'
+    | 'getReviewFeedback'
   >
 > => ({
   createArticle: jest.fn(),
@@ -38,6 +40,7 @@ const makeMockService = (): jest.Mocked<
   listMine: jest.fn(),
   getArticleById: jest.fn(),
   deleteArticle: jest.fn(),
+  getReviewFeedback: jest.fn(),
 });
 
 describe('ArticleController', () => {
@@ -63,7 +66,7 @@ describe('ArticleController', () => {
       expect(next).toHaveBeenCalledWith(expect.any(AppError));
       const error = next.mock.calls[0][0] as any as AppError;
       expect(error.message).toBe('The "data" field is required');
-      expect(error.statusCode).toBe(400);
+      expect(error.statusCode).toBe(HttpStatusCode.BAD_REQUEST);
     });
 
     it('should throw AppError if data field is not valid JSON', async () => {
@@ -73,7 +76,7 @@ describe('ArticleController', () => {
       expect(next).toHaveBeenCalledWith(expect.any(AppError));
       const error = next.mock.calls[0][0] as any as AppError;
       expect(error.message).toBe('Invalid JSON in "data" field');
-      expect(error.statusCode).toBe(400);
+      expect(error.statusCode).toBe(HttpStatusCode.BAD_REQUEST);
     });
 
     it('should call ArticleService.createArticle and return 201 with success response', async () => {
@@ -170,7 +173,7 @@ describe('ArticleController', () => {
       expect(next).toHaveBeenCalledWith(expect.any(AppError));
       const error = next.mock.calls[0][0] as any as AppError;
       expect(error.message).toBe('Invalid JSON in "data" field');
-      expect(error.statusCode).toBe(400);
+      expect(error.statusCode).toBe(HttpStatusCode.BAD_REQUEST);
     });
 
     it('should call ArticleService.updateArticle with parsed data and files', async () => {
@@ -232,7 +235,7 @@ describe('ArticleController', () => {
         'article-123',
         'user-123'
       );
-      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.status).toHaveBeenCalledWith(HttpStatusCode.OK);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: updatedArticle,
@@ -266,7 +269,7 @@ describe('ArticleController', () => {
         'article-123',
         UserRoleValue.Admin
       );
-      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.status).toHaveBeenCalledWith(HttpStatusCode.OK);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: publishedArticle,
@@ -276,7 +279,7 @@ describe('ArticleController', () => {
     });
 
     it('should forward publication errors to next without sending a success response', async () => {
-      const error = new AppError('Only Approved articles can be published', 400);
+      const error = new AppError('Only Approved articles can be published', HttpStatusCode.BAD_REQUEST);
       mockService.publishArticle.mockRejectedValue(error as never);
 
       await controller.publishArticle(req as Request, res as Response, next);
@@ -295,7 +298,7 @@ describe('ArticleController', () => {
       await controller.listPublished(req as Request, res as Response, next);
 
       expect(mockService.listPublished).toHaveBeenCalledWith(1, 20, undefined, undefined, undefined);
-      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.status).toHaveBeenCalledWith(HttpStatusCode.OK);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: mockResult,
@@ -311,7 +314,7 @@ describe('ArticleController', () => {
       await controller.listPublished(req as Request, res as Response, next);
 
       expect(mockService.listPublished).toHaveBeenCalledWith(3, 5, undefined, undefined, undefined);
-      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.status).toHaveBeenCalledWith(HttpStatusCode.OK);
     });
 
     it('should forward search, sort, and order query params to the service', async () => {
@@ -322,7 +325,7 @@ describe('ArticleController', () => {
       await controller.listPublished(req as Request, res as Response, next);
 
       expect(mockService.listPublished).toHaveBeenCalledWith(1, 10, 'react', 'views', 'asc');
-      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.status).toHaveBeenCalledWith(HttpStatusCode.OK);
     });
 
     it('should include likeCount and commentCount in the response payload', async () => {
@@ -466,7 +469,7 @@ describe('ArticleController', () => {
     });
 
     it('should pass errors to next', async () => {
-      const error = new AppError('Not authorized', 403);
+      const error = new AppError('Not authorized', HttpStatusCode.FORBIDDEN);
       mockService.deleteArticle.mockRejectedValue(error as never);
 
       await controller.remove(req as Request, res as Response, next);
@@ -582,7 +585,7 @@ describe('ArticleController.listAllArticles', () => {
     await controller.listAllArticles(req as Request, res as Response, next);
 
     expect(mockService.listAllArticles).toHaveBeenCalledWith(1, 20, undefined, undefined, undefined, undefined);
-    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.status).toHaveBeenCalledWith(HttpStatusCode.OK);
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -605,12 +608,64 @@ describe('ArticleController.listAllArticles', () => {
   });
 
   it('should pass errors to next', async () => {
-    const error = new AppError('Invalid status filter. Allowed: Draft, Pending, Published, Unpublished', 400);
+    const error = new AppError('Invalid status filter. Allowed: Draft, Pending, Published, Unpublished', HttpStatusCode.BAD_REQUEST);
     mockService.listAllArticles.mockRejectedValue(error as never);
 
     await controller.listAllArticles(req as Request, res as Response, next);
 
     expect(next).toHaveBeenCalledWith(error);
     expect(res.status).not.toHaveBeenCalled();
+  });
+});
+
+describe('ArticleController.getReviewFeedback', () => {
+  let req: Partial<Request>;
+  let res: Partial<Response>;
+  let next: jest.Mock<any>;
+  let mockService: ReturnType<typeof makeMockService>;
+  let controller: InstanceType<typeof ArticleController>;
+
+  beforeEach(() => {
+    ({ req, res, next } = makeMockReqResNext());
+    req.params = { id: 'article-123' };
+    req.user = { userId: 'user-123', role: 'User', email: 'test@test.com' };
+    mockService = makeMockService();
+    controller = new ArticleController(mockService as unknown as ArticleService);
+    jest.clearAllMocks();
+  });
+
+  it('should call getReviewFeedback on service with article id and req.user.userId and return 200', async () => {
+    const mockFeedback = {
+      overallFeedback: 'Rejection reason',
+      comments: [
+        {
+          id: 'c-1',
+          comment: 'Sample comment',
+          selectedText: 'text',
+          createdAt: new Date(),
+        },
+      ],
+    };
+    mockService.getReviewFeedback.mockResolvedValue(mockFeedback as never);
+
+    await controller.getReviewFeedback(req as Request, res as Response, next);
+
+    expect(mockService.getReviewFeedback).toHaveBeenCalledWith('article-123', 'user-123');
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: mockFeedback,
+      message: 'Review feedback retrieved successfully',
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('should pass service errors to next', async () => {
+    const error = new AppError('Not authorized', HttpStatusCode.FORBIDDEN);
+    mockService.getReviewFeedback.mockRejectedValue(error as never);
+
+    await controller.getReviewFeedback(req as Request, res as Response, next);
+
+    expect(next).toHaveBeenCalledWith(error);
   });
 });

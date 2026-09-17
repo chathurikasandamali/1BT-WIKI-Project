@@ -2,7 +2,9 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useUser, UserRole } from '@/lib/hooks/useUser';
+import { useUser } from '@/lib/hooks/useUser';
+import type { UserRole } from '@repo/shared';
+import { PageLoader } from '@/components/shared/PageLoader';
 
 interface RoleGuardProps {
   allowedRoles: UserRole[];
@@ -14,14 +16,12 @@ export function RoleGuard({
   allowedRoles,
   children,
   fallback,
-}: RoleGuardProps) {
+}: RoleGuardProps): React.JSX.Element {
   const { user, loading } = useUser();
 
   if (loading) {
     return (
-      <div className="p-8 flex justify-center items-center">
-        <div className="text-brand-text-secondary">Loading...</div>
-      </div>
+      <PageLoader className="min-h-0 py-8" />
     );
   }
 

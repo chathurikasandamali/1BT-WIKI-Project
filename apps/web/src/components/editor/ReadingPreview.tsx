@@ -2,18 +2,17 @@
 
 import React, { useState, useEffect } from 'react';
 import gsap from 'gsap';
+import Image from 'next/image';
 import { Monitor, Tablet, Smartphone } from 'lucide-react';
-import {
-  MOCK_TAGS,
-  MOCK_TITLE,
-  MOCK_AUTHOR_INITIALS,
-  MOCK_AUTHOR_NAME,
-  MOCK_AUTHOR_META,
-  MOCK_CONTENT_HTML,
-} from '@/components/editor/mock';
+import { ArticleContent } from '@/components/article-detail/ArticleContent';
+import { useEditorDraft } from '@/components/editor/EditorDraftContext';
+import { UserAvatar } from '@/components/UserAvatar';
+import { useUser } from '@/lib/hooks/useUser';
 import { cn } from '@/lib/utils';
 
-export function ReadingPreview() {
+export function ReadingPreview(): React.JSX.Element {
+  const { title, tags, currentBody, featuredImageUrl } = useEditorDraft();
+  const { user } = useUser();
   const [viewport, setViewport] = useState<'desktop' | 'tablet' | 'mobile'>(
     'desktop'
   );
@@ -26,7 +25,7 @@ export function ReadingPreview() {
     );
   }, []);
 
-  const getViewportWidth = () => {
+  const getViewportWidth = (): string => {
     switch (viewport) {
       case 'mobile':
         return 'max-w-sm';
@@ -87,43 +86,54 @@ export function ReadingPreview() {
           )}
         >
           {/* Header Image */}
-          <div className="w-full h-64 bg-gradient-to-br from-orange-400 via-pink-500 to-purple-600" />
+          {featuredImageUrl && (
+            <Image
+              src={featuredImageUrl}
+              alt="Article cover"
+              width={1200}
+              height={400}
+              unoptimized
+              className="h-64 w-full object-cover"
+            />
+          )}
 
           <div className="p-10 md:p-14">
-            {/* Tags */}
-            <div className="mb-6 flex gap-2">
-              {MOCK_TAGS.map((tag) => (
-                <span key={tag} className="font-bold text-brand-red text-sm">
-                  {tag}
-                </span>
-              ))}
-            </div>
+            {tags.length > 0 && (
+              <div className="mb-6 flex flex-wrap gap-2">
+                {tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full bg-brand-bg px-3 py-1 text-xs font-semibold uppercase tracking-wider text-brand-text-secondary"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
 
             {/* Title */}
             <h1 className="font-display text-4xl md:text-5xl font-bold text-brand-text-primary leading-tight mb-8">
-              {MOCK_TITLE}
+              {title.trim() || 'Untitled Draft'}
             </h1>
 
             {/* Author Meta Row */}
             <div className="flex items-center gap-4 mb-10 border-b border-brand-border pb-8">
-              <div className="h-12 w-12 rounded-full bg-brand-hover border-2 border-white shadow flex items-center justify-center text-brand-red font-bold">
-                {MOCK_AUTHOR_INITIALS}
-              </div>
+              <UserAvatar
+                format="detail"
+                name={user?.name}
+                avatarUrl={user?.avatarUrl}
+              />
               <div>
                 <p className="font-bold text-brand-text-primary">
-                  {MOCK_AUTHOR_NAME}
+                  {user?.name || 'Unknown Author'}
                 </p>
                 <p className="text-sm text-brand-text-secondary">
-                  {MOCK_AUTHOR_META}
+                  Draft preview
                 </p>
               </div>
             </div>
 
-            {/* Simulated Rich Text Content */}
-            <div
-              className="prose prose-lg max-w-none prose-headings:font-display prose-headings:font-bold prose-headings:text-brand-text-primary prose-p:text-brand-text-primary prose-a:text-brand-red"
-              dangerouslySetInnerHTML={{ __html: MOCK_CONTENT_HTML }}
-            />
+            <ArticleContent body={currentBody} />
           </div>
         </article>
       </div>

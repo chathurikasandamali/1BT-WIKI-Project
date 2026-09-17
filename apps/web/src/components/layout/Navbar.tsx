@@ -1,16 +1,13 @@
 'use client';
 
-import Link from 'next/link';
-
 import React, { useRef, useState, useEffect } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { isE2E } from '@/lib/e2e';
-import { BRAND_NAME, BRAND_SUB_NAME } from '@/lib/constants/brand';
-import { SearchIcon } from '@/components/shared/icons/SearchIcon';
 import { BellIcon } from '@/components/shared/icons/BellIcon';
 import { NotificationDropdown } from './NotificationDropdown';
 import { UserAccountMenu } from './UserAccountMenu';
+import { HeaderSearch } from './HeaderSearch';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -181,40 +178,12 @@ export function Navbar({
         </button>
       )}
 
-      {isSidebarOpen && (
-        <Link
-          href="/"
-          className="flex items-center gap-1.5 flex-shrink-0 hover:opacity-80 transition-opacity ml-2"
-          data-testid="logo"
-          aria-label="1BT Wiki home"
-        >
-          <div className="h-10 w-10 bg-brand-red rounded flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-xs font-black leading-none">
-              {BRAND_NAME}
-            </span>
-          </div>
-          <span className="text-brand-text-secondary font-semibold text-base leading-none tracking-tight">
-            {BRAND_SUB_NAME}
-          </span>
-        </Link>
-      )}
-
       <div className="flex-1 px-4">
-        <div className="relative max-w-xl mx-auto">
-          <SearchIcon
-            className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-text-secondary"
-            aria-hidden="true"
-          />
-          <input
-            type="text"
-            placeholder="Search articles, tech talks..."
-            className="w-full !pl-10 pr-4 py-2 bg-brand-bg border border-brand-border rounded-full
-                       text-sm text-brand-text-primary placeholder:text-brand-text-secondary
-                       focus:outline-none focus:ring-2 focus:ring-brand-red/20
-                       focus:border-brand-red transition-colors"
-            data-testid="search-input"
-          />
-        </div>
+        <HeaderSearch
+          id="admin-navbar-search"
+          placeholder="Search articles, tech talks..."
+          className="max-w-xl mx-auto"
+        />
       </div>
 
       <div className="flex items-center gap-4 flex-shrink-0">

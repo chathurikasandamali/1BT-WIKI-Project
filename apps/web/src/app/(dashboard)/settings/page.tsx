@@ -12,9 +12,16 @@ import { ProfileIcon } from '@/components/shared/icons/ProfileIcon';
 import { LockIcon } from '@/components/shared/icons/LockIcon';
 import { BellIcon } from '@/components/shared/icons/BellIcon';
 import { CameraIcon } from '@/components/shared/icons/CameraIcon';
+import { FileIcon } from '@/components/shared/icons/FileIcon';
+import { cn } from '@/lib/utils';
+import { RoleUserGuide } from '@/components/profile/RoleUserGuide';
+import { getRoleUserGuide } from '@/lib/constants/roleUserGuide';
+
+type SettingsTab = 'profile' | 'guide';
 
 export default function ProfileSettingsPage() {
   const { user, loading, refetch } = useUser();
+  const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
   const [isEditing, setIsEditing] = useState(false);
   const [showPhotoInput, setShowPhotoInput] = useState(false);
   const [name, setName] = useState('');
@@ -124,8 +131,8 @@ export default function ProfileSettingsPage() {
 
   if (loading) {
     return (
-      <div className="p-8 flex justify-center items-center h-full">
-        <div className="text-brand-text-secondary">Loading profile...</div>
+      <div className="flex items-center justify-center p-8 text-sm text-brand-text-secondary">
+        Loading...
       </div>
     );
   }
@@ -196,23 +203,61 @@ export default function ProfileSettingsPage() {
     }
   };
   const hasAvatar = avatarUrl || user.avatarUrl;
+  const showUserGuide = getRoleUserGuide(user.role) !== null;
+
+  const handleSelectProfileTab = (): void => {
+    setActiveTab('profile');
+  };
+
+  const handleSelectGuideTab = (): void => {
+    setActiveTab('guide');
+    setIsEditing(false);
+    setErrorMsg(null);
+  };
 
   return (
-    <div className="p-8 max-w-5xl mx-auto" ref={containerRef}>
-      <h1 className="text-2xl font-semibold text-brand-text-primary mb-8">
-        Account Settings
-      </h1>
+    <div className="mx-auto max-w-6xl p-8" ref={containerRef}>
+      <div className="mb-8">
+        <h1 className="text-2xl font-semibold text-brand-text-primary">
+          Account Settings
+        </h1>
+        <p className="mt-1 text-sm text-brand-text-secondary">
+          Update how your name and photo appear across the wiki.
+        </p>
+      </div>
 
-      <div className="flex flex-col md:flex-row gap-8">
-        {/* Sidebar Tabs */}
-        <div className="w-full md:w-56 flex-shrink-0 space-y-1">
-          <div
-            className="flex items-center gap-3 px-3 py-2.5 bg-brand-red/10 text-brand-red font-medium rounded-r border-l-4 border-brand-red"
+      <div className="flex flex-col gap-8 md:flex-row">
+        <div className="w-full shrink-0 space-y-1 rounded border border-brand-border bg-brand-surface p-2 shadow-sm md:w-56">
+          <button
+            type="button"
+            onClick={handleSelectProfileTab}
+            className={cn(
+              'flex w-full items-center gap-3 rounded-r border-l-4 px-3 py-2.5 text-left font-medium',
+              activeTab === 'profile'
+                ? 'border-brand-red bg-brand-red/10 text-brand-red'
+                : 'border-transparent text-brand-text-secondary hover:bg-brand-hover'
+            )}
             data-testid="tab-profile"
           >
             <ProfileIcon className="w-5 h-5" />
             <span>Profile Settings</span>
-          </div>
+          </button>
+          {showUserGuide && (
+            <button
+              type="button"
+              onClick={handleSelectGuideTab}
+              className={cn(
+                'flex w-full items-center gap-3 rounded-r border-l-4 px-3 py-2.5 text-left font-medium',
+                activeTab === 'guide'
+                  ? 'border-brand-red bg-brand-red/10 text-brand-red'
+                  : 'border-transparent text-brand-text-secondary hover:bg-brand-hover'
+              )}
+              data-testid="tab-user-guide"
+            >
+              <FileIcon className="w-5 h-5" />
+              <span>User Guide</span>
+            </button>
+          )}
           <div
             className="flex items-center justify-between gap-3 px-3 py-2.5 text-brand-text-secondary opacity-50 cursor-not-allowed rounded border-l-4 border-transparent"
             data-testid="tab-password-disabled"
@@ -241,6 +286,19 @@ export default function ProfileSettingsPage() {
 
         {/* Main Content Card */}
         <div className="flex-1">
+          {activeTab === 'guide' && (
+            <div className="rounded border border-brand-border bg-brand-surface shadow-sm">
+              <div className="border-b border-brand-border p-6">
+                <h2 className="text-lg font-medium text-brand-text-primary">
+                  User Guide
+                </h2>
+              </div>
+              <div className="p-6">
+                <RoleUserGuide role={user.role} />
+              </div>
+            </div>
+          )}
+          {activeTab === 'profile' && (
           <div
             ref={cardRef}
             className="bg-brand-surface border border-brand-border rounded shadow-sm"
@@ -417,6 +475,7 @@ export default function ProfileSettingsPage() {
               </form>
             </div>
           </div>
+          )}
         </div>
       </div>
     </div>

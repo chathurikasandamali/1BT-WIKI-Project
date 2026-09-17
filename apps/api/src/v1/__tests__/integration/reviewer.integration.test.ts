@@ -9,6 +9,7 @@ import {
   beforeAll,
   beforeEach,
 } from '@jest/globals';
+import { ArticleReviewStatus, ArticleStatus } from '@repo/shared';
 
 await jest.unstable_mockModule('@repo/db', () => ({
   TechTalkStatus: { draft: 'draft', published: 'published', unpublished: 'unpublished' },
@@ -75,6 +76,7 @@ const MockArticleReviewRepository = {
 const MockUserRepository = {
   findById: jest.fn<() => Promise<unknown>>().mockResolvedValue(null),
   findManyByIds: jest.fn<() => Promise<unknown>>().mockResolvedValue([]),
+  findActiveByRole: jest.fn<() => Promise<unknown>>().mockResolvedValue([]),
 };
 
 const mockUserCtor = jest.fn().mockImplementation(() => MockUserRepository);
@@ -103,6 +105,7 @@ const MockArticleReviewCommentRepository = {
   findByReviewId: jest.fn<() => Promise<unknown>>().mockResolvedValue([]),
   create: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
   updateStatus: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
+  countByReviewIds: jest.fn<() => Promise<Map<string, number>>>().mockResolvedValue(new Map()),
 };
 
 await jest.unstable_mockModule(
@@ -130,6 +133,8 @@ const mockReviewCreate = MockArticleReviewRepository.create as jest.Mock<any>;
 const mockUserFindById = MockUserRepository.findById as jest.Mock<any>;
 const mockUserFindManyByIds =
   MockUserRepository.findManyByIds as jest.Mock<any>;
+const mockUserFindActiveByRole =
+  MockUserRepository.findActiveByRole as jest.Mock<any>;
 const mockDate = new Date().toISOString();
 const mockAuthor = {
   id: 'user-1',
@@ -168,6 +173,7 @@ describe('Reviewer API Integration', () => {
     mockReviewCreate.mockResolvedValue({});
     mockUserFindById.mockResolvedValue(mockAuthor);
     mockUserFindManyByIds.mockResolvedValue([mockAuthor]);
+    mockUserFindActiveByRole.mockResolvedValue([]);
   });
 
   describe('GET /api/v1/reviewer/articles/pending', () => {
@@ -184,6 +190,16 @@ describe('Reviewer API Integration', () => {
       const response = await request(app)
         .get('/api/v1/reviewer/articles/pending')
         .set(userHeaders);
+
+      expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
+      expect(response.body.error).toBe('Insufficient permissions');
+      expect(mockFindByStatus).not.toHaveBeenCalled();
+    });
+
+    it('should return 403 for an Admin — the review queue belongs to Reviewers', async () => {
+      const response = await request(app)
+        .get('/api/v1/reviewer/articles/pending')
+        .set(adminHeaders);
 
       expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
       expect(response.body.error).toBe('Insufficient permissions');
@@ -219,13 +235,13 @@ describe('Reviewer API Integration', () => {
         'Pending articles retrieved successfully'
       );
       expect(response.body.data.articles).toHaveLength(1);
-      expect(response.body.data.articles[0].status).toBe('Pending');
+      expect(response.body.data.articles[0].status).toBe(ArticleStatus.Pending);
       expect(response.body.data.articles[0].authorName).toBe('Author Name');
       expect(response.body.data.articles[0].authorEmail).toBe('author@example.com');
       expect(response.body.data.total).toBe(1);
       expect(response.body.data.page).toBe(1);
       expect(response.body.data.limit).toBe(20);
-      expect(mockFindByStatus).toHaveBeenCalledWith('Pending', 1, 20);
+      expect(mockFindByStatus).toHaveBeenCalledWith(ArticleStatus.Pending, 1, 20);
     });
   });
 
@@ -240,12 +256,23 @@ describe('Reviewer API Integration', () => {
       expect(response.body.success).toBe(false);
     });
 
-    it('should return 403 for a non-Reviewer non-Admin role', async () => {
+    it('should return 403 for a plain User role', async () => {
       const response = await request(app).patch(approvePath).set(userHeaders);
 
       expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
       expect(response.body.error).toBe('Insufficient permissions');
       expect(mockFindById).not.toHaveBeenCalled();
+    });
+
+    it('should return 403 for an Admin — approval is the Reviewer\'s decision', async () => {
+      const response = await request(app)
+        .patch(approvePath)
+        .set(adminHeaders);
+
+      expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
+      expect(response.body.error).toBe('Insufficient permissions');
+      expect(mockFindById).not.toHaveBeenCalled();
+      expect(mockUpdateStatus).not.toHaveBeenCalled();
     });
 
     it('should return 404 when article does not exist', async () => {
@@ -265,7 +292,7 @@ describe('Reviewer API Integration', () => {
       mockFindById.mockResolvedValueOnce({
         id: articleId,
         title: 'Draft Article',
-        status: 'Draft',
+        status: ArticleStatus.Draft,
         authorId: 'user-1',
       });
 
@@ -284,13 +311,13 @@ describe('Reviewer API Integration', () => {
         id: articleId,
         title: 'Pending Article',
         body: { type: 'doc' },
-        status: 'Pending',
+        status: ArticleStatus.Pending,
         authorId: 'user-1',
         tags: [],
         createdAt: mockDate,
         updatedAt: mockDate,
       };
-      const approvedArticle = { ...pendingArticle, status: 'Approved' };
+      const approvedArticle = { ...pendingArticle, status: ArticleStatus.Approved };
 
       mockFindById.mockResolvedValueOnce(pendingArticle);
       mockUpdateStatus.mockResolvedValueOnce(approvedArticle);
@@ -298,7 +325,7 @@ describe('Reviewer API Integration', () => {
         id: 'review-1',
         articleId,
         reviewerId: 'reviewer-1',
-        reviewStatus: 'Approved',
+        reviewStatus: ArticleStatus.Approved,
       });
 
       const response = await request(app)
@@ -310,13 +337,13 @@ describe('Reviewer API Integration', () => {
       expect(response.body.message).toBe(
         'Article approved and sent for Admin publication.'
       );
-      expect(response.body.data.status).toBe('Approved');
-      expect(mockUpdateStatus).toHaveBeenCalledWith(articleId, 'Approved');
+      expect(response.body.data.status).toBe(ArticleStatus.Approved);
+      expect(mockUpdateStatus).toHaveBeenCalledWith(articleId, ArticleStatus.Approved);
       expect(mockReviewCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           articleId,
           reviewerId: 'reviewer-1',
-          status: 'Approved',
+          status: ArticleStatus.Approved,
           feedback: null,
           createdBy: 'reviewer-1',
         })
@@ -335,7 +362,7 @@ describe('Reviewer API Integration', () => {
       expect(response.body.success).toBe(false);
     });
 
-    it('should return 403 for a non-Reviewer non-Admin role', async () => {
+    it('should return 403 for a plain User role', async () => {
       const response = await request(app)
         .patch(rejectPath)
         .set(userHeaders)
@@ -344,6 +371,18 @@ describe('Reviewer API Integration', () => {
       expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
       expect(response.body.error).toBe('Insufficient permissions');
       expect(mockFindById).not.toHaveBeenCalled();
+    });
+
+    it('should return 403 for an Admin — rejection is the Reviewer\'s decision', async () => {
+      const response = await request(app)
+        .patch(rejectPath)
+        .set(adminHeaders)
+        .send({ feedback: 'this is a valid reject feedback' });
+
+      expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
+      expect(response.body.error).toBe('Insufficient permissions');
+      expect(mockFindById).not.toHaveBeenCalled();
+      expect(mockUpdateStatus).not.toHaveBeenCalled();
     });
 
     it('should return 400 when feedback is missing or under 10 characters', async () => {
@@ -377,7 +416,7 @@ describe('Reviewer API Integration', () => {
       mockFindById.mockResolvedValueOnce({
         id: articleId,
         title: 'Draft Article',
-        status: 'Draft',
+        status: ArticleStatus.Draft,
         authorId: 'user-1',
       });
 
@@ -397,13 +436,13 @@ describe('Reviewer API Integration', () => {
         id: articleId,
         title: 'Pending Article',
         body: { type: 'doc' },
-        status: 'Pending',
+        status: ArticleStatus.Pending,
         authorId: 'user-1',
         tags: [],
         createdAt: mockDate,
         updatedAt: mockDate,
       };
-      const rejectedArticle = { ...pendingArticle, status: 'Unpublished' };
+      const rejectedArticle = { ...pendingArticle, status: ArticleStatus.Unpublished };
 
       mockFindById.mockResolvedValueOnce(pendingArticle);
       mockUpdateStatus.mockResolvedValueOnce(rejectedArticle);
@@ -411,7 +450,7 @@ describe('Reviewer API Integration', () => {
         id: 'review-1',
         articleId,
         reviewerId: 'reviewer-1',
-        reviewStatus: 'Rejected',
+        reviewStatus: ArticleReviewStatus.Rejected,
       });
 
       const response = await request(app)
@@ -422,13 +461,13 @@ describe('Reviewer API Integration', () => {
       expect(response.status).toBe(HttpStatusCode.OK);
       expect(response.body.success).toBe(true);
       expect(response.body.message).toBe('Article rejected');
-      expect(response.body.data.status).toBe('Unpublished');
-      expect(mockUpdateStatus).toHaveBeenCalledWith(articleId, 'Draft');
+      expect(response.body.data.status).toBe(ArticleStatus.Unpublished);
+      expect(mockUpdateStatus).toHaveBeenCalledWith(articleId, ArticleStatus.Unpublished);
       expect(mockReviewCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           articleId,
           reviewerId: 'reviewer-1',
-          status: 'Rejected',
+          status: ArticleReviewStatus.Rejected,
           feedback: 'this is a valid reject feedback',
           createdBy: 'reviewer-1',
         })
@@ -447,10 +486,20 @@ describe('Reviewer API Integration', () => {
       expect(response.body.success).toBe(false);
     });
 
-    it('should return 403 for a non-Reviewer non-Admin role', async () => {
+    it('should return 403 for a non-Reviewer role', async () => {
       const response = await request(app)
         .get(viewPath)
         .set(userHeaders);
+
+      expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
+      expect(response.body.error).toBe('Insufficient permissions');
+      expect(mockFindById).not.toHaveBeenCalled();
+    });
+
+    it('should return 403 for an Admin — review detail belongs to Reviewers', async () => {
+      const response = await request(app)
+        .get(viewPath)
+        .set(adminHeaders);
 
       expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
       expect(response.body.error).toBe('Insufficient permissions');
@@ -472,7 +521,7 @@ describe('Reviewer API Integration', () => {
       mockFindById.mockResolvedValueOnce({
         id: articleId,
         title: 'Draft Article',
-        status: 'Draft',
+        status: ArticleStatus.Draft,
         authorId: 'user-1',
       });
 
@@ -489,7 +538,7 @@ describe('Reviewer API Integration', () => {
         id: articleId,
         title: 'Pending Article',
         body: { type: 'doc', content: [{ type: 'paragraph', text: 'Full article body content' }] },
-        status: 'Pending',
+        status: ArticleStatus.Pending,
         authorId: 'user-1',
         tags: ['tech', 'wiki'],
         createdAt: mockDate,
@@ -509,7 +558,7 @@ describe('Reviewer API Integration', () => {
       expect(response.body.data.article.title).toBe('Pending Article');
       expect(response.body.data.article.body).toEqual(pendingArticle.body);
       expect(response.body.data.article.tags).toEqual(['tech', 'wiki']);
-      expect(response.body.data.article.status).toBe('Pending');
+      expect(response.body.data.article.status).toBe(ArticleStatus.Pending);
       expect(response.body.data.article.authorName).toBe('Author Name');
       expect(response.body.data.article.authorEmail).toBe('author@example.com');
       expect(mockFindById).toHaveBeenCalledWith(articleId);

@@ -1,7 +1,9 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { RoleGuard } from '@/components/auth/RoleGuard';
+import { UserRoleValue } from '@repo/shared';
 import {
   getArticle,
   publishArticleAsAdmin,
@@ -12,6 +14,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ArrowLeftIcon } from '@/components/shared/icons/ArrowLeftIcon';
 import { ConfirmationModal } from '@/components/shared/ConfirmationModal';
 import { Toast } from '@/components/shared/Toast';
+import { PageLoader } from '@/components/shared/PageLoader';
 import { useToast } from '@/lib/hooks/useToast';
 
 interface AdminArticlePageProps {
@@ -36,6 +39,12 @@ function AdminArticleDetailContent({
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const { toast, showToast } = useToast();
+  const searchParams = useSearchParams();
+  const fromApprovals = searchParams.get('from') === 'approvals';
+  const backHref = fromApprovals ? '/admin/approvals' : '/admin/articles';
+  const backLabel = fromApprovals
+    ? 'Back to Approvals'
+    : 'Back to Article Management';
 
   useEffect(() => {
     let mounted = true;
@@ -87,17 +96,7 @@ function AdminArticleDetailContent({
   };
 
   if (loading) {
-    return (
-      <div
-        className="max-w-4xl mx-auto px-4 py-8 text-center text-brand-text-secondary"
-        data-testid="loading-skeleton"
-      >
-        <div className="animate-pulse flex flex-col items-center">
-          <div className="h-8 w-64 bg-brand-border rounded mb-4"></div>
-          <div className="h-4 w-32 bg-brand-border rounded"></div>
-        </div>
-      </div>
-    );
+    return <PageLoader testId="loading-skeleton" />;
   }
 
   if (error || !article) {
@@ -107,11 +106,12 @@ function AdminArticleDetailContent({
           {error || 'Article not found'}
         </p>
         <Link
-          href="/admin/articles"
+          href={backHref}
           className="inline-flex items-center text-sm font-medium text-brand-text-secondary hover:text-brand-red transition-colors"
+          data-testid="back-link"
         >
           <ArrowLeftIcon width="16" height="16" className="mr-1" />
-          Back to Article Management
+          {backLabel}
         </Link>
       </div>
     );
@@ -121,12 +121,12 @@ function AdminArticleDetailContent({
     <div className="max-w-4xl mx-auto px-4 py-8 pb-24">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <Link
-          href="/admin/articles"
+          href={backHref}
           className="inline-flex items-center text-sm font-medium text-brand-text-secondary hover:text-brand-red transition-colors"
           data-testid="back-link"
         >
           <ArrowLeftIcon width="16" height="16" className="mr-1" />
-          Back to Article Management
+          {backLabel}
         </Link>
 
         {article.status === 'Approved' && (
@@ -254,8 +254,10 @@ export default function AdminArticleDetailPage(
   const params = React.use(props.params);
 
   return (
-    <RoleGuard allowedRoles={['Admin']}>
-      <AdminArticleDetailContent id={params.id} />
+    <RoleGuard allowedRoles={[UserRoleValue.Admin]}>
+      <React.Suspense fallback={<PageLoader testId="loading-skeleton" />}>
+        <AdminArticleDetailContent id={params.id} />
+      </React.Suspense>
     </RoleGuard>
   );
 }

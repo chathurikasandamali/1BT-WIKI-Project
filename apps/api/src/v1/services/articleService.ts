@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { ArticleRepository } from '@repositories/articleRepository.js';
 import { ArticleAttachmentRepository } from '@repositories/articleAttachmentRepository.js';
 import { ArticleReviewRepository } from '@repositories/articleReviewRepository.js';
+import defaultArticleReviewCommentRepository, { ArticleReviewCommentRepository } from '@repositories/articleReviewCommentRepository.js';
 import UserRepository from '@repositories/userRepository.js';
 import b2Client from '@v1/lib/b2Client.js';
 import notificationService from '@services/notificationService.js';
@@ -30,6 +31,7 @@ import {
   MAX_ARTICLE_TITLE_LENGTH,
   type TipTapJsonContent,
   getArticleContentLength,
+  ArticleReviewStatus,
 } from '@repo/shared';
 
 // Derives update-field shapes from the app-level Article interface — no Prisma types cross into the service layer.
@@ -39,7 +41,7 @@ type ArticleUpdateFields = Partial<
 
 type PublishedArticleRow = Article & {
   _count?: { likes: number; comments: number };
-  reviews?: { feedback: string | null }[];
+  reviews?: { id: string; feedback: string | null }[];
   coverAttachment?: { fileUrl: string } | null;
 };
 
@@ -127,7 +129,7 @@ const validateTitle = (title: string | undefined): string => {
   return title.trim();
 };
 
-const validateBody = (body: JSONContent | undefined): JSONContent => {
+const validateBodyShape = (body: JSONContent | undefined): JSONContent => {
   const safeBody = body ?? {};
   if (typeof safeBody === 'string') {
     throw new AppError(
@@ -148,10 +150,14 @@ const validateBody = (body: JSONContent | undefined): JSONContent => {
     throw new AppError('Body must have a "type" field', HttpStatusCode.BAD_REQUEST);
   }
 
+  return safeBody;
+};
+
+const assertBodyMeetsMinimumLength = (body: JSONContent | undefined): void => {
   // Measure the actual meaningful plain text inside the TipTap document —
   // empty paragraphs, whitespace-only text and raw markup must NOT pass.
   const contentLength = getArticleContentLength(
-    safeBody as TipTapJsonContent
+    (body ?? {}) as TipTapJsonContent
   );
 
   if (contentLength === 0) {
@@ -164,8 +170,6 @@ const validateBody = (body: JSONContent | undefined): JSONContent => {
       HttpStatusCode.BAD_REQUEST
     );
   }
-
-  return safeBody;
 };
 
 const assertTransition = (
@@ -185,8 +189,6 @@ const assertTransition = (
   );
 };
 
-// Draft articles are private to their authors and never appear in the admin
-// oversight list, so 'Draft' is not an accepted filter value.
 const ALLOWED_STATUS_FILTERS = [
   'Pending',
   ArticleStatusValue.Approved,
@@ -200,7 +202,8 @@ export class ArticleService {
     private reviewRepository: ArticleReviewRepository = new ArticleReviewRepository(),
     private attachmentRepository: ArticleAttachmentRepository = new ArticleAttachmentRepository(),
     private userRepository: typeof UserRepository = UserRepository,
-    private quizService: QuizService = defaultQuizService
+    private quizService: QuizService = defaultQuizService,
+    private reviewCommentRepository: ArticleReviewCommentRepository = new ArticleReviewCommentRepository()
   ) { }
 
   private async uploadArticleImages(
@@ -257,8 +260,7 @@ export class ArticleService {
     // Validate title
     const title = validateTitle(input.title);
 
-    // Validate body
-    const body = validateBody(input.body);
+    const body = validateBodyShape(input.body);
 
     // Create article via repository
     const article = await this.repository.create({
@@ -337,13 +339,13 @@ export class ArticleService {
       input.coverAttachmentId !== undefined;
     let updatedArticle = article;
 
-    if (hasUpdates || resetToDraft) {
+    if (hasUpdates) {
       const updateFields: ArticleUpdateFields = {};
 
       if (input.title !== undefined)
         updateFields.title = validateTitle(input.title);
       if (input.body !== undefined)
-        updateFields.body = validateBody(input.body);
+        updateFields.body = validateBodyShape(input.body);
       if (input.tags !== undefined) updateFields.tags = input.tags;
       if (input.coverAttachmentId !== undefined)
         updateFields.coverAttachmentId = input.coverAttachmentId;
@@ -375,6 +377,9 @@ export class ArticleService {
     const article = await this.findOwned(articleId, userId);
 
     assertTransition(article.status, ArticleStatusValue.Pending);
+
+    validateTitle(article.title);
+    assertBodyMeetsMinimumLength(article.body as JSONContent | undefined);
 
     const updatedArticle = await this.repository.updateStatus(
       articleId,
@@ -491,6 +496,12 @@ export class ArticleService {
       }
     );
 
+    // Batch-resolve author display names (e.g. for the global search dropdown),
+    // mirroring the enrichment pattern already used by listAllArticles.
+    const authorIds = articles.map((article) => article.authorId);
+    const authors = await this.userRepository.findManyByIds(authorIds);
+    const authorMap = new Map(authors.map((author) => [author.id, author]));
+
     const mappedArticles: PublishedArticleListItem[] = articles.map((article: PublishedArticleRow) => ({
       id: article.id,
       title: article.title,
@@ -503,7 +514,9 @@ export class ArticleService {
       likeCount: article._count?.likes ?? 0,
       commentCount: article._count?.comments ?? 0,
       rejectionFeedback: null,
+      inlineCommentCount: 0,
       coverImageUrl: article.coverAttachment?.fileUrl ?? null,
+      authorName: authorMap.get(article.authorId)?.name ?? 'Unknown',
     }));
 
     return { articles: mappedArticles, total, page, limit };
@@ -562,6 +575,7 @@ export class ArticleService {
         likeCount: article._count?.likes ?? 0,
         commentCount: article._count?.comments ?? 0,
         rejectionFeedback: null,
+        inlineCommentCount: 0,
         authorName: authorMap.get(article.authorId)?.name ?? 'Unknown',
         authorEmail: authorMap.get(article.authorId)?.email ?? null,
         authorImage: authorMap.get(article.authorId)?.image ?? null,
@@ -671,24 +685,77 @@ export class ArticleService {
       limit
     );
 
-    const mappedArticles: ArticleListItem[] = articles.map((article: PublishedArticleRow) => ({
-      id: article.id,
-      title: article.title,
-      authorId: article.authorId,
-      tags: article.tags,
-      status: article.status as ArticleStatus,
-      views: article.views,
-      createdAt: article.createdAt,
-      updatedAt: article.updatedAt,
-      likeCount: article._count?.likes ?? 0,
-      commentCount: article._count?.comments ?? 0,
-      rejectionFeedback:
-        article.status === ArticleStatusValue.Unpublished
-          ? article.reviews?.[0]?.feedback ?? null
-          : null,
-    }));
+    const reviewIds = (articles as PublishedArticleRow[])
+      .filter((a) => a.status === ArticleStatusValue.Unpublished && a.reviews?.[0]?.id)
+      .map((a) => a.reviews![0]!.id);
+
+    const commentCountsMap = await this.reviewCommentRepository.countByReviewIds(reviewIds);
+
+    const mappedArticles: ArticleListItem[] = articles.map((article: PublishedArticleRow) => {
+      const reviewId = article.reviews?.[0]?.id;
+      const inlineCommentCount =
+        article.status === ArticleStatusValue.Unpublished && reviewId
+          ? commentCountsMap.get(reviewId) ?? 0
+          : 0;
+
+      return {
+        id: article.id,
+        title: article.title,
+        authorId: article.authorId,
+        tags: article.tags,
+        status: article.status as ArticleStatus,
+        views: article.views,
+        createdAt: article.createdAt,
+        updatedAt: article.updatedAt,
+        likeCount: article._count?.likes ?? 0,
+        commentCount: article._count?.comments ?? 0,
+        rejectionFeedback:
+          article.status === ArticleStatusValue.Unpublished
+            ? article.reviews?.[0]?.feedback ?? null
+            : null,
+        inlineCommentCount,
+      };
+    });
 
     return { articles: mappedArticles, total, page, limit };
+  }
+
+  async getReviewFeedback(
+    articleId: string,
+    requesterId: string
+  ): Promise<{
+    overallFeedback: string | null;
+    comments: Array<{
+      id: string;
+      comment: string;
+      selectedText: string | null;
+      createdAt: Date;
+    }>;
+  }> {
+    const [article, latestReview] = await Promise.all([
+      this.repository.findById(articleId),
+      this.reviewRepository.findLatestWithComments(articleId),
+    ]);
+
+    if (!article) {
+      throw new AppError('Article not found', HttpStatusCode.NOT_FOUND);
+    }
+    if (article.authorId !== requesterId) {
+      throw new AppError('Not authorized', HttpStatusCode.FORBIDDEN);
+    }
+    if (!latestReview || latestReview.reviewStatus !== ArticleReviewStatus.Rejected) {
+      throw new AppError('No rejection feedback available for this article', HttpStatusCode.NOT_FOUND);
+    }
+
+    return {
+      overallFeedback: latestReview.feedback ?? null,
+      comments: latestReview.comments.map((c) => ({
+        id: c.id,
+        comment: c.comment,
+        selectedText: c.selectedText,
+        createdAt: c.createdAt,
+      })),
+    };
   }
 }
 

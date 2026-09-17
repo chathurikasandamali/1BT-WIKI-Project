@@ -305,6 +305,7 @@ export class ArticleRepository {
             },
             take: 1,
             select: {
+              id: true,
               feedback: true,
             },
           },

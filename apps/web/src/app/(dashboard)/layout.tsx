@@ -6,10 +6,12 @@ import { Navbar } from '@/components/layout/Navbar';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { UserNavbar } from '@/components/layout/UserNavbar';
 import { UserProvider, useUser } from '@/lib/hooks/useUser';
+import { UserRoleValue } from '@repo/shared';
 import {
   NotificationProvider,
   useNotificationContext,
 } from '@/components/providers/NotificationProvider';
+import { RoleChangeProvider } from '@/components/providers/RoleChangeProvider';
 import { isE2E } from '@/lib/e2e';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
@@ -30,13 +32,13 @@ function DashboardLayoutInner({
   const pathname = usePathname();
   const isEditorRoute = pathname?.startsWith('/editor');
   const { user, loading: isUserLoading } = useUser();
-  const isNormalUser = user?.role === 'User';
+  const isNormalUser = user?.role === UserRoleValue.User;
   const usesUserDashboardShell =
     !isEditorRoute && !isUserLoading && isNormalUser;
   const usesLegacyDashboardShell =
     !isEditorRoute &&
     !isUserLoading &&
-    (user?.role === 'Reviewer' || user?.role === 'Admin');
+    (user?.role === UserRoleValue.Reviewer || user?.role === UserRoleValue.Admin);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isAppLoading, setIsAppLoading] = useState(true);
@@ -271,9 +273,11 @@ export default function DashboardLayout({
 }: DashboardLayoutProps): React.JSX.Element {
   return (
     <UserProvider>
-      <NotificationProvider>
-        <DashboardLayoutInner>{children}</DashboardLayoutInner>
-      </NotificationProvider>
+      <RoleChangeProvider>
+        <NotificationProvider>
+          <DashboardLayoutInner>{children}</DashboardLayoutInner>
+        </NotificationProvider>
+      </RoleChangeProvider>
     </UserProvider>
   );
 }

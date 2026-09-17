@@ -16,6 +16,7 @@ import {
 } from '@/lib/api/techTalks';
 import { useAsync } from '@/lib/hooks/useAsync';
 import { cn } from '@/lib/utils';
+import { PageLoader } from '@/components/shared/PageLoader';
 
 enum UserHomepageFeedItemType {
   Article = 'article',
@@ -105,11 +106,8 @@ export function UserHomepage(): React.JSX.Element {
 
   if (loading) {
     feedContent = (
-      <div
-        className="mt-5 rounded-2xl border border-brand-border bg-brand-surface px-6 py-12 text-center text-brand-text-secondary"
-        role="status"
-      >
-        Loading latest updates...
+      <div className="mt-5 rounded-2xl border border-brand-border bg-brand-surface">
+        <PageLoader className="min-h-0 py-12" />
       </div>
     );
   } else if (error) {

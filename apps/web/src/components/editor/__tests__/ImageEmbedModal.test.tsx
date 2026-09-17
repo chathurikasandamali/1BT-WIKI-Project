@@ -35,9 +35,38 @@ describe('ImageEmbedModal', () => {
   it('renders tabs correctly when open', () => {
     render(<ImageEmbedModal isOpen={true} onClose={mockOnClose} />);
     expect(screen.getByText('Embed Image')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /preset stock/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /upload file/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /web url/i })).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).not.toHaveClass('pointer-events-none');
+    expect(
+      screen.queryByRole('button', { name: /preset stock/i })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText('Search stock library...')
+    ).not.toBeInTheDocument();
+  });
+
+  it('opens on the Upload File tab by default', () => {
+    render(<ImageEmbedModal isOpen={true} onClose={mockOnClose} />);
+    expect(
+      screen.getByLabelText(/click to upload or drag and drop/i)
+    ).toBeInTheDocument();
+  });
+
+  it('lets the user upload a file without requiring body text first', async () => {
+    mockUploadImage.mockResolvedValue('https://uploaded.com/img.png');
+    render(<ImageEmbedModal isOpen={true} onClose={mockOnClose} />);
+
+    const file = new File(['hello'], 'hello.png', { type: 'image/png' });
+    const input = screen.getByLabelText(/click to upload or drag and drop/i);
+    await userEvent.upload(input, file);
+
+    expect(mockUploadImage).toHaveBeenCalledWith(file);
+    await waitFor(() => {
+      expect(mockInsertEditorImage).toHaveBeenCalledWith(
+        'https://uploaded.com/img.png'
+      );
+    });
   });
 
   it('handles URL embedding via button click', async () => {
@@ -87,21 +116,77 @@ describe('ImageEmbedModal', () => {
     });
   });
 
-  it('displays error on failed file upload', async () => {
-    mockUploadImage.mockRejectedValue(new Error('Upload failed randomly'));
+  it('shows a friendly error when no new attachment is returned', async () => {
+    mockUploadImage.mockRejectedValue(
+      new Error('Image upload succeeded but no new attachment was returned')
+    );
     render(<ImageEmbedModal isOpen={true} onClose={mockOnClose} />);
-    
+
     await userEvent.click(screen.getByRole('button', { name: /upload file/i }));
-    
+
     const file = new File(['hello'], 'hello.png', { type: 'image/png' });
     const input = screen.getByLabelText(/click to upload or drag and drop/i);
-    
+
     await userEvent.upload(input, file);
-    
+
     expect(mockUploadImage).toHaveBeenCalledWith(file);
-    
+
     await waitFor(() => {
-      expect(screen.getByText('Upload failed randomly')).toBeInTheDocument();
+      expect(
+        screen.getByText('We couldn’t upload this image. Please try again.')
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          'Image upload succeeded but no new attachment was returned'
+        )
+      ).not.toBeInTheDocument();
+      expect(mockInsertEditorImage).not.toHaveBeenCalled();
+      expect(mockOnClose).not.toHaveBeenCalled();
+      expect(input).toHaveValue('');
+    });
+  });
+
+  it('does not expose TypeError details on failed file upload', async () => {
+    const technicalMessage = 'Cannot read properties of undefined';
+    mockUploadImage.mockRejectedValue(new TypeError(technicalMessage));
+    render(<ImageEmbedModal isOpen={true} onClose={mockOnClose} />);
+
+    await userEvent.click(screen.getByRole('button', { name: /upload file/i }));
+    const input = screen.getByLabelText(/click to upload or drag and drop/i);
+    await userEvent.upload(
+      input,
+      new File(['hello'], 'hello.png', { type: 'image/png' })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('We couldn’t upload this image. Please try again.')
+      ).toBeInTheDocument();
+      expect(screen.queryByText(technicalMessage)).not.toBeInTheDocument();
+      expect(mockInsertEditorImage).not.toHaveBeenCalled();
+      expect(mockOnClose).not.toHaveBeenCalled();
+    });
+  });
+
+  it.each([
+    'Image size cannot exceed 5MB',
+    'Only jpeg, png, webp, and gif images are allowed',
+  ])('keeps actionable validation error unchanged: %s', async (message) => {
+    mockUploadImage.mockRejectedValue(new Error(message));
+    render(<ImageEmbedModal isOpen={true} onClose={mockOnClose} />);
+
+    await userEvent.click(screen.getByRole('button', { name: /upload file/i }));
+    const input = screen.getByLabelText(/click to upload or drag and drop/i);
+    await userEvent.upload(
+      input,
+      new File(['hello'], 'hello.png', { type: 'image/png' })
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(message)).toBeInTheDocument();
+      expect(
+        screen.queryByText('We couldn’t upload this image. Please try again.')
+      ).not.toBeInTheDocument();
       expect(mockInsertEditorImage).not.toHaveBeenCalled();
       expect(mockOnClose).not.toHaveBeenCalled();
     });

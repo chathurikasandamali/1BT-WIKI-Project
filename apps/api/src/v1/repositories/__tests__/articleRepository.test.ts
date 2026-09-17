@@ -277,6 +277,7 @@ describe('ArticleRepository.findByAuthor', () => {
         },
         take: 1,
         select: {
+          id: true,
           feedback: true,
         },
       },

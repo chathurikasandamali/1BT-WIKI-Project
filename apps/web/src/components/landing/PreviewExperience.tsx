@@ -12,15 +12,16 @@ import {
   PREVIEW_ITEMS,
   type PreviewItem,
 } from '@/components/landing/previewContent';
+import type { LandingAuthAction } from '@/components/landing/landingAuth';
 
 gsap.registerPlugin(useGSAP);
 
 type ExperienceStage = 'default' | 'focus' | 'details';
 
 interface PreviewExperienceProps {
-  isAuthenticating: boolean;
+  authenticatingAction: LandingAuthAction | null;
   selectedItemId: string | null;
-  onAuthenticate: () => void;
+  onAuthenticate: (action: LandingAuthAction) => void;
   onSelectItem: (itemId: string | null) => void;
 }
 
@@ -50,7 +51,7 @@ function PreviewTypeIcon({ item }: { item: PreviewItem }): React.JSX.Element {
 }
 
 export function PreviewExperience({
-  isAuthenticating,
+  authenticatingAction,
   selectedItemId,
   onAuthenticate,
   onSelectItem,
@@ -72,6 +73,8 @@ export function PreviewExperience({
   );
   const [stage, setStage] = useState<ExperienceStage>('default');
   const [isAnimating, setIsAnimating] = useState(false);
+  const isAuthenticating = authenticatingAction !== null;
+  const isExploreSigningIn = authenticatingAction === 'explore';
 
   const displayedItemId = activeItemId ?? selectedItemId;
   const selectedItem = PREVIEW_ITEMS.find(
@@ -722,13 +725,13 @@ export function PreviewExperience({
   return (
     <main
       ref={scopeRef}
-      className="relative isolate min-h-[calc(100svh-5rem)] overflow-hidden bg-brand-bg"
+      className="relative isolate h-[calc(100svh-5rem)] overflow-hidden bg-brand-bg"
     >
       <div className="pointer-events-none absolute -left-48 top-24 h-96 w-96 rounded-full bg-brand-red/[0.045] blur-3xl" />
       <div className="pointer-events-none absolute -right-36 bottom-0 h-[440px] w-[440px] rounded-full bg-white blur-3xl" />
 
       <section
-        className="relative mx-auto max-w-[1440px] px-5 pb-16 pt-12 sm:px-8 sm:pt-16 lg:grid lg:min-h-[calc(100svh-5rem)] lg:grid-cols-1 lg:items-start lg:px-10 lg:py-5 min-[1440px]:py-8"
+        className="relative mx-auto h-full max-w-[1440px] overflow-hidden px-5 pb-16 pt-12 sm:px-8 sm:pt-16 lg:grid lg:h-[calc(100svh-5rem)] lg:grid-cols-1 lg:items-start lg:px-10 lg:py-5 min-[1440px]:py-8"
         aria-labelledby="landing-heading"
       >
         <div
@@ -908,18 +911,18 @@ export function PreviewExperience({
 
                 <button
                   type="button"
-                  onClick={onAuthenticate}
+                  onClick={() => onAuthenticate('explore')}
                   disabled={isAuthenticating || isAnimating || !isDetailsStage}
                   tabIndex={isDetailsStage ? 0 : -1}
                   aria-label={
-                    isAuthenticating
+                    isExploreSigningIn
                       ? 'Signing in'
                       : 'Log in to explore with Google'
                   }
                   className="mt-9 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-brand-red px-6 text-sm font-semibold 
                   text-white shadow-[0_14px_30px_rgba(204,0,0,0.2)] transition hover:bg-brand-red-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red focus-visible:ring-offset-2 disabled:cursor-wait disabled:bg-brand-red-disabled sm:w-auto lg:mt-7"
                 >
-                  {isAuthenticating ? 'Signing in...' : 'Log in to explore'}
+                  {isExploreSigningIn ? 'Signing in...' : 'Log in to explore'}
                   <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
                 </button>
               </div>

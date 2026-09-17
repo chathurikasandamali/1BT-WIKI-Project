@@ -1,14 +1,19 @@
 import UserRepository from '@repositories/userRepository.js';
 import { AppError } from '@errors/AppError.js';
+import pusherClient from '@v1/lib/pusherClient.js';
+import {
+  PUSHER_ROLE_CHANGED_EVENT,
+  pusherChannelName,
+} from '@v1/lib/pusherEvents.js';
 import type {
   User,
-  CreateUserInput,
   UserRole,
   UpdateUserBanInput,
 } from '@/types/userTypes.js';
+import { UserRoleValue } from '@/types/userTypes.js';
 
 // Accepted role values
-const VALID_ROLES: UserRole[] = ['Admin', 'Reviewer', 'User'];
+const VALID_ROLES: UserRole[] = Object.values(UserRoleValue);
 
 const updateUserRole = async (
   userId: string,
@@ -23,7 +28,37 @@ const updateUserRole = async (
     throw new AppError('User not found', 404);
   }
 
-  return UserRepository.updateRole(userId, role);
+  
+  const isDemotingAdmin =
+    existingUser.role === UserRoleValue.Admin && role !== UserRoleValue.Admin;
+  if (isDemotingAdmin && !existingUser.banned) {
+    const activeAdmins = await UserRepository.findActiveByRole(
+      UserRoleValue.Admin
+    );
+    if (activeAdmins.length <= 1) {
+      throw new AppError(
+        'Cannot change the role of the last active admin. Promote another user to Admin first.',
+        400
+      );
+    }
+  }
+
+  // Persist first — the DB is the source of truth. Only after the role update
+  // succeeds do we broadcast so the affected user's open tabs are signed out.
+  const updatedUser = await UserRepository.updateRole(userId, role);
+
+  const channelName = pusherChannelName(userId);
+
+  // Fire-and-forget real-time signal to every private-user-{userId} channel.
+  // A Pusher failure is logged but never propagates — the role is already
+  // committed, and the DB-backed role check on the next request enforces it.
+  void pusherClient
+    .trigger(channelName, PUSHER_ROLE_CHANGED_EVENT, { role })
+    .catch((error: unknown) => {
+      console.error('[Pusher] Failed to trigger role-changed event:', error);
+    });
+
+  return updatedUser;
 };
 
 const updateUserBanStatus = async (

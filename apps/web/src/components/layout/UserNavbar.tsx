@@ -8,9 +8,9 @@ import { NotificationDropdown } from '@/components/layout/NotificationDropdown';
 import { UserAccountMenu } from '@/components/layout/UserAccountMenu';
 import { useNotificationContext } from '@/components/providers/NotificationProvider';
 import { BellIcon } from '@/components/shared/icons/BellIcon';
-import { SearchIcon } from '@/components/shared/icons/SearchIcon';
 import { BRAND_NAME, BRAND_SUB_NAME } from '@/lib/constants/brand';
 import { cn } from '@/lib/utils';
+import { HeaderSearch } from './HeaderSearch';
 
 interface UserNavigationItem {
   label: string;
@@ -23,7 +23,6 @@ const USER_NAVIGATION_ITEMS: readonly UserNavigationItem[] = [
   { label: 'Home', href: '/' },
   { label: 'Articles', href: '/articles' },
   { label: 'Tech Talks', href: '/tech-talks' },
-  { label: 'Forum', href: '/forum' },
 ];
 
 
@@ -34,19 +33,17 @@ export function UserNavbar(): React.JSX.Element {
   const { unreadCount } = useNotificationContext();
   const [openDropdown, setOpenDropdown] = useState<OpenDropdown>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState(
-    pathname === '/' ? (searchParams.get('search') ?? '') : ''
-  );
+  // Pre-fills the search box from `?search=` when already on the (filtered)
+  // homepage — recomputed on every render since usePathname/useSearchParams
+  // are already reactive, so no extra state/effect is needed.
+  const initialSearchValue =
+    pathname === '/' ? searchParams.get('search') ?? '' : '';
   const notificationButtonRef = useRef<HTMLButtonElement>(null);
   const notificationDropdownRef = useRef<HTMLDivElement>(null);
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
 
   const isNotificationOpen = openDropdown === 'notifications';
   const isAccountOpen = openDropdown === 'account';
-
-  useEffect(() => {
-    setSearchQuery(pathname === '/' ? (searchParams.get('search') ?? '') : '');
-  }, [pathname, searchParams]);
 
   useEffect(() => {
     if (!isNotificationOpen) return;
@@ -121,10 +118,7 @@ export function UserNavbar(): React.JSX.Element {
     setIsMobileMenuOpen((current) => !current);
   }
 
-  function handleSearchSubmit(event: React.FormEvent<HTMLFormElement>): void {
-    event.preventDefault();
-
-    const trimmedSearchQuery = searchQuery.trim();
+  function handleSearchSubmit(trimmedSearchQuery: string): void {
     if (trimmedSearchQuery) {
       const params = new URLSearchParams();
       params.set('search', trimmedSearchQuery);
@@ -179,26 +173,12 @@ export function UserNavbar(): React.JSX.Element {
         </nav>
 
         <div className="hidden min-w-0 flex-1 xl:block">
-          <form onSubmit={handleSearchSubmit}>
-            <label
-              className="relative mx-auto block max-w-xl"
-              htmlFor="user-navbar-search"
-            >
-              <span className="sr-only">Search articles and tech talks</span>
-              <SearchIcon
-                className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-text-secondary"
-                aria-hidden="true"
-              />
-              <input
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                id="user-navbar-search"
-                type="search"
-                placeholder="Search articles and tech talks"
-                className="h-11 w-full rounded-full border border-brand-border bg-brand-bg pl-11 pr-4 text-sm text-brand-text-primary placeholder:text-brand-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red/30 focus-visible:border-brand-red"
-              />
-            </label>
-          </form>
+          <HeaderSearch
+            id="user-navbar-search"
+            className="mx-auto max-w-xl"
+            initialValue={initialSearchValue}
+            onSubmit={handleSearchSubmit}
+          />
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
@@ -286,26 +266,13 @@ export function UserNavbar(): React.JSX.Element {
           className="absolute inset-x-0 top-full border-b border-brand-border bg-white px-4 py-5 shadow-xl shadow-black/5 sm:px-6 xl:hidden"
         >
           <div className="mx-auto flex max-w-2xl flex-col gap-4">
-            <form onSubmit={handleSearchSubmit}>
-              <label
-                className="relative block"
-                htmlFor="user-mobile-navbar-search"
-              >
-                <span className="sr-only">Search articles and tech talks</span>
-                <SearchIcon
-                  className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-text-secondary"
-                  aria-hidden="true"
-                />
-                <input
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  id="user-mobile-navbar-search"
-                  type="search"
-                  placeholder="Search articles and tech talks"
-                  className="h-12 w-full rounded-xl border border-brand-border bg-brand-bg pl-11 pr-4 text-sm text-brand-text-primary placeholder:text-brand-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red/30 focus-visible:border-brand-red"
-                />
-              </label>
-            </form>
+            <HeaderSearch
+              id="user-mobile-navbar-search"
+              initialValue={initialSearchValue}
+              onSubmit={handleSearchSubmit}
+              onNavigate={closeMobileMenu}
+              inputClassName="h-12 rounded-xl"
+            />
 
             <nav
               className="flex flex-col gap-1 border-t border-brand-border pt-4"

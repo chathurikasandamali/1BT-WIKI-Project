@@ -10,7 +10,8 @@ jest.mock('@/components/editor/EditorDraftContext', () => ({
 }));
 
 jest.mock('@tiptap/react', () => ({
-  useEditor: jest.fn(() => ({
+  useEditor: jest.fn(() => {
+    const editor = {
     isActive: jest.fn().mockReturnValue(false),
     can: jest.fn().mockReturnValue({ undo: jest.fn().mockReturnValue(true), redo: jest.fn().mockReturnValue(true) }),
     chain: jest.fn().mockReturnValue({
@@ -27,8 +28,14 @@ jest.mock('@tiptap/react', () => ({
         redo: jest.fn().mockReturnValue({ run: jest.fn() }),
       })
     }),
+    commands: {
+      setContent: jest.fn(),
+    },
     state: { doc: { textContent: 'Mock content' } },
-  })),
+    getJSON: jest.fn().mockReturnValue({ type: 'doc', content: [{ type: 'paragraph' }] }),
+    };
+    return editor;
+  }),
   EditorContent: () => <div data-testid="tiptap-content">EditorContent</div>,
 }));
 
@@ -50,7 +57,7 @@ describe('RichTextEditor', () => {
       registerEditor: mockRegisterEditor,
       handleTitleBlur: mockHandleTitleBlur,
       notifyContentChanged: mockNotifyContentChanged,
-      initialBody: null,
+      currentBody: { type: 'doc', content: [] },
     });
   });
 
@@ -60,6 +67,26 @@ describe('RichTextEditor', () => {
     expect(screen.getByDisplayValue('Initial Title')).toBeInTheDocument();
     expect(screen.getByText('React')).toBeInTheDocument(); // Tag
     expect(screen.getByTestId('tiptap-content')).toBeInTheDocument();
+    expect(mockNotifyContentChanged).toHaveBeenCalledWith(2, 12, {
+      type: 'doc',
+      content: [{ type: 'paragraph' }],
+    });
+  });
+
+  it('reports updated TipTap JSON through the existing content path', () => {
+    render(<RichTextEditor onOpenImageEmbed={mockOnOpenImageEmbed} />);
+    const tiptap = jest.requireMock('@tiptap/react') as { useEditor: jest.Mock };
+    const options = tiptap.useEditor.mock.calls[0][0] as {
+      onUpdate: (value: { editor: unknown }) => void;
+    };
+    const editor = mockRegisterEditor.mock.calls[0][0] as unknown;
+
+    options.onUpdate({ editor });
+
+    expect(mockNotifyContentChanged).toHaveBeenLastCalledWith(2, 12, {
+      type: 'doc',
+      content: [{ type: 'paragraph' }],
+    });
   });
 
   it('calls setTitle on title input change', async () => {
@@ -137,6 +164,37 @@ describe('RichTextEditor', () => {
     expect(mockOnOpenImageEmbed).toHaveBeenCalled();
   });
   
+  it('hydrates the editor from context when TipTap boots empty', () => {
+    const savedBody = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'Saved draft body' }],
+        },
+      ],
+    };
+    (useEditorDraft as jest.Mock).mockReturnValue({
+      title: 'Initial Title',
+      setTitle: mockSetTitle,
+      tags: ['React'],
+      setTags: mockSetTags,
+      registerEditor: mockRegisterEditor,
+      handleTitleBlur: mockHandleTitleBlur,
+      notifyContentChanged: mockNotifyContentChanged,
+      currentBody: savedBody,
+    });
+
+    render(<RichTextEditor onOpenImageEmbed={mockOnOpenImageEmbed} />);
+
+    const editor = mockRegisterEditor.mock.calls[0][0] as {
+      commands: { setContent: jest.Mock };
+    };
+    expect(editor.commands.setContent).toHaveBeenCalledWith(savedBody, {
+      emitUpdate: false,
+    });
+  });
+
   it('registers and unregisters the editor on mount and unmount', () => {
     const { unmount } = render(<RichTextEditor onOpenImageEmbed={mockOnOpenImageEmbed} />);
     

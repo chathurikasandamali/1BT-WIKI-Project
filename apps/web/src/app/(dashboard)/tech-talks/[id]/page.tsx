@@ -7,6 +7,7 @@ import { getTechTalkById, type TechTalkDetail } from '@/lib/api/techTalks';
 import { YoutubeEmbed } from '@/components/techTalks/YoutubeEmbed';
 import { formatDate } from '@/lib/utils/date';
 import { ArrowLeftIcon } from '@/components/shared/icons/ArrowLeftIcon';
+import { PageLoader } from '@/components/shared/PageLoader';
 
 function TechTalkDetailPageContent(): React.JSX.Element {
   const params = useParams();
@@ -53,14 +54,7 @@ function TechTalkDetailPageContent(): React.JSX.Element {
   }, [id]);
 
   if (loading) {
-    return (
-      <div
-        className="max-w-5xl mx-auto p-4 sm:p-6 text-center text-brand-text-secondary"
-        data-testid="techtalk-detail-loading"
-      >
-        Loading Tech Talk details...
-      </div>
-    );
+    return <PageLoader testId="techtalk-detail-loading" />;
   }
 
   const getErrorMessage = (): string | null => {

@@ -72,6 +72,8 @@ describe('MyArticlesPage', () => {
     expect(
       screen.getByRole('heading', { name: 'My Articles' })
     ).toBeInTheDocument();
+    const createLink = screen.getByRole('link', { name: /create new article/i });
+    expect(createLink).toHaveAttribute('href', '/editor');
     expect(screen.getByTestId('my-articles-list-stub')).toBeInTheDocument();
   });
 });

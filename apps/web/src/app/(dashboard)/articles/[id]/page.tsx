@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Sparkles } from 'lucide-react';
 import { getArticle, ArticleDetail } from '@/lib/api/articles';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -9,6 +9,7 @@ import { LikeButton } from '@/components/article-detail/LikeButton';
 import { LikedByAvatars } from '@/components/article-detail/LikedByAvatars';
 import { CommentsSection } from '@/components/article-detail/CommentsSection';
 import { ArrowLeftIcon } from '@/components/shared/icons/ArrowLeftIcon';
+import { PageLoader } from '@/components/shared/PageLoader';
 import { ReaderQuizModal } from '@/components/quiz/ReaderQuizModal';
 
 interface ArticlePageProps {
@@ -18,12 +19,26 @@ interface ArticlePageProps {
 export default function ArticleDetailPage(props: ArticlePageProps) {
   // In Next.js 15+, params is a Promise. We need to unwrap it in a Client Component.
   const params = React.use(props.params);
-  
+  const router = useRouter();
+
   const [article, setArticle] = useState<ArticleDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isQuizModalOpen, setIsQuizModalOpen] = useState(false);
   const [likeToggle, setLikeToggle] = useState(false); // State to trigger re-render for like count
+
+  /**
+   * Prefer browser history so Home → article returns to Home, while
+   * Articles → article returns to the Articles list. Direct links fall back.
+   */
+  const handleBack = () => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push('/articles');
+  };
+
   useEffect(() => {
     let mounted = true;
     async function loadArticle() {
@@ -53,27 +68,22 @@ export default function ArticleDetailPage(props: ArticlePageProps) {
   }, [params.id]);
 
   if (loading) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-8 text-center text-brand-text-secondary" data-testid="loading-skeleton">
-        <div className="animate-pulse flex flex-col items-center">
-          <div className="h-8 w-64 bg-brand-border rounded mb-4"></div>
-          <div className="h-4 w-32 bg-brand-border rounded"></div>
-        </div>
-      </div>
-    );
+    return <PageLoader testId="loading-skeleton" />;
   }
 
   if (error || !article) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8 text-center">
         <p className="text-brand-red font-medium mb-4">{error || 'Article not found'}</p>
-        <Link
-          href="/articles"
+        <button
+          type="button"
+          onClick={handleBack}
+          data-testid="back-to-articles"
           className="inline-flex items-center text-sm font-medium text-brand-text-secondary hover:text-brand-red transition-colors"
         >
           <ArrowLeftIcon width="16" height="16" className="mr-1" />
           Back to Articles
-        </Link>
+        </button>
       </div>
     );
   }
@@ -91,13 +101,15 @@ export default function ArticleDetailPage(props: ArticlePageProps) {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 pb-24">
       <div className="mb-6">
-        <Link
-          href="/articles"
+        <button
+          type="button"
+          onClick={handleBack}
+          data-testid="back-to-articles"
           className="inline-flex items-center text-sm font-medium text-brand-text-secondary hover:text-brand-red transition-colors"
         >
           <ArrowLeftIcon width="16" height="16" className="mr-1" />
           Back to Articles
-        </Link>
+        </button>
       </div>
 
       <article className="bg-brand-surface rounded-xl shadow-sm border border-brand-border overflow-hidden">

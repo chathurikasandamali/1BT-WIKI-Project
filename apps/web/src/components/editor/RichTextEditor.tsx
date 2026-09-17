@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
+import { tipTapDocHasContent } from '@repo/shared';
 import {
   Bold,
   Italic,
@@ -32,7 +33,7 @@ const MenuBar = ({
   editor,
   onOpenImageEmbed,
 }: {
-  editor: ReturnType<typeof useEditor>;
+  editor: Editor | null;
   onOpenImageEmbed: () => void;
 }) => {
   if (!editor) return null;
@@ -49,6 +50,7 @@ const MenuBar = ({
     children: React.ReactNode;
   }) => (
     <button
+      type="button"
       onClick={onClick}
       disabled={disabled}
       className={cn(
@@ -135,7 +137,12 @@ const MenuBar = ({
       <div className="mx-2 h-6 w-px bg-brand-border" />
 
       <button
-        onClick={onOpenImageEmbed}
+        type="button"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onOpenImageEmbed();
+        }}
         className="flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium text-brand-text-primary hover:bg-brand-hover transition-colors"
       >
         <ImageIcon className="h-4 w-4 text-brand-red" />
@@ -171,19 +178,21 @@ export function RichTextEditor({ onOpenImageEmbed }: RichTextEditorProps) {
     registerEditor,
     handleTitleBlur,
     notifyContentChanged,
-    initialBody,
+    currentBody,
     titleError,
     contentError,
     clearTitleError,
     clearContentError,
   } = useEditorDraft();
 
-  const reportCounts = (ed: Editor) => {
+  const hydratedRef = useRef(false);
+
+  const reportCounts = useCallback((ed: Editor) => {
     const text = ed.state.doc.textContent;
     const words = text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
     const chars = text.length;
-    notifyContentChanged(words, chars);
-  };
+    notifyContentChanged(words, chars, ed.getJSON());
+  }, [notifyContentChanged]);
 
   const editor = useEditor({
     extensions: [
@@ -193,7 +202,8 @@ export function RichTextEditor({ onOpenImageEmbed }: RichTextEditorProps) {
         allowBase64: true,
       }),
     ],
-    content: initialBody ?? '',
+    content: currentBody,
+    immediatelyRender: false,
     editorProps: {
       attributes: {
         class:
@@ -201,14 +211,29 @@ export function RichTextEditor({ onOpenImageEmbed }: RichTextEditorProps) {
         'data-cy': 'article-content-editor',
       },
     },
-    onCreate: ({ editor: ed }) => {
-      reportCounts(ed);
-    },
     onUpdate: ({ editor: ed }) => {
       reportCounts(ed);
       if (contentError) clearContentError();
     },
   });
+
+  // TipTap can boot with an empty doc before hydration finishes. Never let
+  // that empty snapshot overwrite a draft body already held in context.
+  useEffect(() => {
+    if (!editor) {
+      hydratedRef.current = false;
+      return;
+    }
+
+    if (!hydratedRef.current) {
+      hydratedRef.current = true;
+      const editorBody = editor.getJSON();
+      if (tipTapDocHasContent(currentBody) && !tipTapDocHasContent(editorBody)) {
+        editor.commands.setContent(currentBody, { emitUpdate: false });
+      }
+      reportCounts(editor);
+    }
+  }, [editor, currentBody, reportCounts]);
 
   // Register the TipTap editor instance in context so saveDraft/uploadImage
   // can call editor.getJSON()

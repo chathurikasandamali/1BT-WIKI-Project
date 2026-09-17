@@ -142,6 +142,44 @@ export class ArticleReviewRepository {
       updatedAt: result.updatedAt,
     };
   }
+
+  async findLatestWithComments(articleId: string) {
+    const result = await prisma.articleReview.findFirst({
+      where: { articleId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        comments: {
+          where: { deletedAt: null },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    if (!result) {
+      return null;
+    }
+
+    return {
+      id: result.id,
+      articleId: result.articleId,
+      reviewerId: result.reviewerId,
+      reviewStatus: result.status,
+      feedback: result.feedback,
+      createdAt: result.createdAt,
+      updatedAt: result.updatedAt,
+      comments: result.comments.map((c) => ({
+        id: c.id,
+        reviewId: c.reviewId,
+        comment: c.comment,
+        selectedText: c.selectedText,
+        anchorData: c.anchorData,
+        status: c.status as ReviewCommentStatus,
+        createdBy: c.createdBy,
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt,
+      })),
+    };
+  }
 }
 
 export default new ArticleReviewRepository();

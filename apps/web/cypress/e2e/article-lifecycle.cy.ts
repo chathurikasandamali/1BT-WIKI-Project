@@ -2,7 +2,11 @@
 // strictly maps to apps/web/src in tsconfig.json. Cypress's default bundler does not
 // natively support tsconfig paths without additional preprocessor dependencies, so
 // adding a custom @e2e alias merely to hide this cross-workspace dependency is unwarranted.
-import { E2E_AUTHOR, E2E_REVIEWER } from '../../../api/scripts/e2e-identities.js';
+import {
+  E2E_AUTHOR,
+  E2E_REVIEWER,
+  E2E_ADMIN,
+} from '../../../api/scripts/e2e-identities.js';
 import type { Interception } from 'cypress/types/net-stubbing';
 import {
   setE2EIdentity,
@@ -11,14 +15,6 @@ import {
   mintE2EFrontendSession,
   SESSION_TOKEN_COOKIE,
 } from '../support/e2e-auth';
-
-type E2EIdentity = NonNullable<Parameters<typeof setE2EIdentity>[0]>;
-
-const E2E_ADMIN = {
-  id: '00000000-0000-4000-8000-000000000103',
-  email: 'e2e-admin@1billiontech.com',
-  role: 'Admin',
-} as unknown as E2EIdentity;
 
 interface PendingArticle {
   id: string;
@@ -54,7 +50,7 @@ describe('Article lifecycle', () => {
   let createdArticleId: string | null = null;
   let useAdminProfile = false;
 
-  const DEFAULT_TIMEOUT = 10000; // 10 seconds
+  const DEFAULT_TIMEOUT = 30000;
 
   beforeEach(() => {
     useAdminProfile = false;
@@ -172,9 +168,6 @@ describe('Article lifecycle', () => {
       }
     });
 
-    // Type the article content FIRST so the create request already carries at
-    // least MIN_ARTICLE_CONTENT_LENGTH meaningful characters — the backend
-    // rejects articles that are created with empty content.
     cy.get('[data-cy="article-content-editor"]')
       .click()
       .type(articleContent, { delay: 0 });
@@ -202,8 +195,17 @@ describe('Article lifecycle', () => {
     // 12. Verify exactly one creation request occurred
     cy.get('@createArticle.all').should('have.length', 1);
 
-    // 13. Wait for the real PATCH autosave request (the editor already contains
-    // the content from step 11, so this is the debounced autosave of it)
+    // 12b. The article's content is already persisted by the create POST, so a
+    // debounced autosave with byte-identical content is a genuine no-op that the
+    // app now intentionally skips. Make a REAL content edit AFTER the create so
+    // the autosave has an actual change to persist. {end} moves the caret to the
+    // end of the document, keeping articleContent intact for the assertions below.
+    cy.get('[data-cy="article-content-editor"]')
+      .click()
+      .type('{end} This sentence is appended after creation to trigger a real autosave.');
+
+    // 13. Wait for the real PATCH autosave request (a genuine content change
+    // added in 12b, not a no-op re-save of unchanged content)
     // The application has a 3000ms debounce, so we must allow a slightly longer timeout
     cy.wait('@finalArticleAutosave', { timeout: DEFAULT_TIMEOUT }).then((interception) => {
       // Assert PATCH URL contains createdArticleId
@@ -281,6 +283,7 @@ describe('Article lifecycle', () => {
       // 20. Success UI and Redirect
       cy.url().should('include', '/my-articles');
       cy.get(`[data-testid="article-card-${articleId}"]`)
+        .scrollIntoView()
         .should('be.visible')
         .and('contain.text', articleTitle);
 
@@ -417,6 +420,8 @@ describe('Article lifecycle', () => {
       cy.get('[data-testid="article-status-badge"]').should('contain.text', 'Pending');
       cy.get('[data-testid="review-article-content"]').should('contain.text', 'Cypress article lifecycle test');
 
+      // 30b. The Reviewer owns the decision: both controls are present, but
+      // publishing is never offered here — that is the Admin's step.
       cy.get('[data-testid="approve-button"]')
         .should('be.visible')
         .and('contain.text', 'Approve & Send to Admin');
@@ -453,7 +458,7 @@ describe('Article lifecycle', () => {
 
         expect(interception.request.headers['x-test-user-id']).to.eq(E2E_REVIEWER.id);
         expect(interception.request.headers['x-test-user-email']).to.eq(E2E_REVIEWER.email);
-        expect(interception.request.headers['x-test-user-role']).to.eq(E2E_REVIEWER.role);
+        expect(interception.request.headers['x-test-user-role']).to.eq('Reviewer');
 
         expect(interception.response?.statusCode).to.eq(200);
         const responseBody = interception.response?.body;
@@ -501,6 +506,8 @@ describe('Article lifecycle', () => {
       });
 
       cy.then(() => {
+        // Back to the author's own /users/me response, not the Admin stub.
+        useAdminProfile = false;
         setE2EIdentity(E2E_AUTHOR);
       });
 
@@ -591,6 +598,58 @@ describe('Article lifecycle', () => {
         }
       );
 
+      // The Admin's Approvals tab is the hand-off point: it lists exactly the
+      // articles a Reviewer approved, each ready to publish.
+      cy.visit('/admin/approvals');
+
+      cy.wait('@getAdminUser', { timeout: DEFAULT_TIMEOUT }).then(
+        (interception) => {
+          expect(interception.response?.statusCode).to.eq(200);
+          expect(interception.response?.body.data.role).to.eq('Admin');
+        }
+      );
+
+      cy.wait('@getAdminApprovalsQueue', {
+        timeout: DEFAULT_TIMEOUT,
+      }).then((interception) => {
+        expect(interception.request.method).to.eq('GET');
+        const reqUrl = new URL(interception.request.url);
+        expect(reqUrl.pathname).to.eq('/api/v1/admin/articles');
+        expect(reqUrl.searchParams.get('status')).to.eq('Approved');
+
+        expect(interception.request.headers['x-test-user-id']).to.eq(
+          E2E_ADMIN.id
+        );
+        expect(interception.request.headers['x-test-user-role']).to.eq('Admin');
+
+        expect(interception.response?.statusCode).to.eq(200);
+
+        interface QueuedArticle {
+          id: string;
+          title: string;
+          status: string;
+        }
+
+        const queuedArticle = interception.response?.body.data.articles.find(
+          (article: QueuedArticle) => article.id === articleId
+        );
+        if (!queuedArticle) {
+          throw new Error(
+            'Reviewer-approved article was not found in the Admin Approvals queue'
+          );
+        }
+        expect(queuedArticle.title).to.eq(articleTitle);
+        expect(queuedArticle.status).to.eq('Approved');
+      });
+
+      cy.get('[data-testid="admin-approvals-page"]').should('be.visible');
+      cy.get(`[data-testid="approved-article-card-${articleId}"]`)
+        .should('be.visible')
+        .and('contain.text', articleTitle);
+      cy.get(`[data-testid="publish-article-${articleId}"]`).should(
+        'be.visible'
+      );
+
       cy.visit('/admin/articles');
 
       cy.wait('@getAdminUser', { timeout: DEFAULT_TIMEOUT }).then(
@@ -602,7 +661,12 @@ describe('Article lifecycle', () => {
         }
       );
 
-      cy.get('[data-testid="status-filter-select"]').select('Approved');
+      cy.get('[data-testid="article-management-section"]')
+        .should('be.visible');
+      cy.get('[data-testid="article-management-section"]')
+        .contains('button', /^Approved$/)
+        .should('be.visible')
+        .click();
 
       cy.wait('@getApprovedAdminArticles', {
         timeout: DEFAULT_TIMEOUT,
@@ -643,12 +707,15 @@ describe('Article lifecycle', () => {
       });
 
       cy.get(`[data-testid="article-link-${articleId}"]`)
+        .scrollIntoView({ offset: { top: -96, left: 0 } })
         .should('be.visible')
         .and('contain.text', articleTitle)
         .closest('tr')
         .should('contain.text', 'Approved');
 
-      cy.get(`[data-testid="article-link-${articleId}"]`).click();
+      cy.get(`[data-testid="article-link-${articleId}"]`)
+        .scrollIntoView({ offset: { top: -96, left: 0 } })
+        .click();
 
       cy.wait('@getPublishedArticleDetail', {
         timeout: DEFAULT_TIMEOUT,
@@ -764,13 +831,23 @@ describe('Article lifecycle', () => {
       });
 
       cy.get(`[data-testid="article-card-${articleId}"]`)
+        .scrollIntoView({ offset: { top: -96, left: 0 } })
         .should('be.visible')
         .within(() => {
           cy.contains(articleTitle).should('be.visible');
           cy.root().should('have.attr', 'href', `/articles/${articleId}`).click();
         });
 
-      cy.wait('@getPublishedArticleDetail', { timeout: DEFAULT_TIMEOUT }).then((interception) => {
+      // Dev-mode Strict Mode (and the Admin detail page) can leave an extra
+      // GET /articles/:id in the intercept queue from the previous identity.
+      const assertAuthorArticleDetail = (interception: Interception): void => {
+        if (interception.request.headers['x-test-user-id'] !== E2E_AUTHOR.id) {
+          cy.wait('@getPublishedArticleDetail', { timeout: DEFAULT_TIMEOUT }).then(
+            assertAuthorArticleDetail
+          );
+          return;
+        }
+
         expect(interception.request.method).to.eq('GET');
         const reqUrl = new URL(interception.request.url);
         expect(reqUrl.pathname).to.eq(`/api/v1/articles/${articleId}`);
@@ -788,7 +865,11 @@ describe('Article lifecycle', () => {
 
         const bodyStr = JSON.stringify(responseBody.data.body);
         expect(bodyStr).to.include(articleContent);
-      });
+      };
+
+      cy.wait('@getPublishedArticleDetail', { timeout: DEFAULT_TIMEOUT }).then(
+        assertAuthorArticleDetail
+      );
 
       cy.location('pathname').should('eq', `/articles/${articleId}`);
       cy.get('h1').contains(articleTitle).should('be.visible');

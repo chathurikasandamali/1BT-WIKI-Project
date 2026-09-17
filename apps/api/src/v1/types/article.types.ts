@@ -58,10 +58,12 @@ export interface ArticleListItem {
   commentCount: number;
   views: number;
   rejectionFeedback: string | null;
+  inlineCommentCount: number;
 }
 
 export interface PublishedArticleListItem extends ArticleListItem {
   coverImageUrl: string | null;
+  authorName: string;
 }
 
 /**

@@ -19,6 +19,7 @@ const mockSubmitForReview = jest.fn();
 let mockContextState: Record<string, unknown> = {};
 const mockEnsureDraftExists = jest.fn();
 const mockValidate = jest.fn(() => true);
+const mockValidateDraft = jest.fn(() => true);
 
 jest.mock('@/components/editor/EditorDraftContext', () => ({
   useEditorDraft: () => ({
@@ -34,12 +35,18 @@ jest.mock('@/components/editor/EditorDraftContext', () => ({
     submitForReview: mockSubmitForReview,
     ensureDraftExists: mockEnsureDraftExists,
     validate: mockValidate,
+    validateDraft: mockValidateDraft,
     ...mockContextState,
   }),
 }));
 
 jest.mock('@/components/quiz/GenerateQuizModal', () => ({
   GenerateQuizModal: () => null,
+}));
+
+jest.mock('@/components/articles/ReviewFeedbackModal', () => ({
+  ReviewFeedbackModal: ({ isOpen, articleId }: { isOpen: boolean; articleId: string | null }) =>
+    isOpen ? <div data-testid="review-feedback-modal">Modal for {articleId}</div> : null,
 }));
 
 const mockShowToast = jest.fn();
@@ -168,14 +175,15 @@ describe('EditorHeader', () => {
       });
     });
 
-    it('blocks saving and shows an error toast when validation fails', async () => {
-      mockValidate.mockReturnValueOnce(false);
+    it('blocks saving and shows an error toast when draft validation fails', async () => {
+      mockValidateDraft.mockReturnValueOnce(false);
       render(<EditorHeader mode="compose" setMode={jest.fn()} />);
       
       const saveBtn = screen.getByRole('button', { name: /save draft/i });
       await userEvent.click(saveBtn);
       
-      expect(mockValidate).toHaveBeenCalled();
+      expect(mockValidateDraft).toHaveBeenCalled();
+      expect(mockValidate).not.toHaveBeenCalled();
       expect(mockSaveDraft).not.toHaveBeenCalled();
       await waitFor(() => {
         expect(mockShowToast).toHaveBeenCalledWith('Please fix the highlighted errors before saving.');
@@ -259,6 +267,143 @@ describe('EditorHeader', () => {
       
       const submitBtn = screen.getByRole('button', { name: /re-submit for review/i });
       expect(submitBtn).toBeInTheDocument();
+    });
+  });
+
+  describe('Review Feedback Button', () => {
+    it('does not render Review Feedback button for Draft initial status', () => {
+      mockContextState = { initialStatus: 'Draft' };
+      render(<EditorHeader mode="compose" setMode={jest.fn()} />);
+      expect(screen.queryByTestId('review-feedback-button')).not.toBeInTheDocument();
+    });
+
+    it('renders Review Feedback button when initialStatus is Rejected or Unpublished', () => {
+      mockContextState = { initialStatus: 'Rejected', articleId: 'art-99' };
+      const { rerender } = render(<EditorHeader mode="compose" setMode={jest.fn()} />);
+      expect(screen.getByTestId('review-feedback-button')).toBeInTheDocument();
+
+      mockContextState = { initialStatus: 'Unpublished', articleId: 'art-99' };
+      rerender(<EditorHeader mode="compose" setMode={jest.fn()} />);
+      expect(screen.getByTestId('review-feedback-button')).toBeInTheDocument();
+    });
+
+    it('opens ReviewFeedbackModal when clicking Review Feedback button', async () => {
+      mockContextState = { initialStatus: 'Unpublished', articleId: 'art-99' };
+      const user = userEvent.setup();
+      render(<EditorHeader mode="compose" setMode={jest.fn()} />);
+
+      const btn = screen.getByTestId('review-feedback-button');
+      await user.click(btn);
+
+      expect(screen.getByTestId('review-feedback-modal')).toHaveTextContent('Modal for art-99');
+    });
+  });
+
+  describe('Preview Button Enable/Disable Logic', () => {
+    const emptyFormContext = {
+      title: '',
+      tags: [],
+      currentBody: { type: 'doc', content: [{ type: 'paragraph' }] },
+      attachments: [],
+      featuredImageUrl: null,
+      coverAttachmentId: null,
+    };
+
+    it('does not switch to preview when the form is empty', async () => {
+      const setMode = jest.fn();
+      mockContextState = emptyFormContext;
+      render(<EditorHeader mode="compose" setMode={setMode} />);
+
+      await userEvent.click(screen.getByTestId('preview-button'));
+      expect(setMode).not.toHaveBeenCalled();
+    });
+
+    it('becomes enabled after typing a title', () => {
+      mockContextState = {
+        ...emptyFormContext,
+        title: 'A new title',
+      };
+      render(<EditorHeader mode="compose" setMode={jest.fn()} />);
+
+      const previewBtn = screen.getByTestId('preview-button');
+      expect(previewBtn).toBeEnabled();
+    });
+
+    it('becomes enabled after adding body content (TipTap shape with text node)', () => {
+      mockContextState = {
+        ...emptyFormContext,
+        currentBody: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: 'Some article body' }],
+            },
+          ],
+        },
+      };
+      render(<EditorHeader mode="compose" setMode={jest.fn()} />);
+
+      const previewBtn = screen.getByTestId('preview-button');
+      expect(previewBtn).toBeEnabled();
+    });
+
+    it('becomes enabled after embedding an image in the body', () => {
+      mockContextState = {
+        ...emptyFormContext,
+        currentBody: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                { type: 'image', attrs: { src: 'https://example.com/a.png' } },
+              ],
+            },
+          ],
+        },
+      };
+      render(<EditorHeader mode="compose" setMode={jest.fn()} />);
+
+      const previewBtn = screen.getByTestId('preview-button');
+      expect(previewBtn).toBeEnabled();
+    });
+
+    // There is nothing worth previewing yet when only metadata is filled in.
+    it('stays disabled when only a tag is added', () => {
+      mockContextState = {
+        ...emptyFormContext,
+        tags: ['TypeScript'],
+      };
+      render(<EditorHeader mode="compose" setMode={jest.fn()} />);
+
+      const previewBtn = screen.getByTestId('preview-button');
+      expect(previewBtn).toBeDisabled();
+    });
+
+    it('stays disabled when only a cover image is added', () => {
+      mockContextState = {
+        ...emptyFormContext,
+        featuredImageUrl: 'https://example.com/cover.png',
+        coverAttachmentId: 'attachment-1',
+      };
+      render(<EditorHeader mode="compose" setMode={jest.fn()} />);
+
+      const previewBtn = screen.getByTestId('preview-button');
+      expect(previewBtn).toBeDisabled();
+    });
+
+    it('stays disabled if all fields are cleared again', () => {
+      mockContextState = {
+        ...emptyFormContext,
+        title: '   ',
+        tags: [],
+        currentBody: { type: 'doc', content: [{ type: 'paragraph' }] },
+      };
+      render(<EditorHeader mode="compose" setMode={jest.fn()} />);
+
+      const previewBtn = screen.getByTestId('preview-button');
+      expect(previewBtn).toBeDisabled();
     });
   });
 });

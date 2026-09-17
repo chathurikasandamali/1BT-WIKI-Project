@@ -226,6 +226,23 @@ export class ArticleController {
       next(error);
     }
   };
+
+  getReviewFeedback = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const requesterId = req.user!.userId;
+      const feedback = await this.service.getReviewFeedback(id, requesterId);
+      res
+        .status(HttpStatusCode.OK)
+        .json(successResponse(feedback, 'Review feedback retrieved successfully'));
+    } catch (error) {
+      next(error);
+    }
+  };
 }
 
 export default ArticleController;

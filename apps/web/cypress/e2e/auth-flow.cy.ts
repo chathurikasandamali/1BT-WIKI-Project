@@ -6,8 +6,10 @@ describe('Auth flow: login -> session -> protected route -> logout', () => {
 
     cy.visitPage('/signin');
     stubOAuthPopup();
-    cy.get('button[aria-label="Open navigation menu"]').click();
-    cy.get('#mobile-landing-navigation').contains('button', /^Log in$/).click();
+    // xl+ shows the header login control; the hamburger is `xl:hidden`.
+    cy.get('button[aria-label="Log in with Google"]')
+      .filter(':visible')
+      .click();
 
     cy.wait('@signInSocial');
     cy.url().should('eq', `${Cypress.config('baseUrl')}/`);
@@ -53,7 +55,8 @@ describe('Auth flow: login -> session -> protected route -> logout', () => {
     cy.wait('@usersMe');
     cy.contains('h1', 'Admin Dashboard').should('be.visible');
 
-    cy.get('[data-testid="logout-btn"]').click();
+    cy.get('[data-testid="user-account-trigger"]').click();
+    cy.get('[data-testid="menu-item-sign-out"]').click();
     cy.wait('@signOut');
     cy.url().should('include', '/signin');
 

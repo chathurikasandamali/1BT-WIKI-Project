@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Search } from 'lucide-react';
 import { TechTalkCard } from '@/components/techTalks/TechTalkCard';
 import { usePublishedTechTalks } from '@/lib/hooks/useTechTalks';
-import { skeletonKeys } from '@/lib/utils/skeletonKeys';
+import { PageLoader } from '@/components/shared/PageLoader';
 
 interface SortOption {
   label: string;
@@ -136,26 +136,7 @@ export default function TechTalksPage(): React.JSX.Element {
       )}
 
       {loading && (
-        <div
-          className="grid grid-cols-1 md:grid-cols-2 gap-6"
-          data-testid="techtalks-loading"
-        >
-          {skeletonKeys('tech_talks_', 4).map((item) => (
-            <div
-              key={item.key}
-              className="flex flex-col gap-4 p-5 bg-brand-surface border border-brand-border rounded animate-pulse"
-            >
-              <div className="h-4 bg-brand-border rounded w-1/4"></div>
-              <div className="h-6 bg-brand-border rounded w-3/4"></div>
-              <div className="h-4 bg-brand-border rounded w-1/2"></div>
-              <div className="h-16 bg-brand-border rounded w-full"></div>
-              <div className="flex gap-2">
-                <div className="h-6 w-16 bg-gray-100 rounded-full"></div>
-                <div className="h-6 w-16 bg-gray-100 rounded-full"></div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <PageLoader testId="techtalks-loading" className="min-h-0 py-20" />
       )}
 
       {showEmptyState && (

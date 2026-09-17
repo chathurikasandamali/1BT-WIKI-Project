@@ -69,6 +69,7 @@ describe('EditorDraftContext', () => {
             expect(result.current.attachments).toEqual([]);
             expect(result.current.wordCount).toBe(0);
             expect(result.current.charCount).toBe(0);
+            expect(result.current.currentBody).toEqual({ type: 'doc', content: [] });
             expect(result.current.initialBody).toBeNull();
             expect(result.current.initialStatus).toBeNull();
         });
@@ -89,6 +90,7 @@ describe('EditorDraftContext', () => {
                 type: 'doc',
                 content: [],
             });
+            expect(result.current.currentBody).toEqual(defaultInitialArticle.body);
             expect(result.current.initialStatus).toBe('Draft');
 
             expect(result.current.saveStatus).toBe('idle');
@@ -175,11 +177,16 @@ describe('EditorDraftContext', () => {
 
         it('notifyContentChanged updates word and character counts', () => {
             const { result } = renderHook(() => useEditorDraft(), { wrapper });
+            const body = { type: 'doc', content: [{ type: 'paragraph' }] };
             act(() => {
-                result.current.notifyContentChanged(10, 50);
+                result.current.notifyContentChanged(10, 50, body);
             });
             expect(result.current.wordCount).toBe(10);
             expect(result.current.charCount).toBe(50);
+            expect(result.current.currentBody).toEqual(body);
+            expect(mockApiFetch).not.toHaveBeenCalled();
+            act(() => result.current.registerEditor(null));
+            expect(result.current.currentBody).toEqual(body);
         });
     });
 
@@ -444,6 +451,14 @@ describe('EditorDraftContext', () => {
             expect(mockApiFetch).toHaveBeenCalledTimes(2);
             expect(mockApiFetch.mock.calls[0][0]).toBe('/articles');
             expect(mockApiFetch.mock.calls[1][0]).toBe('/articles/draft-for-image');
+
+            const createForm = mockApiFetch.mock.calls[0][1].body as FormData;
+            const createPayload = JSON.parse(createForm.get('data') as string) as {
+                title: string;
+                body: unknown;
+            };
+            expect(createPayload.title).toBe('Untitled Draft');
+            expect(createPayload.body).toBeDefined();
         });
 
         it('throws if image upload succeeded but no new attachment was returned', async () => {
@@ -537,6 +552,38 @@ describe('EditorDraftContext', () => {
             expect(mockRun).toHaveBeenCalled();
         });
 
+        it('insertEditorImage wraps the image when setImage cannot insert at the caret', () => {
+            const mockSetImageRun = jest.fn().mockReturnValue(false);
+            const mockInsertRun = jest.fn().mockReturnValue(true);
+            const mockSetImage = jest.fn().mockReturnValue({ run: mockSetImageRun });
+            const mockInsertContent = jest.fn().mockReturnValue({ run: mockInsertRun });
+            const mockFocus = jest.fn().mockReturnValue({
+                setImage: mockSetImage,
+                insertContent: mockInsertContent,
+            });
+            const mockEditor = {
+                chain: jest.fn().mockReturnValue({ focus: mockFocus }),
+                getJSON: () => ({ type: 'doc', content: [] }),
+            } as unknown as Editor;
+
+            const { result } = renderHook(() => useEditorDraft(), { wrapper });
+
+            act(() => {
+                result.current.registerEditor(mockEditor);
+            });
+
+            act(() => {
+                result.current.insertEditorImage('https://img.com/test.png');
+            });
+
+            expect(mockSetImage).toHaveBeenCalledWith({ src: 'https://img.com/test.png' });
+            expect(mockInsertContent).toHaveBeenCalledWith({
+                type: 'paragraph',
+                content: [{ type: 'image', attrs: { src: 'https://img.com/test.png' } }],
+            });
+            expect(mockInsertRun).toHaveBeenCalled();
+        });
+
         it('insertEditorImage without a registered editor does not crash', () => {
             const { result } = renderHook(() => useEditorDraft(), { wrapper });
             expect(() => {
@@ -547,8 +594,17 @@ describe('EditorDraftContext', () => {
         });
         
         it('uses editor getJSON in requests', async () => {
+            const editorBody = {
+                type: 'doc',
+                content: [
+                    {
+                        type: 'paragraph',
+                        content: [{ type: 'text', text: 'Persisted draft body' }],
+                    },
+                ],
+            };
             const mockEditor = {
-                getJSON: () => ({ type: 'doc', content: [{ type: 'paragraph' }] }),
+                getJSON: () => editorBody,
             } as unknown as Editor;
             
             mockApiFetch.mockResolvedValueOnce({
@@ -568,7 +624,7 @@ describe('EditorDraftContext', () => {
             
             const formData = mockApiFetch.mock.calls[0][1].body as FormData;
             const dataStr = formData.get('data') as string;
-            expect(JSON.parse(dataStr).body).toEqual({ type: 'doc', content: [{ type: 'paragraph' }] });
+            expect(JSON.parse(dataStr).body).toEqual(editorBody);
         });
     });
 
@@ -642,7 +698,7 @@ describe('EditorDraftContext', () => {
             const { result } = renderHook(() => useEditorDraft(), { wrapper });
 
             act(() => {
-                result.current.notifyContentChanged(10, 50);
+                result.current.notifyContentChanged(10, 50, { type: 'doc', content: [] });
             });
 
             jest.advanceTimersByTime(3500);
@@ -657,9 +713,26 @@ describe('EditorDraftContext', () => {
             });
 
             const { result } = renderHook(() => useEditorDraft(), { wrapper: wrapperWithArticle });
+            const emptyBody = { type: 'doc', content: [] };
+            const updatedBody = {
+                type: 'doc',
+                content: [
+                    {
+                        type: 'paragraph',
+                        content: [{ type: 'text', text: 'Autosaved draft content' }],
+                    },
+                ],
+            };
+            const mockEditor = {
+                getJSON: () => emptyBody,
+            } as unknown as Editor;
 
             act(() => {
-                result.current.notifyContentChanged(10, 50);
+                result.current.registerEditor(mockEditor);
+            });
+
+            act(() => {
+                result.current.notifyContentChanged(10, 50, updatedBody);
             });
 
             expect(mockApiFetch).not.toHaveBeenCalled();
@@ -674,7 +747,7 @@ describe('EditorDraftContext', () => {
             }));
         });
 
-        it('debounces multiple rapid content changes', async () => {
+        it('does not autosave an untouched existing article (no-op guard)', async () => {
             mockApiFetch.mockResolvedValue({
                 success: true,
                 data: { status: 'Draft', attachments: [] },
@@ -683,19 +756,58 @@ describe('EditorDraftContext', () => {
             const { result } = renderHook(() => useEditorDraft(), { wrapper: wrapperWithArticle });
 
             act(() => {
-                result.current.notifyContentChanged(1, 10);
+                // Simulate the editor registering with content identical to the initial article
+                result.current.registerEditor({
+                    getJSON: () => ({ type: 'doc', content: [] }),
+                } as unknown as Editor);
+            });
+
+            await act(async () => {
+                jest.advanceTimersByTime(3500);
+            });
+
+            expect(mockApiFetch).not.toHaveBeenCalled();
+        });
+
+        it('debounces multiple rapid content changes', async () => {
+            mockApiFetch.mockResolvedValue({
+                success: true,
+                data: { status: 'Draft', attachments: [] },
+            });
+
+            const { result } = renderHook(() => useEditorDraft(), { wrapper: wrapperWithArticle });
+            const emptyBody = { type: 'doc', content: [] };
+            const updatedBody = {
+                type: 'doc',
+                content: [
+                    {
+                        type: 'paragraph',
+                        content: [{ type: 'text', text: 'Debounced autosave content' }],
+                    },
+                ],
+            };
+            const mockEditor = {
+                getJSON: () => emptyBody,
+            } as unknown as Editor;
+
+            act(() => {
+                result.current.registerEditor(mockEditor);
+            });
+
+            act(() => {
+                result.current.notifyContentChanged(1, 10, updatedBody);
             });
             
             jest.advanceTimersByTime(1000);
             
             act(() => {
-                result.current.notifyContentChanged(2, 20);
+                result.current.notifyContentChanged(2, 20, updatedBody);
             });
 
             jest.advanceTimersByTime(1000);
             
             act(() => {
-                result.current.notifyContentChanged(3, 30);
+                result.current.notifyContentChanged(3, 30, updatedBody);
             });
             
             // Still no call because the timer keeps resetting
@@ -713,7 +825,7 @@ describe('EditorDraftContext', () => {
             const { result, unmount } = renderHook(() => useEditorDraft(), { wrapper: wrapperWithArticle });
 
             act(() => {
-                result.current.notifyContentChanged(10, 50);
+                result.current.notifyContentChanged(10, 50, { type: 'doc', content: [] });
             });
             
             unmount();
@@ -815,6 +927,71 @@ describe('EditorDraftContext', () => {
             });
             
             expect(mockApiFetch).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('Validation', () => {
+        it('validate requires both a title and publishable body content', () => {
+            const { result } = renderHook(() => useEditorDraft(), { wrapper });
+
+            act(() => {
+                result.current.setTitle('Draft title');
+            });
+
+            let isValid = true;
+            act(() => {
+                isValid = result.current.validate();
+            });
+
+            expect(isValid).toBe(false);
+            expect(result.current.titleError).toBeNull();
+            expect(result.current.contentError).toBe('Article content is required.');
+        });
+
+        it('validateDraft only requires a title so an empty body can still be saved', () => {
+            const { result } = renderHook(() => useEditorDraft(), { wrapper });
+
+            act(() => {
+                result.current.setTitle('Draft title');
+            });
+
+            let isValid = false;
+            act(() => {
+                isValid = result.current.validateDraft();
+            });
+
+            expect(isValid).toBe(true);
+            expect(result.current.titleError).toBeNull();
+            expect(result.current.contentError).toBeNull();
+        });
+
+        it('validateDraft fails when the title is empty', () => {
+            const { result } = renderHook(() => useEditorDraft(), { wrapper });
+
+            let isValid = true;
+            act(() => {
+                isValid = result.current.validateDraft();
+            });
+
+            expect(isValid).toBe(false);
+            expect(result.current.titleError).toBe('Title is required.');
+        });
+
+        it('validateDraft clears a previous content error', () => {
+            const { result } = renderHook(() => useEditorDraft(), { wrapper });
+
+            act(() => {
+                result.current.setTitle('Draft title');
+                result.current.validate();
+            });
+            expect(result.current.contentError).toBe('Article content is required.');
+
+            act(() => {
+                result.current.validateDraft();
+            });
+
+            expect(result.current.contentError).toBeNull();
+            expect(result.current.titleError).toBeNull();
         });
     });
 });

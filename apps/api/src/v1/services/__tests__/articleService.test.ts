@@ -8,6 +8,7 @@ import type { QuizService } from '@services/quizService.js';
 import type { User, UserRole } from '@/types/userTypes.js';
 import { UserRoleValue } from '@/types/userTypes.js';
 import { HttpStatusCode } from '@/v1/utils/httpStatus.js';
+import { ArticleReviewStatus } from '@repo/shared';
 
 const mockFindActiveByRole = jest
   .fn<(role: UserRole) => Promise<User[]>>()
@@ -50,11 +51,18 @@ jest.unstable_mockModule('@repositories/articleRepository.js', () => {
 
 jest.unstable_mockModule('@repositories/articleReviewRepository.js', () => {
   const mockFindLatest = jest.fn();
+  const mockFindLatestWithComments = jest.fn();
   return {
-    default: { findLatestByArticleId: mockFindLatest },
+    default: {
+      findLatestByArticleId: mockFindLatest,
+      findLatestWithComments: mockFindLatestWithComments,
+    },
     ArticleReviewRepository: jest
       .fn()
-      .mockImplementation(() => ({ findLatestByArticleId: mockFindLatest })),
+      .mockImplementation(() => ({
+        findLatestByArticleId: mockFindLatest,
+        findLatestWithComments: mockFindLatestWithComments,
+      })),
   };
 });
 
@@ -88,11 +96,23 @@ jest.unstable_mockModule('@services/notificationService.js', () => ({
   },
 }));
 
+jest.unstable_mockModule('@repositories/articleReviewCommentRepository.js', () => {
+  const mockFindByReviewId = jest.fn();
+  return {
+    default: { findByReviewId: mockFindByReviewId },
+    ArticleReviewCommentRepository: jest
+      .fn()
+      .mockImplementation(() => ({ findByReviewId: mockFindByReviewId })),
+  };
+});
+
 const { ArticleService } = await import('../articleService.js');
 const { default: ArticleAttachmentRepository } =
   await import('@repositories/articleAttachmentRepository.js');
 const { default: ArticleReviewRepository } =
   await import('@repositories/articleReviewRepository.js');
+const { default: ArticleReviewCommentRepository } =
+  await import('@repositories/articleReviewCommentRepository.js');
 const { default: b2Client } = await import('../../lib/b2Client.js');
 
 // Build a typed mock repository object — injected directly into the service.
@@ -120,7 +140,9 @@ const makeRepo = (): jest.Mocked<
 });
 
 const makeUserRepo = () => ({
-  findManyByIds: jest.fn<() => Promise<unknown[]>>(),
+  // Defaults to an empty batch — tests that care about author enrichment
+  // override this with their own fixtures via mockResolvedValue.
+  findManyByIds: jest.fn<() => Promise<unknown[]>>().mockResolvedValue([]),
   findActiveByRole: jest
     .fn<(role: UserRole) => Promise<User[]>>()
     .mockResolvedValue([]),
@@ -280,27 +302,14 @@ describe('ArticleService.createArticle', () => {
       );
     });
 
-    it('should throw AppError if body is missing or empty', async () => {
-      const input = { title: 'Valid Title', body: undefined };
-      await expect(service.createArticle(input, authorId)).rejects.toThrow(
-        new AppError('Article content is required', HttpStatusCode.BAD_REQUEST)
-      );
-    });
-
-    it('should throw AppError if the TipTap document has no content', async () => {
-      const input = {
-        title: 'Valid Title',
-        body: { type: 'doc', content: [] },
-      };
-      await expect(service.createArticle(input, authorId)).rejects.toThrow(
-        new AppError('Article content is required', HttpStatusCode.BAD_REQUEST)
-      );
-    });
-
-    it('should throw AppError if the TipTap document has only empty paragraphs', async () => {
-      const input = {
-        title: 'Valid Title',
-        body: {
+    // Drafts are saved incrementally (e.g. embedding an image before writing
+    // any text), so content length is only enforced on submit for review.
+    it.each([
+      ['a missing body', undefined],
+      ['an empty TipTap document', { type: 'doc', content: [] }],
+      [
+        'only empty paragraphs',
+        {
           type: 'doc',
           content: [
             { type: 'paragraph' },
@@ -308,34 +317,19 @@ describe('ArticleService.createArticle', () => {
             { type: 'paragraph' },
           ],
         },
-      };
-      await expect(service.createArticle(input, authorId)).rejects.toThrow(
-        new AppError('Article content is required', HttpStatusCode.BAD_REQUEST)
-      );
-    });
-
-    it('should throw AppError if the TipTap content is whitespace-only', async () => {
-      const input = {
-        title: 'Valid Title',
-        body: {
+      ],
+      [
+        'whitespace-only content',
+        {
           type: 'doc',
           content: [
-            {
-              type: 'paragraph',
-              content: [{ type: 'text', text: '   ' }],
-            },
+            { type: 'paragraph', content: [{ type: 'text', text: '   ' }] },
           ],
         },
-      };
-      await expect(service.createArticle(input, authorId)).rejects.toThrow(
-        new AppError('Article content is required', HttpStatusCode.BAD_REQUEST)
-      );
-    });
-
-    it('should throw AppError if the content is below the minimum length', async () => {
-      const input = {
-        title: 'Valid Title',
-        body: {
+      ],
+      [
+        'content below the minimum length',
+        {
           type: 'doc',
           content: [
             {
@@ -344,13 +338,22 @@ describe('ArticleService.createArticle', () => {
             },
           ],
         },
-      };
-      await expect(service.createArticle(input, authorId)).rejects.toThrow(
-        new AppError(
-          'Article content must be at least 50 characters',
-          HttpStatusCode.BAD_REQUEST
-        )
-      );
+      ],
+    ])('should create a draft with %s', async (_label, body) => {
+      const input = { title: 'Valid Title', body: body as never };
+      mockRepo.create.mockResolvedValue({
+        id: 'article-draft',
+        title: 'Valid Title',
+        body: body ?? {},
+        tags: [],
+        authorId,
+        status: 'Draft',
+      } as never);
+
+      await expect(service.createArticle(input, authorId)).resolves.toMatchObject({
+        id: 'article-draft',
+      });
+      expect(mockRepo.create).toHaveBeenCalled();
     });
 
     it('should accept content exactly at the minimum length', async () => {
@@ -819,6 +822,25 @@ describe('ArticleService.updateArticle', () => {
     expect(result).toEqual(existingArticle);
   });
 
+  it('should not reset status to Draft when a Rejected article is updated with an empty input', async () => {
+    const existingArticle = {
+      id: articleId,
+      authorId,
+      status: 'Unpublished',
+      title: 'Old Title',
+    };
+    mockRepo.findById.mockResolvedValue(existingArticle as never);
+    (
+      ArticleReviewRepository.findLatestByArticleId as jest.Mock<any>
+    ).mockResolvedValue({ reviewStatus: 'Rejected' });
+
+    const result = await service.updateArticle(articleId, {}, authorId);
+
+    expect(mockRepo.update).not.toHaveBeenCalled();
+    expect(result).toEqual(existingArticle);
+    expect(result.status).toBe('Unpublished');
+  });
+
   it('should successfully upload new images', async () => {
     const existingArticle = {
       id: articleId,
@@ -877,6 +899,19 @@ describe('ArticleService.submitForReview', () => {
   let mockRepo: ReturnType<typeof makeRepo>;
   let service: InstanceType<typeof ArticleService>;
 
+  // A Draft that already satisfies the submission gate (valid title plus a
+  // body over MIN_ARTICLE_CONTENT_LENGTH).
+  const makeSubmittableDraft = (
+    overrides: Record<string, unknown> = {}
+  ): Record<string, unknown> => ({
+    id: articleId,
+    authorId,
+    title: 'Submittable Draft',
+    body: VALID_BODY,
+    status: 'Draft',
+    ...overrides,
+  });
+
   beforeEach(() => {
     mockRepo = makeRepo();
     service = new ArticleService(
@@ -893,6 +928,52 @@ describe('ArticleService.submitForReview', () => {
     await expect(service.submitForReview(articleId, authorId)).rejects.toThrow(
       new AppError('Article not found', HttpStatusCode.NOT_FOUND)
     );
+  });
+
+  it('should throw AppError if the draft has no content', async () => {
+    mockRepo.findById.mockResolvedValue(
+      makeSubmittableDraft({ body: { type: 'doc', content: [] } }) as never
+    );
+
+    await expect(service.submitForReview(articleId, authorId)).rejects.toThrow(
+      new AppError('Article content is required', HttpStatusCode.BAD_REQUEST)
+    );
+    expect(mockRepo.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it('should throw AppError if the draft content is below the minimum length', async () => {
+    mockRepo.findById.mockResolvedValue(
+      makeSubmittableDraft({
+        body: {
+          type: 'doc',
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'too short' }] },
+          ],
+        },
+      }) as never
+    );
+
+    await expect(service.submitForReview(articleId, authorId)).rejects.toThrow(
+      new AppError(
+        'Article content must be at least 50 characters',
+        HttpStatusCode.BAD_REQUEST
+      )
+    );
+    expect(mockRepo.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it('should throw AppError if the draft still has a placeholder empty title', async () => {
+    mockRepo.findById.mockResolvedValue(
+      makeSubmittableDraft({ title: '   ' }) as never
+    );
+
+    await expect(service.submitForReview(articleId, authorId)).rejects.toThrow(
+      new AppError(
+        'Title is required and cannot be empty',
+        HttpStatusCode.BAD_REQUEST
+      )
+    );
+    expect(mockRepo.updateStatus).not.toHaveBeenCalled();
   });
 
   it('should throw AppError if user is not the author', async () => {
@@ -915,7 +996,7 @@ describe('ArticleService.submitForReview', () => {
   });
 
   it('should submit article for review successfully', async () => {
-    const existingArticle = { id: articleId, authorId, status: 'Draft' };
+    const existingArticle = makeSubmittableDraft();
     const updatedArticle = { ...existingArticle, status: 'Pending' };
 
     mockRepo.findById.mockResolvedValue(existingArticle as never);
@@ -929,12 +1010,9 @@ describe('ArticleService.submitForReview', () => {
 
   it('should notify an active Reviewer after successful submission', async () => {
     const reviewer = makeReviewer('reviewer-1');
-    const existingArticle = {
-      id: articleId,
-      authorId,
+    const existingArticle = makeSubmittableDraft({
       title: 'Notification Test Article',
-      status: 'Draft',
-    };
+    });
     const updatedArticle = { ...existingArticle, status: 'Pending' };
 
     mockRepo.findById.mockResolvedValue(existingArticle as never);
@@ -954,7 +1032,7 @@ describe('ArticleService.submitForReview', () => {
       referenceId: articleId,
       notificationType: 'info',
       notificationTitle: 'New Article for Review',
-      message: expect.stringContaining(existingArticle.title),
+      message: expect.stringContaining(String(existingArticle.title)),
     });
     expect(mockRepo.updateStatus.mock.invocationCallOrder[0]).toBeLessThan(
       mockFindActiveByRole.mock.invocationCallOrder[0]
@@ -966,12 +1044,9 @@ describe('ArticleService.submitForReview', () => {
       makeReviewer('reviewer-1'),
       makeReviewer('reviewer-2'),
     ];
-    const existingArticle = {
-      id: articleId,
-      authorId,
+    const existingArticle = makeSubmittableDraft({
       title: 'Multi-reviewer Article',
-      status: 'Draft',
-    };
+    });
     const updatedArticle = { ...existingArticle, status: 'Pending' };
 
     mockRepo.findById.mockResolvedValue(existingArticle as never);
@@ -988,12 +1063,9 @@ describe('ArticleService.submitForReview', () => {
   });
 
   it('should succeed without sending notifications when there are no active Reviewers', async () => {
-    const existingArticle = {
-      id: articleId,
-      authorId,
+    const existingArticle = makeSubmittableDraft({
       title: 'No Reviewers Article',
-      status: 'Draft',
-    };
+    });
     const updatedArticle = { ...existingArticle, status: 'Pending' };
 
     mockRepo.findById.mockResolvedValue(existingArticle as never);
@@ -1013,12 +1085,9 @@ describe('ArticleService.submitForReview', () => {
     const consoleErrorSpy = jest
       .spyOn(console, 'error')
       .mockImplementation(() => undefined);
-    const existingArticle = {
-      id: articleId,
-      authorId,
+    const existingArticle = makeSubmittableDraft({
       title: 'Lookup Failure Article',
-      status: 'Draft',
-    };
+    });
     const updatedArticle = { ...existingArticle, status: 'Pending' };
 
     mockRepo.findById.mockResolvedValue(existingArticle as never);
@@ -1039,12 +1108,9 @@ describe('ArticleService.submitForReview', () => {
       .spyOn(console, 'error')
       .mockImplementation(() => undefined);
     const reviewer = makeReviewer('reviewer-1');
-    const existingArticle = {
-      id: articleId,
-      authorId,
+    const existingArticle = makeSubmittableDraft({
       title: 'Send Failure Article',
-      status: 'Draft',
-    };
+    });
     const updatedArticle = { ...existingArticle, status: 'Pending' };
 
     mockRepo.findById.mockResolvedValue(existingArticle as never);
@@ -1219,14 +1285,17 @@ describe('ArticleService.publishArticle', () => {
 
 describe('ArticleService.listPublished', () => {
   let mockRepo: ReturnType<typeof makeRepo>;
+  let mockUserRepo: ReturnType<typeof makeUserRepo>;
   let service: InstanceType<typeof ArticleService>;
 
   beforeEach(() => {
     mockRepo = makeRepo();
+    mockUserRepo = makeUserRepo();
     service = new ArticleService(
       mockRepo as unknown as ArticleRepository,
       ArticleReviewRepository as any,
-      ArticleAttachmentRepository as any
+      ArticleAttachmentRepository as any,
+      mockUserRepo as any
     );
     jest.clearAllMocks();
   });
@@ -1261,6 +1330,10 @@ describe('ArticleService.listPublished', () => {
       articles: mockArticles,
       total: 2,
     } as never);
+    mockUserRepo.findManyByIds.mockResolvedValue([
+      { id: 'user1', name: 'Author One' },
+      { id: 'user2', name: 'Author Two' },
+    ] as never);
 
     const result = await service.listPublished(1, 10);
 
@@ -1290,7 +1363,9 @@ describe('ArticleService.listPublished', () => {
           likeCount: 5,
           commentCount: 2,
           rejectionFeedback: null,
+          inlineCommentCount: 0,
           coverImageUrl: null,
+          authorName: 'Author One',
         },
         {
           id: '2',
@@ -1304,7 +1379,9 @@ describe('ArticleService.listPublished', () => {
           likeCount: 0,
           commentCount: 0,
           rejectionFeedback: null,
+          inlineCommentCount: 0,
           coverImageUrl: null,
+          authorName: 'Author Two',
         },
       ],
       total: 2,
@@ -1708,15 +1785,22 @@ describe('ArticleService.deleteArticle', () => {
 
 describe('ArticleService.listMine', () => {
   let mockRepo: ReturnType<typeof makeRepo>;
+  let mockReviewCommentRepo: { countByReviewIds: jest.Mock<(reviewIds: string[]) => Promise<Map<string, number>>> };
   let service: InstanceType<typeof ArticleService>;
   const authorId = 'user-123';
 
   beforeEach(() => {
     mockRepo = makeRepo();
+    mockReviewCommentRepo = {
+      countByReviewIds: jest.fn<(reviewIds: string[]) => Promise<Map<string, number>>>().mockResolvedValue(new Map()),
+    };
     service = new ArticleService(
       mockRepo as unknown as ArticleRepository,
       ArticleReviewRepository as any,
-      ArticleAttachmentRepository as any
+      ArticleAttachmentRepository as any,
+      undefined as any,
+      undefined as any,
+      mockReviewCommentRepo as any
     );
     jest.clearAllMocks();
   });
@@ -1732,7 +1816,7 @@ describe('ArticleService.listMine', () => {
     createdAt: Date;
     updatedAt: Date;
     _count?: { likes: number; comments: number };
-    reviews?: { feedback: string | null }[];
+    reviews?: { id: string; feedback: string | null }[];
   };
 
   it('should map returned articles correctly and not expose reviews array', async () => {
@@ -1759,12 +1843,13 @@ describe('ArticleService.listMine', () => {
     
     expect(result.articles).toHaveLength(1);
     expect(result.articles[0]).not.toHaveProperty('reviews');
+    expect(result.articles[0].inlineCommentCount).toBe(0);
     expect(result.total).toBe(1);
     expect(result.page).toBe(1);
     expect(result.limit).toBe(20);
   });
 
-  it('should return rejectionFeedback if article is Unpublished and has a review', async () => {
+  it('should return rejectionFeedback and inlineCommentCount in a batched query if article is Unpublished', async () => {
     const mockArticles: MockPublishedArticleRow[] = [
       {
         id: '2',
@@ -1776,7 +1861,7 @@ describe('ArticleService.listMine', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         _count: { likes: 1, comments: 2 },
-        reviews: [{ feedback: 'Needs more technical depth' }],
+        reviews: [{ id: 'review-1', feedback: 'Needs more technical depth' }],
       },
     ];
 
@@ -1784,9 +1869,13 @@ describe('ArticleService.listMine', () => {
       articles: mockArticles,
       total: 1,
     } as never);
+    mockReviewCommentRepo.countByReviewIds.mockResolvedValue(new Map([['review-1', 4]]));
 
     const result = await service.listMine(authorId, 1, 20);
     expect(result.articles[0].rejectionFeedback).toBe('Needs more technical depth');
+    expect(result.articles[0].inlineCommentCount).toBe(4);
+    expect(mockReviewCommentRepo.countByReviewIds).toHaveBeenCalledWith(['review-1']);
+    expect(mockReviewCommentRepo.countByReviewIds).toHaveBeenCalledTimes(1);
   });
 
   it('should map the first review if multiple review data is returned (though repo should take 1)', async () => {
@@ -1800,7 +1889,7 @@ describe('ArticleService.listMine', () => {
         views: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
-        reviews: [{ feedback: 'Latest feedback' }, { feedback: 'Old feedback' }],
+        reviews: [{ id: 'rev-1', feedback: 'Latest feedback' }, { id: 'rev-2', feedback: 'Old feedback' }],
       },
     ];
 
@@ -1848,7 +1937,7 @@ describe('ArticleService.listMine', () => {
         views: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
-        reviews: [{ feedback: null }],
+        reviews: [{ id: 'rev-1', feedback: null }],
       },
     ];
 
@@ -1872,7 +1961,7 @@ describe('ArticleService.listMine', () => {
         views: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
-        reviews: [{ feedback: 'Historical feedback' }],
+        reviews: [{ id: 'rev-1', feedback: 'Historical feedback' }],
       },
     ];
 
@@ -1883,5 +1972,111 @@ describe('ArticleService.listMine', () => {
 
     const result = await service.listMine(authorId, 1, 20);
     expect(result.articles[0].rejectionFeedback).toBeNull();
+  });
+});
+
+describe('ArticleService.getReviewFeedback', () => {
+  const authorId = 'user-123';
+  const articleId = 'article-123';
+  const reviewId = 'review-123';
+  let mockRepo: ReturnType<typeof makeRepo>;
+  let mockReviewRepo: { findLatestWithComments: jest.Mock<any> };
+  let mockReviewCommentRepo: { findByReviewId: jest.Mock<any> };
+  let service: InstanceType<typeof ArticleService>;
+
+  beforeEach(() => {
+    mockRepo = makeRepo();
+    mockReviewRepo = { findLatestWithComments: jest.fn() };
+    mockReviewCommentRepo = { findByReviewId: jest.fn() };
+
+    service = new ArticleService(
+      mockRepo as unknown as ArticleRepository,
+      mockReviewRepo as any,
+      ArticleAttachmentRepository as any,
+      undefined as any,
+      undefined as any,
+      mockReviewCommentRepo as any
+    );
+    jest.clearAllMocks();
+  });
+
+  it("should return overall feedback and inline comments for article's own author on a Rejected article in a single parallel query batch", async () => {
+    const mockArticle = { id: articleId, authorId };
+    const mockComments = [
+      {
+        id: 'comment-1',
+        comment: 'Fix typo here',
+        selectedText: 'sample text',
+        createdAt: new Date('2026-01-01'),
+      },
+    ];
+    const mockReviewWithComments = {
+      id: reviewId,
+      reviewStatus: ArticleReviewStatus.Rejected,
+      feedback: 'Overall rejection reason',
+      comments: mockComments,
+    };
+
+    mockRepo.findById.mockResolvedValue(mockArticle as never);
+    mockReviewRepo.findLatestWithComments.mockResolvedValue(mockReviewWithComments);
+
+    const result = await service.getReviewFeedback(articleId, authorId);
+
+    expect(result).toEqual({
+      overallFeedback: 'Overall rejection reason',
+      comments: [
+        {
+          id: 'comment-1',
+          comment: 'Fix typo here',
+          selectedText: 'sample text',
+          createdAt: new Date('2026-01-01'),
+        },
+      ],
+    });
+    expect(mockRepo.findById).toHaveBeenCalledWith(articleId);
+    expect(mockReviewRepo.findLatestWithComments).toHaveBeenCalledWith(articleId);
+    expect(mockReviewCommentRepo.findByReviewId).not.toHaveBeenCalled();
+  });
+
+  it('should throw 403 Forbidden for a different authenticated user', async () => {
+    const mockArticle = { id: articleId, authorId: 'other-user' };
+    const mockReviewWithComments = { id: reviewId, reviewStatus: ArticleReviewStatus.Rejected, feedback: 'Reason', comments: [] };
+    mockRepo.findById.mockResolvedValue(mockArticle as never);
+    mockReviewRepo.findLatestWithComments.mockResolvedValue(mockReviewWithComments);
+
+    await expect(service.getReviewFeedback(articleId, authorId)).rejects.toThrow(
+      new AppError('Not authorized', HttpStatusCode.FORBIDDEN)
+    );
+  });
+
+  it('should throw 404 Not Found if article does not exist', async () => {
+    mockRepo.findById.mockResolvedValue(null);
+    mockReviewRepo.findLatestWithComments.mockResolvedValue(null);
+
+    await expect(service.getReviewFeedback(articleId, authorId)).rejects.toThrow(
+      new AppError('Article not found', HttpStatusCode.NOT_FOUND)
+    );
+  });
+
+  it('should throw 404 Not Found when article has no review or review status is not Rejected', async () => {
+    const mockArticle = { id: articleId, authorId };
+    mockRepo.findById.mockResolvedValue(mockArticle as never);
+    mockReviewRepo.findLatestWithComments.mockResolvedValue({ id: reviewId, reviewStatus: ArticleReviewStatus.Approved, feedback: null, comments: [] });
+
+    await expect(service.getReviewFeedback(articleId, authorId)).rejects.toThrow(
+      new AppError('No rejection feedback available for this article', HttpStatusCode.NOT_FOUND)
+    );
+  });
+
+  it('should return null overallFeedback when review feedback field is null', async () => {
+    const mockArticle = { id: articleId, authorId };
+    const mockReviewWithComments = { id: reviewId, reviewStatus: ArticleReviewStatus.Rejected, feedback: null, comments: [] };
+    mockRepo.findById.mockResolvedValue(mockArticle as never);
+    mockReviewRepo.findLatestWithComments.mockResolvedValue(mockReviewWithComments);
+
+    const result = await service.getReviewFeedback(articleId, authorId);
+
+    expect(result.overallFeedback).toBeNull();
+    expect(result.comments).toEqual([]);
   });
 });

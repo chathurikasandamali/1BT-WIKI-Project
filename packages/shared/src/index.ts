@@ -1,8 +1,11 @@
-// ---------------------------------------------------------------------------
-// TechTalkStatus — mirrors the Prisma enum of the same name.
-// Defined here (not in @repo/db) so that client-side code in apps/web can
-// import it without bundling the Prisma client into the browser.
-// ---------------------------------------------------------------------------
+/** Runtime constant — use instead of bare string literals for role values. */
+export const UserRoleValue = {
+  Admin: 'Admin',
+  Reviewer: 'Reviewer',
+  User: 'User',
+} as const;
+
+export type UserRole = (typeof UserRoleValue)[keyof typeof UserRoleValue];
 
 /** Runtime object matching the Prisma TechTalkStatus enum values. */
 export const TechTalkStatus = {
@@ -13,6 +16,31 @@ export const TechTalkStatus = {
 
 /** TypeScript type derived from the TechTalkStatus const. */
 export type TechTalkStatus = (typeof TechTalkStatus)[keyof typeof TechTalkStatus];
+
+export const ReviewCommentStatus = {
+  open: 'Open',
+  resolved: 'Resolved',
+} as const;
+
+export type ReviewCommentStatus = (typeof ReviewCommentStatus)[keyof typeof ReviewCommentStatus];
+
+export const ArticleStatus = {
+  Draft: 'Draft',
+  Pending: 'Pending',
+  Approved: 'Approved',
+  Published: 'Published',
+  Unpublished: 'Unpublished',
+}
+
+export type ArticleStatus = (typeof ArticleStatus)[keyof typeof ArticleStatus];
+
+export const ArticleReviewStatus = {
+  Pending: 'Pending',
+  Approved: 'Approved',
+  Rejected: 'Rejected',
+}
+
+export type ArticleReviewStatus = (typeof ArticleReviewStatus)[keyof typeof ArticleReviewStatus];
 
 // ---------------------------------------------------------------------------
 
@@ -173,3 +201,45 @@ export function getArticleContentLength(
 ): number {
   return extractTextFromTipTap(body).length;
 }
+
+export const PAGINATION_CONFIG = {
+    DEFAULT_PAGE: 1,
+    PAGE_SIZE: 20,
+} as const;
+
+export function tipTapDocHasContent(
+  body: TipTapJsonContent | null | undefined
+): boolean {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return false;
+  }
+
+  const hasMediaNode = (node: TipTapJsonContent): boolean => {
+    if (node.type === 'image' || node.type === 'media') {
+      return true;
+    }
+    const content = node.content;
+    if (!Array.isArray(content)) {
+      return false;
+    }
+    return content.some(
+      (child) =>
+        typeof child === 'object' &&
+        child !== null &&
+        hasMediaNode(child as TipTapJsonContent)
+    );
+  };
+
+  if (hasMediaNode(body)) {
+    return true;
+  }
+
+  return extractTextFromTipTap(body).length > 0;
+}
+
+// Role change toast delay in milliseconds
+export const ROLE_CHANGE_TOAST_DELAY_MS = 1500;
+
+// Role change toast message
+export const ROLE_CHANGE_TOAST_MESSAGE =
+  'Your role has been changed. Please sign in again to continue.';

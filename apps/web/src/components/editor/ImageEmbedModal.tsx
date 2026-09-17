@@ -1,16 +1,10 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-import {
-  X,
-  Image as ImageIcon,
-  UploadCloud,
-  Link as LinkIcon,
-  Search,
-  Loader2,
-} from 'lucide-react';
+import { X, UploadCloud, Link as LinkIcon, Loader2 } from 'lucide-react';
 import { useEditorDraft } from '@/components/editor/EditorDraftContext';
 import { cn } from '@/lib/utils';
 
@@ -19,58 +13,48 @@ interface ImageEmbedModalProps {
   onClose: () => void;
 }
 
-function stockGradientClass(i: number): string {
-  if (i % 3 === 0) return 'from-blue-400 to-purple-500';
-  if (i % 2 === 0) return 'from-orange-400 to-pink-500';
-  return 'from-green-400 to-teal-500';
+const GENERIC_UPLOAD_ERROR = 'We couldn’t upload this image. Please try again.';
+
+const ACTIONABLE_IMAGE_UPLOAD_ERRORS = new Set([
+  'Maximum 10 images per article',
+  'Image size cannot exceed 5MB',
+  'Only jpeg, png, webp, and gif images are allowed',
+]);
+
+function normalizeImageUploadError(error: unknown): string {
+  if (
+    error instanceof Error &&
+    ACTIONABLE_IMAGE_UPLOAD_ERRORS.has(error.message)
+  ) {
+    return error.message;
+  }
+
+  return GENERIC_UPLOAD_ERROR;
 }
 
 export function ImageEmbedModal({ isOpen, onClose }: ImageEmbedModalProps) {
   const { uploadImage, insertEditorImage } = useEditorDraft();
-  const [activeTab, setActiveTab] = useState<'preset' | 'upload' | 'url'>(
-    'preset'
-  );
+  const [activeTab, setActiveTab] = useState<'upload' | 'url'>('upload');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [webUrl, setWebUrl] = useState('');
   const overlayRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useGSAP(() => {
-    if (!overlayRef.current || !modalRef.current) return;
+    if (!mounted || !isOpen || !modalRef.current) return;
 
-    if (isOpen) {
-      gsap.to(overlayRef.current, {
-        opacity: 1,
-        pointerEvents: 'auto',
-        duration: 0.3,
-      });
-      gsap.fromTo(
-        modalRef.current,
-        { y: 30, opacity: 0, scale: 0.95 },
-        { y: 0, opacity: 1, scale: 1, duration: 0.4, ease: 'back.out(1.2)' }
-      );
-    } else {
-      gsap.to(overlayRef.current, {
-        opacity: 0,
-        pointerEvents: 'none',
-        duration: 0.3,
-      });
-      gsap.to(modalRef.current, {
-        y: 20,
-        opacity: 0,
-        scale: 0.95,
-        duration: 0.3,
-        ease: 'power2.in',
-      });
-    }
-  }, [isOpen]);
-
-  if (!isOpen) {
-    // We still render it invisible to let GSAP animate out, but React will unmount if we completely hide.
-    // However, with our GSAP logic, pointerEvents 'none' hides it enough for now.
-    // In a production app, we'd wait for animation to complete before unmounting.
-  }
+    gsap.fromTo(
+      modalRef.current,
+      { y: 30, opacity: 0, scale: 0.95 },
+      { y: 0, opacity: 1, scale: 1, duration: 0.4, ease: 'back.out(1.2)' }
+    );
+  }, [isOpen, mounted]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -84,7 +68,7 @@ export function ImageEmbedModal({ isOpen, onClose }: ImageEmbedModalProps) {
       insertEditorImage(fileUrl);
       onClose();
     } catch (error) {
-      setUploadError(error instanceof Error ? error.message : 'Upload failed');
+      setUploadError(normalizeImageUploadError(error));
     } finally {
       setIsUploading(false);
       // Reset the input so the same file can be re-selected
@@ -106,11 +90,12 @@ export function ImageEmbedModal({ isOpen, onClose }: ImageEmbedModalProps) {
     icon: Icon,
     label,
   }: {
-    id: 'preset' | 'upload' | 'url';
+    id: 'upload' | 'url';
     icon: React.ElementType;
     label: string;
   }) => (
     <button
+      type="button"
       onClick={() => setActiveTab(id)}
       className={cn(
         'flex flex-1 items-center justify-center gap-2 border-b-2 py-4 text-sm font-semibold transition-colors',
@@ -124,10 +109,18 @@ export function ImageEmbedModal({ isOpen, onClose }: ImageEmbedModalProps) {
     </button>
   );
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-brand-dark/60 backdrop-blur-sm opacity-0 pointer-events-none"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden={!isOpen}
+      className={cn(
+        'fixed inset-0 z-[100] flex items-center justify-center bg-brand-dark/60 backdrop-blur-sm',
+        isOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
+      )}
     >
       <div
         ref={modalRef}
@@ -138,6 +131,7 @@ export function ImageEmbedModal({ isOpen, onClose }: ImageEmbedModalProps) {
             Embed Image
           </h2>
           <button
+            type="button"
             onClick={onClose}
             className="rounded p-1 text-brand-text-secondary hover:bg-brand-hover hover:text-brand-text-primary transition-colors"
           >
@@ -146,41 +140,11 @@ export function ImageEmbedModal({ isOpen, onClose }: ImageEmbedModalProps) {
         </div>
 
         <div className="flex w-full border-b border-brand-border bg-brand-bg/50 px-2">
-          <TabButton id="preset" icon={ImageIcon} label="Preset Stock" />
           <TabButton id="upload" icon={UploadCloud} label="Upload File" />
           <TabButton id="url" icon={LinkIcon} label="Web URL" />
         </div>
 
         <div className="p-6">
-          {activeTab === 'preset' && (
-            <div className="flex flex-col gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search stock library..."
-                  className="w-full rounded-lg border border-brand-border bg-brand-bg py-3 pl-10 pr-4 text-sm text-brand-text-primary placeholder-gray-400 focus:border-brand-red focus:outline-none focus:ring-1 focus:ring-brand-red transition-all"
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-4 h-64 overflow-y-auto pr-2 custom-scrollbar">
-                {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <div
-                    key={i}
-                    className="group relative aspect-video cursor-pointer overflow-hidden rounded-lg bg-gray-200"
-                  >
-                    <div
-                      className={cn(
-                        'absolute inset-0 transition-transform duration-500 group-hover:scale-110 bg-gradient-to-br',
-                        stockGradientClass(i)
-                      )}
-                    />
-                    <div className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/20" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {activeTab === 'upload' &&
             (isUploading ? (
               <div className="flex h-64 flex-col items-center justify-center rounded-xl border-2 border-dashed border-brand-red/30 bg-red-50">
@@ -230,6 +194,7 @@ export function ImageEmbedModal({ isOpen, onClose }: ImageEmbedModalProps) {
                 }}
               />
               <button
+                type="button"
                 onClick={handleEmbedUrl}
                 disabled={!webUrl.trim()}
                 className="self-end rounded-lg bg-brand-red px-6 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-brand-red-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -240,6 +205,7 @@ export function ImageEmbedModal({ isOpen, onClose }: ImageEmbedModalProps) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

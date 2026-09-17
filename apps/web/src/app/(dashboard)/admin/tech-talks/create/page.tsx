@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import { RoleGuard } from '@/components/auth/RoleGuard';
+import { UserRoleValue } from '@repo/shared';
 import { TechTalkForm } from '@/components/admin/TechTalkForm';
 import { ArrowLeftIcon } from '@/components/shared/icons/ArrowLeftIcon';
 
 export default function CreateTechTalkPage(): React.JSX.Element {
     return (
-        <RoleGuard allowedRoles={['Admin']}>
+        <RoleGuard allowedRoles={[UserRoleValue.Admin]}>
             <div className="p-8 max-w-5xl mx-auto">
                 <div className="mb-6">
                     <Link

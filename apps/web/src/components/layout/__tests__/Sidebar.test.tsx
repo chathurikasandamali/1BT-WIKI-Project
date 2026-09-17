@@ -1,7 +1,5 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen } from '@testing-library/react';
 
-const mockSignOut = jest.fn();
 const mockUseUser = jest.fn();
 
 jest.mock('next/navigation', () => ({
@@ -17,54 +15,11 @@ jest.mock('@gsap/react', () => ({
   useGSAP: jest.fn(),
 }));
 
-jest.mock('@/lib/auth/client', () => ({
-  authClient: {
-    signOut: (...args: unknown[]) => mockSignOut(...args),
-  },
-}));
-
 jest.mock('@/lib/hooks/useUser', () => ({
   useUser: () => mockUseUser(),
 }));
 
 import { Sidebar } from '@/components/layout/Sidebar';
-
-describe('Sidebar sign-out', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    mockUseUser.mockReturnValue({
-      user: { id: 'u1', name: 'Test User', email: 'test@1billiontech.com', role: 'User', avatarUrl: null, isActive: true, createdAt: '' },
-      loading: false,
-      error: null,
-      refetch: jest.fn(),
-    });
-    window.location.assign('http://localhost/');
-  });
-
-  it('calls authClient.signOut() and redirects to /signin on success', async () => {
-    mockSignOut.mockResolvedValueOnce(undefined);
-    const user = userEvent.setup();
-
-    render(<Sidebar />);
-    await user.click(screen.getByTestId('logout-btn'));
-
-    expect(mockSignOut).toHaveBeenCalledTimes(1);
-    await waitFor(() =>
-      expect(window.location.href).toBe('http://localhost/signin')
-    );
-  });
-
-  it('does not redirect when authClient.signOut() rejects', async () => {
-    mockSignOut.mockRejectedValueOnce(new Error('network error'));
-    const user = userEvent.setup();
-
-    render(<Sidebar />);
-    await user.click(screen.getByTestId('logout-btn'));
-
-    await waitFor(() => expect(mockSignOut).toHaveBeenCalledTimes(1));
-    expect(window.location.href).toBe('http://localhost/');
-  });
-});
 
 describe('Sidebar navigation', () => {
   beforeEach(() => {
@@ -83,6 +38,14 @@ describe('Sidebar navigation', () => {
     const link = screen.getByTestId('nav-my-articles');
     expect(link).toHaveAttribute('href', '/my-articles');
     expect(link).toHaveTextContent('My Articles');
+  });
+
+  it('renders a My Profile link pointing to /settings', () => {
+    render(<Sidebar />);
+
+    const link = screen.getByTestId('nav-settings');
+    expect(link).toHaveAttribute('href', '/settings');
+    expect(link).toHaveTextContent('My Profile');
   });
 
   it('does NOT render the Approvals link for a plain User role', () => {
@@ -107,16 +70,17 @@ describe('Sidebar navigation', () => {
     expect(link).toHaveTextContent('Approvals');
   });
 
-  it('renders the Approvals link for Admin role', () => {
+  it('renders the Approvals link for Admin role pointing at the publish queue', () => {
     mockUseUser.mockReturnValue({
       user: { id: 'u3', name: 'Admin User', role: 'Admin' },
       loading: false,
     });
 
     render(<Sidebar />);
-    const link = screen.getByTestId('nav-reviewer-approvals');
-    expect(link).toHaveAttribute('href', '/reviewer/approvals');
+    const link = screen.getByTestId('nav-admin-approvals');
+    expect(link).toHaveAttribute('href', '/admin/approvals');
     expect(link).toHaveTextContent('Approvals');
+    expect(screen.queryByTestId('nav-reviewer-approvals')).not.toBeInTheDocument();
   });
 
   it('does NOT render the Tech Talk Management link for a plain User role', () => {
@@ -161,12 +125,27 @@ describe('Sidebar collapsed state', () => {
     });
   });
 
+  it('renders the full logo when expanded', () => {
+    render(<Sidebar isOpen={true} />);
+    const logo = screen.getByTestId('sidebar-logo');
+    expect(logo).toBeInTheDocument();
+    expect(logo).toHaveAttribute('href', '/');
+    expect(logo).toHaveTextContent('1BT');
+    expect(logo).toHaveTextContent('WIKI');
+    expect(screen.queryByTestId('compact-logo')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('logout-btn')).not.toBeInTheDocument();
+    expect(screen.queryByText('Menu')).not.toBeInTheDocument();
+  });
+
   it('renders compact logo when collapsed', () => {
     render(<Sidebar isOpen={false} />);
     const logo = screen.getByTestId('compact-logo');
     expect(logo).toBeInTheDocument();
     expect(logo).toHaveAttribute('href', '/');
-    expect(screen.queryByText('Menu')).not.toBeInTheDocument();
+    expect(logo).toHaveTextContent('1BT');
+    expect(logo).not.toHaveTextContent('WIKI');
+    expect(screen.queryByTestId('sidebar-logo')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('logout-btn')).not.toBeInTheDocument();
   });
 
   it('hides text labels and shows tooltips when collapsed', () => {

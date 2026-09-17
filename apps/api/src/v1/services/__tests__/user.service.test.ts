@@ -8,9 +8,16 @@ await jest.unstable_mockModule('@repositories/userRepository.js', () => ({
   default: {
     findByEmail: jest.fn(),
     findById: jest.fn(),
+    findActiveByRole: jest.fn(),
     updateRole: jest.fn(),
     updateBanStatus: jest.fn(),
   },
+}));
+
+// Mock pusherClient so the service never tries to connect to Pusher during tests.
+const mockPusherTrigger = jest.fn<any>().mockResolvedValue(undefined);
+await jest.unstable_mockModule('@v1/lib/pusherClient.js', () => ({
+  default: { trigger: mockPusherTrigger },
 }));
 
 // Import AFTER mock is registered
@@ -55,6 +62,50 @@ describe('UserService', () => {
       expect(result).toEqual(updatedUser);
     });
 
+    it('should trigger the Pusher role-changed event on the affected user private channel after a successful update', async () => {
+      const updatedUser = makeUser({ id: '9', role: 'Reviewer' });
+      mockedRepo.findById.mockResolvedValue(
+        makeUser({ id: '9', role: 'User' })
+      );
+      mockedRepo.updateRole.mockResolvedValue(updatedUser);
+
+      const result = await UserService.updateUserRole('9', 'Reviewer');
+
+      expect(result).toEqual(updatedUser);
+      expect(mockPusherTrigger).toHaveBeenCalledTimes(1);
+      expect(mockPusherTrigger).toHaveBeenCalledWith(
+        'private-user-9',
+        'role-changed',
+        { role: 'Reviewer' }
+      );
+    });
+
+    it('should NOT trigger Pusher when the database role update fails', async () => {
+      mockedRepo.findById.mockResolvedValue(
+        makeUser({ id: '9', role: 'User' })
+      );
+      mockedRepo.updateRole.mockRejectedValue(new Error('Database is down'));
+
+      await expect(
+        UserService.updateUserRole('9', 'Reviewer')
+      ).rejects.toThrow('Database is down');
+
+      expect(mockPusherTrigger).not.toHaveBeenCalled();
+    });
+
+    it('should NOT trigger Pusher when the target user does not exist', async () => {
+      mockedRepo.findById.mockResolvedValue(null);
+
+      await expect(
+        UserService.updateUserRole('nonexistent', 'Reviewer')
+      ).rejects.toMatchObject({
+        message: 'User not found',
+      });
+
+      expect(mockedRepo.updateRole).not.toHaveBeenCalled();
+      expect(mockPusherTrigger).not.toHaveBeenCalled();
+    });
+
     it('should reject an invalid role', async () => {
       await expect(
         UserService.updateUserRole('9', 'SuperAdmin' as never)
@@ -63,6 +114,63 @@ describe('UserService', () => {
       });
 
       expect(mockedRepo.updateRole).not.toHaveBeenCalled();
+      expect(mockPusherTrigger).not.toHaveBeenCalled();
+    });
+
+    it('should reject demoting the last active admin', async () => {
+      mockedRepo.findById.mockResolvedValue(
+        makeUser({ id: 'admin-1', role: 'Admin', banned: false })
+      );
+      mockedRepo.findActiveByRole.mockResolvedValue([
+        makeUser({ id: 'admin-1', role: 'Admin', banned: false }),
+      ]);
+
+      await expect(
+        UserService.updateUserRole('admin-1', 'User')
+      ).rejects.toMatchObject({
+        message:
+          'Cannot change the role of the last active admin. Promote another user to Admin first.',
+        statusCode: 400,
+      });
+
+      expect(mockedRepo.findActiveByRole).toHaveBeenCalledWith('Admin');
+      expect(mockedRepo.updateRole).not.toHaveBeenCalled();
+    });
+
+    it('should allow demoting an admin when another active admin exists', async () => {
+      const updatedUser = makeUser({ id: 'admin-1', role: 'Reviewer' });
+      mockedRepo.findById.mockResolvedValue(
+        makeUser({ id: 'admin-1', role: 'Admin', banned: false })
+      );
+      mockedRepo.findActiveByRole.mockResolvedValue([
+        makeUser({ id: 'admin-1', role: 'Admin', banned: false }),
+        makeUser({ id: 'admin-2', role: 'Admin', banned: false }),
+      ]);
+      mockedRepo.updateRole.mockResolvedValue(updatedUser);
+
+      const result = await UserService.updateUserRole('admin-1', 'Reviewer');
+
+      expect(mockedRepo.findActiveByRole).toHaveBeenCalledWith('Admin');
+      expect(mockedRepo.updateRole).toHaveBeenCalledWith('admin-1', 'Reviewer');
+      expect(result).toEqual(updatedUser);
+    });
+
+    it('should allow demoting a banned admin without checking active admin count', async () => {
+      const updatedUser = makeUser({
+        id: 'admin-1',
+        role: 'User',
+        banned: true,
+      });
+      mockedRepo.findById.mockResolvedValue(
+        makeUser({ id: 'admin-1', role: 'Admin', banned: true })
+      );
+      mockedRepo.updateRole.mockResolvedValue(updatedUser);
+
+      const result = await UserService.updateUserRole('admin-1', 'User');
+
+      expect(mockedRepo.findActiveByRole).not.toHaveBeenCalled();
+      expect(mockedRepo.updateRole).toHaveBeenCalledWith('admin-1', 'User');
+      expect(result).toEqual(updatedUser);
     });
   });
 

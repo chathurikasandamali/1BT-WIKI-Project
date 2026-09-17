@@ -43,16 +43,25 @@ describe('My Articles page', () => {
     cy.wait('@usersMe');
     cy.wait('@articlesMine');
 
-    cy.get('[data-testid="article-card-a1"]').should('be.visible');
-    cy.get('[data-testid="article-card-a2"]').should('be.visible');
+    cy.get('[data-testid="article-card-a1"]')
+      .scrollIntoView()
+      .should('be.visible');
+    cy.get('[data-testid="article-card-a2"]')
+      .scrollIntoView()
+      .should('be.visible');
 
     cy.get('[data-testid="article-search-input"]').type('react');
-    cy.get('[data-testid="article-card-a1"]').should('be.visible');
+    cy.get('[data-testid="article-card-a1"]')
+      .scrollIntoView()
+      .should('be.visible');
     cy.get('[data-testid="article-card-a2"]').should('not.exist');
 
     cy.get('[data-testid="article-search-input"]').clear();
     cy.get('[data-testid="article-sort-select"]').select('title');
-    cy.get('[data-testid^="article-card-"]')
+    cy.get('[data-testid="my-articles-articles-section"] [data-testid^="article-card-"]')
+      .first()
+      .should('have.attr', 'data-testid', 'article-card-a1');
+    cy.get('[data-testid="my-articles-drafts-section"] [data-testid^="article-card-"]')
       .first()
       .should('have.attr', 'data-testid', 'article-card-a2');
   });

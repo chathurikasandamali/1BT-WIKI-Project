@@ -1,20 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { XCircleSolidIcon } from '@/components/shared/icons/XCircleSolidIcon';
 import { LandingNavbar } from '@/components/landing/LandingNavbar';
 import { PreviewExperience } from '@/components/landing/PreviewExperience';
-import {
-  findFirstPreview,
-  type PreviewKind,
-} from '@/components/landing/previewContent';
 import { authClient } from '@/lib/auth/client';
 import { useLenisScroll } from '@/lib/hooks/useLenisScroll';
 import { BRAND_NAME } from '@/lib/constants/brand';
+import type { LandingAuthAction } from '@/components/landing/landingAuth';
 
 export function LandingPage(): React.JSX.Element {
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [authenticatingAction, setAuthenticatingAction] =
+    useState<LandingAuthAction | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -22,10 +20,19 @@ export function LandingPage(): React.JSX.Element {
 
   useLenisScroll();
 
-  const handleAuthenticate = async () => {
-    if (isAuthenticating) return;
+  useEffect(() => {
+    const { overflow: previousOverflow } = document.body.style;
+    document.body.style.overflow = 'hidden';
 
-    setIsAuthenticating(true);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  const handleAuthenticate = async (action: LandingAuthAction) => {
+    if (authenticatingAction) return;
+
+    setAuthenticatingAction(action);
 
     try {
       const { error } = await authClient.signIn.social({
@@ -43,21 +50,16 @@ export function LandingPage(): React.JSX.Element {
     } catch (error) {
       console.error('Error during social sign-in:', error);
     } finally {
-      setIsAuthenticating(false);
+      setAuthenticatingAction(null);
     }
   };
 
-  const handleSelectKind = (kind: PreviewKind) => {
-    setSelectedItemId(findFirstPreview(kind).id);
-  };
-
   return (
-    <div className="min-h-screen bg-brand-bg text-brand-text-primary">
+    <div className="h-screen w-screen overflow-hidden bg-brand-bg text-brand-text-primary">
       <LandingNavbar
-        isAuthenticating={isAuthenticating}
+        authenticatingAction={authenticatingAction}
         onAuthenticate={handleAuthenticate}
         onReset={() => setSelectedItemId(null)}
-        onSelectKind={handleSelectKind}
       />
 
       {errorParam && (
@@ -79,7 +81,7 @@ export function LandingPage(): React.JSX.Element {
       )}
 
       <PreviewExperience
-        isAuthenticating={isAuthenticating}
+        authenticatingAction={authenticatingAction}
         selectedItemId={selectedItemId}
         onAuthenticate={handleAuthenticate}
         onSelectItem={setSelectedItemId}

@@ -18,43 +18,43 @@ const {
 router.get(
   '/articles/pending',
   authenticate,
-  requireRole(UserRoleValue.Reviewer, UserRoleValue.Admin),
+  requireRole(UserRoleValue.Reviewer),
   listPending
 );
 router.get(
   '/articles/:id',
   authenticate,
-  requireRole(UserRoleValue.Reviewer, UserRoleValue.Admin),
+  requireRole(UserRoleValue.Reviewer),
   getArticleForReview
 );
 router.get(
   '/approvals/:id',
   authenticate,
-  requireRole(UserRoleValue.Reviewer, UserRoleValue.Admin),
+  requireRole(UserRoleValue.Reviewer),
   getArticleForReview
 );
 router.patch(
   '/articles/:id/approve',
   authenticate,
-  requireRole(UserRoleValue.Reviewer, UserRoleValue.Admin),
+  requireRole(UserRoleValue.Reviewer),
   approveArticle
 );
 router.patch(
   '/articles/:id/reject',
   authenticate,
-  requireRole(UserRoleValue.Reviewer, UserRoleValue.Admin),
+  requireRole(UserRoleValue.Reviewer),
   rejectArticle
 );
 router.post(
   '/approvals/:articleId/comments',
   authenticate,
-  requireRole(UserRoleValue.Reviewer, UserRoleValue.Admin),
+  requireRole(UserRoleValue.Reviewer),
   createComment
 );
 router.patch(
   '/approvals/:articleId/comments/:commentId',
   authenticate,
-  requireRole(UserRoleValue.Reviewer, UserRoleValue.Admin),
+  requireRole(UserRoleValue.Reviewer),
   updateCommentStatus
 );
 
