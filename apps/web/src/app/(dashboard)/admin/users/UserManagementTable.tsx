@@ -101,8 +101,9 @@ function RoleDropdown({
   const rootRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [menuPosition, setMenuPosition] = useState<{
-    top: number;
     left: number;
+    top?: number;
+    bottom?: number;
   } | null>(null);
 
   useEffect(() => {
@@ -111,11 +112,20 @@ function RoleDropdown({
       return;
     }
 
-    const rect = rootRef.current.getBoundingClientRect();
-    setMenuPosition({
-      top: rect.bottom + 8,
-      left: rect.left,
-    });
+    const GAP = 8;
+    const ESTIMATED_MENU_HEIGHT = 190;
+
+    const computePosition = (
+      rect: DOMRect
+    ): { left: number; top?: number; bottom?: number } => {
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const shouldFlip = spaceBelow < ESTIMATED_MENU_HEIGHT + GAP;
+      return shouldFlip
+        ? { bottom: window.innerHeight - rect.top + GAP, left: rect.left }
+        : { top: rect.bottom + GAP, left: rect.left };
+    };
+
+    setMenuPosition(computePosition(rootRef.current.getBoundingClientRect()));
 
     const handlePointerDown = (event: MouseEvent): void => {
       const target = event.target as Node;
@@ -135,11 +145,7 @@ function RoleDropdown({
       if (!rootRef.current) {
         return;
       }
-      const nextRect = rootRef.current.getBoundingClientRect();
-      setMenuPosition({
-        top: nextRect.bottom + 8,
-        left: nextRect.left,
-      });
+      setMenuPosition(computePosition(rootRef.current.getBoundingClientRect()));
     };
 
     document.addEventListener('mousedown', handlePointerDown);
@@ -160,7 +166,13 @@ function RoleDropdown({
         ref={menuRef}
         role="listbox"
         aria-label="Select user role"
-        style={{ top: menuPosition.top, left: menuPosition.left }}
+        style={{
+          left: menuPosition.left,
+          ...(menuPosition.top !== undefined ? { top: menuPosition.top } : {}),
+          ...(menuPosition.bottom !== undefined
+            ? { bottom: menuPosition.bottom }
+            : {}),
+        }}
         className="fixed z-50 w-52 overflow-hidden rounded border border-brand-border bg-brand-surface py-1 shadow-lg"
       >
         {ROLES.map((role) => {
