@@ -11,6 +11,7 @@ import {
   NotificationProvider,
   useNotificationContext,
 } from '@/components/providers/NotificationProvider';
+import { RoleChangeProvider } from '@/components/providers/RoleChangeProvider';
 import { isE2E } from '@/lib/e2e';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
@@ -272,9 +273,11 @@ export default function DashboardLayout({
 }: DashboardLayoutProps): React.JSX.Element {
   return (
     <UserProvider>
-      <NotificationProvider>
-        <DashboardLayoutInner>{children}</DashboardLayoutInner>
-      </NotificationProvider>
+      <RoleChangeProvider>
+        <NotificationProvider>
+          <DashboardLayoutInner>{children}</DashboardLayoutInner>
+        </NotificationProvider>
+      </RoleChangeProvider>
     </UserProvider>
   );
 }

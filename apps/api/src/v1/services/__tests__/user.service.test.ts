@@ -14,6 +14,12 @@ await jest.unstable_mockModule('@repositories/userRepository.js', () => ({
   },
 }));
 
+// Mock pusherClient so the service never tries to connect to Pusher during tests.
+const mockPusherTrigger = jest.fn<any>().mockResolvedValue(undefined);
+await jest.unstable_mockModule('@v1/lib/pusherClient.js', () => ({
+  default: { trigger: mockPusherTrigger },
+}));
+
 // Import AFTER mock is registered
 const { default: UserService } = await import('../userService.js');
 const { default: UserRepository } =
@@ -56,6 +62,50 @@ describe('UserService', () => {
       expect(result).toEqual(updatedUser);
     });
 
+    it('should trigger the Pusher role-changed event on the affected user private channel after a successful update', async () => {
+      const updatedUser = makeUser({ id: '9', role: 'Reviewer' });
+      mockedRepo.findById.mockResolvedValue(
+        makeUser({ id: '9', role: 'User' })
+      );
+      mockedRepo.updateRole.mockResolvedValue(updatedUser);
+
+      const result = await UserService.updateUserRole('9', 'Reviewer');
+
+      expect(result).toEqual(updatedUser);
+      expect(mockPusherTrigger).toHaveBeenCalledTimes(1);
+      expect(mockPusherTrigger).toHaveBeenCalledWith(
+        'private-user-9',
+        'role-changed',
+        { role: 'Reviewer' }
+      );
+    });
+
+    it('should NOT trigger Pusher when the database role update fails', async () => {
+      mockedRepo.findById.mockResolvedValue(
+        makeUser({ id: '9', role: 'User' })
+      );
+      mockedRepo.updateRole.mockRejectedValue(new Error('Database is down'));
+
+      await expect(
+        UserService.updateUserRole('9', 'Reviewer')
+      ).rejects.toThrow('Database is down');
+
+      expect(mockPusherTrigger).not.toHaveBeenCalled();
+    });
+
+    it('should NOT trigger Pusher when the target user does not exist', async () => {
+      mockedRepo.findById.mockResolvedValue(null);
+
+      await expect(
+        UserService.updateUserRole('nonexistent', 'Reviewer')
+      ).rejects.toMatchObject({
+        message: 'User not found',
+      });
+
+      expect(mockedRepo.updateRole).not.toHaveBeenCalled();
+      expect(mockPusherTrigger).not.toHaveBeenCalled();
+    });
+
     it('should reject an invalid role', async () => {
       await expect(
         UserService.updateUserRole('9', 'SuperAdmin' as never)
@@ -64,6 +114,7 @@ describe('UserService', () => {
       });
 
       expect(mockedRepo.updateRole).not.toHaveBeenCalled();
+      expect(mockPusherTrigger).not.toHaveBeenCalled();
     });
 
     it('should reject demoting the last active admin', async () => {
