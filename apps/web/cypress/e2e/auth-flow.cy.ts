@@ -6,8 +6,8 @@ describe('Auth flow: login -> session -> protected route -> logout', () => {
 
     cy.visitPage('/signin');
     stubOAuthPopup();
-    // xl+ shows the header login control; the hamburger is `xl:hidden`.
-    cy.get('button[aria-label="Log in with Google"]')
+    // xl+ shows the header sign-in control; the hamburger is `xl:hidden`.
+    cy.get('button[aria-label="Get started with Google"]')
       .filter(':visible')
       .click();
 
@@ -43,7 +43,7 @@ describe('Auth flow: login -> session -> protected route -> logout', () => {
     cy.location('pathname').should('eq', '/signin');
 
     cy.get('button[aria-label="1BT Wiki home"]').should('be.visible');
-    cy.get('button[aria-label="Log in with Google"]').should('be.visible');
+    cy.get('button[aria-label="Get started with Google"]').should('be.visible');
     cy.contains('h1', 'Admin Dashboard').should('not.exist');
   });
 
