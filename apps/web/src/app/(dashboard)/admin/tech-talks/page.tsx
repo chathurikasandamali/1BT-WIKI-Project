@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { RoleGuard } from '@/components/auth/RoleGuard';
 import { UserRoleValue } from '@repo/shared';
@@ -119,6 +120,11 @@ function TechTalkManagementContent(): React.JSX.Element {
 
   // Dropdown visibility state
   const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
+  const [dropdownMenuPosition, setDropdownMenuPosition] = useState<{
+    left: number;
+    top?: number;
+    bottom?: number;
+  } | null>(null);
 
   // Debounce search so we do not refetch on every keystroke
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -198,6 +204,41 @@ function TechTalkManagementContent(): React.JSX.Element {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [activeDropdownId]);
+
+  useEffect(() => {
+    if (!activeDropdownId) {
+      setDropdownMenuPosition(null);
+      return;
+    }
+
+    const GAP = 4;
+    const MENU_WIDTH = 176;
+    const ESTIMATED_MENU_HEIGHT = 140;
+
+    const computePosition = (
+      rect: DOMRect
+    ): { left: number; top?: number; bottom?: number } => {
+      const left = rect.right - MENU_WIDTH;
+      const shouldOpenBelow = rect.top < ESTIMATED_MENU_HEIGHT + GAP;
+      return shouldOpenBelow
+        ? { top: rect.bottom + GAP, left }
+        : { bottom: window.innerHeight - rect.top + GAP, left };
+    };
+
+    const reposition = (): void => {
+      const trigger = document.getElementById(`dropdown-trigger-${activeDropdownId}`);
+      if (!trigger) return;
+      setDropdownMenuPosition(computePosition(trigger.getBoundingClientRect()));
+    };
+
+    reposition();
+    window.addEventListener('scroll', reposition, true);
+    window.addEventListener('resize', reposition);
+    return () => {
+      window.removeEventListener('scroll', reposition, true);
+      window.removeEventListener('resize', reposition);
     };
   }, [activeDropdownId]);
 
@@ -578,12 +619,7 @@ function TechTalkManagementContent(): React.JSX.Element {
                             {formatDate(tt.eventDate)}
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <div
-                              className={cn(
-                                'relative inline-block text-left',
-                                activeDropdownId === tt.id ? 'z-50' : 'z-10'
-                              )}
-                            >
+                            <div className="relative inline-block text-left">
                               <button
                                 id={`dropdown-trigger-${tt.id}`}
                                 type="button"
@@ -606,83 +642,94 @@ function TechTalkManagementContent(): React.JSX.Element {
                                 <MoreVerticalIcon className="h-4 w-4 text-brand-text-secondary" />
                               </button>
 
-                              <div
-                                id={`dropdown-menu-${tt.id}`}
-                                role="menu"
-                                aria-label="Actions"
-                                onClick={(e) => e.stopPropagation()}
-                                className={cn(
-                                  'absolute right-0 z-50 mb-1 w-44 origin-top-right rounded border border-brand-border bg-brand-surface py-1 text-left shadow-lg bottom-full focus:outline-none',
-                                  activeDropdownId === tt.id ? 'block' : 'hidden'
-                                )}
-                              >
-                                <Link
-                                  href={`/admin/tech-talks/${tt.id}/edit`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setActiveDropdownId(null);
-                                  }}
-                                  role="menuitem"
-                                  data-testid={`edit-btn-${tt.id}`}
-                                  className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium text-brand-text-primary transition-colors hover:bg-brand-hover"
-                                >
-                                  <EditIcon className="h-3.5 w-3.5 text-brand-text-secondary" />
-                                  Edit
-                                </Link>
-
-                                {isPublished && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setActiveDropdownId(null);
-                                      handleOpenUnpublishModal(tt.id);
+                              {activeDropdownId === tt.id &&
+                                dropdownMenuPosition &&
+                                createPortal(
+                                  <div
+                                    id={`dropdown-menu-${tt.id}`}
+                                    role="menu"
+                                    aria-label="Actions"
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{
+                                      left: dropdownMenuPosition.left,
+                                      ...(dropdownMenuPosition.top !== undefined
+                                        ? { top: dropdownMenuPosition.top }
+                                        : {}),
+                                      ...(dropdownMenuPosition.bottom !== undefined
+                                        ? { bottom: dropdownMenuPosition.bottom }
+                                        : {}),
                                     }}
-                                    role="menuitem"
-                                    data-testid={`unpublish-btn-${tt.id}`}
-                                    disabled={isMutating}
-                                    className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium text-brand-text-primary transition-colors hover:bg-brand-hover disabled:opacity-50"
+                                    className="fixed z-50 w-44 rounded border border-brand-border bg-brand-surface py-1 text-left shadow-lg focus:outline-none"
                                   >
-                                    <BanIcon className="h-3.5 w-3.5 text-brand-text-secondary" />
-                                    Unpublish
-                                  </button>
-                                )}
-                                {!isPublished && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setActiveDropdownId(null);
-                                      handleOpenPublishModal(tt.id);
-                                    }}
-                                    role="menuitem"
-                                    data-testid={`publish-btn-${tt.id}`}
-                                    disabled={isMutating}
-                                    className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium text-brand-text-primary transition-colors hover:bg-brand-hover disabled:opacity-50"
-                                  >
-                                    <CheckCircleIcon className="h-3.5 w-3.5 text-brand-text-secondary" />
-                                    Publish
-                                  </button>
-                                )}
+                                    <Link
+                                      href={`/admin/tech-talks/${tt.id}/edit`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveDropdownId(null);
+                                      }}
+                                      role="menuitem"
+                                      data-testid={`edit-btn-${tt.id}`}
+                                      className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium text-brand-text-primary transition-colors hover:bg-brand-hover"
+                                    >
+                                      <EditIcon className="h-3.5 w-3.5 text-brand-text-secondary" />
+                                      Edit
+                                    </Link>
 
-                                <div className="my-1 border-t border-brand-border" />
+                                    {isPublished && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setActiveDropdownId(null);
+                                          handleOpenUnpublishModal(tt.id);
+                                        }}
+                                        role="menuitem"
+                                        data-testid={`unpublish-btn-${tt.id}`}
+                                        disabled={isMutating}
+                                        className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium text-brand-text-primary transition-colors hover:bg-brand-hover disabled:opacity-50"
+                                      >
+                                        <BanIcon className="h-3.5 w-3.5 text-brand-text-secondary" />
+                                        Unpublish
+                                      </button>
+                                    )}
+                                    {!isPublished && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setActiveDropdownId(null);
+                                          handleOpenPublishModal(tt.id);
+                                        }}
+                                        role="menuitem"
+                                        data-testid={`publish-btn-${tt.id}`}
+                                        disabled={isMutating}
+                                        className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium text-brand-text-primary transition-colors hover:bg-brand-hover disabled:opacity-50"
+                                      >
+                                        <CheckCircleIcon className="h-3.5 w-3.5 text-brand-text-secondary" />
+                                        Publish
+                                      </button>
+                                    )}
 
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setActiveDropdownId(null);
-                                    handleOpenDeleteModal(tt.id);
-                                  }}
-                                  role="menuitem"
-                                  data-testid={`delete-btn-${tt.id}`}
-                                  disabled={isMutating}
-                                  className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium text-brand-red transition-colors hover:bg-brand-red/5 disabled:opacity-50"
-                                >
-                                  <TrashIcon className="h-3.5 w-3.5 text-brand-red" />
-                                  Delete
-                                </button>
-                              </div>
+                                    <div className="my-1 border-t border-brand-border" />
+
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveDropdownId(null);
+                                        handleOpenDeleteModal(tt.id);
+                                      }}
+                                      role="menuitem"
+                                      data-testid={`delete-btn-${tt.id}`}
+                                      disabled={isMutating}
+                                      className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium text-brand-red transition-colors hover:bg-brand-red/5 disabled:opacity-50"
+                                    >
+                                      <TrashIcon className="h-3.5 w-3.5 text-brand-red" />
+                                      Delete
+                                    </button>
+                                  </div>,
+                                  document.body
+                                )}
                             </div>
                           </td>
                         </tr>
