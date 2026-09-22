@@ -98,7 +98,7 @@ describe('My Articles page', () => {
     cy.location('pathname').should('eq', '/signin');
 
     cy.get('button[aria-label="1BT Wiki home"]').should('be.visible');
-    cy.get('button[aria-label="Log in with Google"]').should('be.visible');
+    cy.get('button[aria-label="Get started with Google"]').should('be.visible');
   });
 
   it("author deletes own Draft and confirms, and cannot delete non-Draft", () => {

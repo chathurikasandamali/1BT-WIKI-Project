@@ -18,7 +18,6 @@ export function LandingNavbar({
 }: LandingNavbarProps): React.JSX.Element {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const isAuthenticating = authenticatingAction !== null;
-  const isLoginSigningIn = authenticatingAction === 'login';
   const isGetStartedSigningIn = authenticatingAction === 'get-started';
 
   useEffect(() => {
@@ -37,10 +36,6 @@ export function LandingNavbar({
     setIsMenuOpen(false);
   };
 
-  const loginLabel = isLoginSigningIn ? 'Signing in...' : 'Log in';
-  const loginAriaLabel = isLoginSigningIn
-    ? 'Signing in'
-    : 'Log in with Google';
   const getStartedLabel = isGetStartedSigningIn
     ? 'Signing in...'
     : 'Get started';
@@ -66,15 +61,6 @@ export function LandingNavbar({
         </button>
 
         <div className="ml-auto hidden items-center gap-3 xl:flex">
-          <button
-            type="button"
-            onClick={() => onAuthenticate('login')}
-            disabled={isAuthenticating}
-            aria-label={loginAriaLabel}
-            className="h-11 rounded-full border border-brand-border bg-white px-5 text-sm font-semibold text-brand-dark transition hover:border-brand-dark hover:bg-brand-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
-          >
-            {loginLabel}
-          </button>
           <button
             type="button"
             onClick={() => onAuthenticate('get-started')}
@@ -113,16 +99,7 @@ export function LandingNavbar({
             className="mx-auto flex max-w-2xl flex-col gap-2"
             aria-label="Mobile navigation"
           >
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => onAuthenticate('login')}
-                disabled={isAuthenticating}
-                aria-label={loginAriaLabel}
-                className="h-12 rounded-xl border border-brand-border text-sm font-semibold text-brand-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-red disabled:cursor-wait disabled:opacity-60"
-              >
-                {loginLabel}
-              </button>
+            <div className="grid grid-cols-1 gap-3">
               <button
                 type="button"
                 onClick={() => onAuthenticate('get-started')}
