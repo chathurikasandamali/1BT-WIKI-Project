@@ -6,16 +6,17 @@ export type SortField = 'title' | 'eventDate';
 export type SortDir = 'asc' | 'desc';
 
 /** A status filter selection, including the "no filter applied" option. */
-export type StatusFilter = TechTalkStatus | 'All';
+export type StatusFilter = TechTalkStatus;
 
 /** Actions that require confirmation before they are applied. */
 export type TechTalkModalAction =
+  typeof TechTalkStatus.all
   | typeof TechTalkStatus.published
   | typeof TechTalkStatus.unpublished
-  | 'delete';
+  | typeof TechTalkStatus.deleted;
 
 /** Totals rendered by the summary tiles, keyed by status plus an "all" total. */
-export type TechTalkStatusCounts = Record<'all' | TechTalkStatus, number>;
+export type TechTalkStatusCounts = Record<TechTalkStatus, number>;
 
 /**
  * Viewport-relative anchor for a portaled menu. Exactly one of `top` /
