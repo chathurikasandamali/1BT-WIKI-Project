@@ -5,6 +5,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 import { BRAND_FULL_NAME } from '@/lib/constants/brand';
+import { ScrollToTopButton } from '@/components/shared/ScrollToTopButton';
 
 export const metadata: Metadata = {
   title: BRAND_FULL_NAME,
@@ -20,7 +21,10 @@ export default function RootLayout({
 }: RootLayoutProps): React.JSX.Element {
   return (
     <html lang="en">
-      <body className="font-sans antialiased bg-brand-bg">{children}</body>
+      <body className="font-sans antialiased bg-brand-bg">
+        {children}
+        <ScrollToTopButton />
+      </body>
     </html>
   );
 }
