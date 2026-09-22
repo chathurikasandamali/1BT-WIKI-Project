@@ -471,6 +471,13 @@ describe('Article lifecycle', () => {
       // 33. Assert exactly one approval request
       cy.get('@approveArticle.all').should('have.length', 1);
 
+      // 34. Wait for the page component to reload the pending articles list.
+      // The router.push('/reviewer/approvals') in the approval handler triggers
+      // a navigation; the new page component mounts and fetches getPendingArticles.
+      // We must wait for this request to complete before checking page visibility,
+      // or the test times out on the 4s default Cypress wait.
+      cy.wait('@getPendingArticles', { timeout: DEFAULT_TIMEOUT });
+
       // 35. Durable post-approval proof
       cy.location('pathname').should('eq', '/reviewer/approvals');
 
