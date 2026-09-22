@@ -29,10 +29,13 @@ export function useTechTalkStatusCounts(): TechTalkStatusCountsResult {
         talks.filter((talk) => talk.status === status).length;
 
       setCounts({
-        all: result.total,
+        [TechTalkStatus.all]: result.total,
         [TechTalkStatus.published]: countByStatus(TechTalkStatus.published),
         [TechTalkStatus.draft]: countByStatus(TechTalkStatus.draft),
         [TechTalkStatus.unpublished]: countByStatus(TechTalkStatus.unpublished),
+        // Always 0 today — `deleted` is a UI-only sentinel with no backing
+        // record status, kept here only so TechTalkStatusCounts stays exhaustive.
+        [TechTalkStatus.deleted]: countByStatus(TechTalkStatus.deleted),
       });
     } catch {
       // Non-blocking — the table still works without the summary tiles.

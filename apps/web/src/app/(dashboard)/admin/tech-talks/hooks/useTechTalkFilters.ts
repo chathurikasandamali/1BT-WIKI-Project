@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { TechTalkStatus } from '@repo/shared';
 import type { AdminTechTalkListQuery } from '@/lib/api/techTalks';
 import { PAGE_SIZE, SEARCH_DEBOUNCE_MS } from '../constants/constants';
 import type { SortDir, SortField, StatusFilter } from '../constants/types';
@@ -27,7 +28,7 @@ export interface TechTalkFilters {
 export function useTechTalkFilters(): TechTalkFilters {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(TechTalkStatus.all);
   const [sortField, setSortField] = useState<SortField>('eventDate');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [page, setPage] = useState(1);
@@ -58,10 +59,15 @@ export function useTechTalkFilters(): TechTalkFilters {
     setSortDir('asc');
   };
 
+  // `all` means "no filter"; `deleted` is a UI-only sentinel the backend
+  // doesn't support filtering by — neither is sent as a status query param.
   const query: AdminTechTalkListQuery = {
     page,
     limit: PAGE_SIZE,
-    status: statusFilter === 'All' ? undefined : statusFilter,
+    status:
+      statusFilter === TechTalkStatus.all || statusFilter === TechTalkStatus.deleted
+        ? undefined
+        : statusFilter,
     search: debouncedSearch || undefined,
     sort: sortField,
     order: sortDir,

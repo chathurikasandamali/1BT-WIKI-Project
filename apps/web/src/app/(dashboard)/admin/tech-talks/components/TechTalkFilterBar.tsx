@@ -53,7 +53,7 @@ export function TechTalkFilterBar({
         className="sr-only"
         aria-label="Filter Tech Talks by status"
       >
-        <option value="All">All Statuses</option>
+        <option value={TechTalkStatus.all}>All Statuses</option>
         <option value={TechTalkStatus.draft}>Draft</option>
         <option value={TechTalkStatus.published}>Published</option>
         <option value={TechTalkStatus.unpublished}>Unpublished</option>

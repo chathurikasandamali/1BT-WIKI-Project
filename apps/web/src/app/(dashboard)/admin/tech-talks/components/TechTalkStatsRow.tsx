@@ -27,8 +27,8 @@ export function TechTalkStatsRow({
         label="Total Tech Talks"
         description="Talks across every status"
         value={counts.all}
-        onClick={() => onSelect('All')}
-        selected={statusFilter === 'All'}
+        onClick={() => onSelect(TechTalkStatus.all)}
+        selected={statusFilter === TechTalkStatus.all}
         icon={<TechTalkIcon className="h-4 w-4" />}
         borderClassName="border-brand-border"
         testId="total-techtalks-stat"

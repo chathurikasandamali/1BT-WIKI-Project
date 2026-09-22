@@ -6,6 +6,12 @@ const BADGE_CLASSES: Record<TechTalkStatus, string> = {
   [TechTalkStatus.draft]: 'bg-brand-bg text-brand-text-secondary border-brand-border',
   [TechTalkStatus.published]: 'bg-green-50 text-green-700 border-green-200',
   [TechTalkStatus.unpublished]: 'bg-brand-red/10 text-brand-red border-brand-red/20',
+  // `all` and `deleted` are UI-only sentinels (the "no filter" option and the
+  // delete-confirmation action identifier) — a real Tech Talk record's status
+  // is never one of these, but TechTalkStatus covers both so this Record must
+  // stay exhaustive.
+  [TechTalkStatus.all]: 'bg-brand-bg text-brand-text-secondary border-brand-border',
+  [TechTalkStatus.deleted]: 'bg-brand-red/10 text-brand-red border-brand-red/20',
 };
 
 /**

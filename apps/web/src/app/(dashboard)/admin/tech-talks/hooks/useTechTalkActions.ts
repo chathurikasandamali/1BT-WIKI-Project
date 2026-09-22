@@ -34,7 +34,7 @@ const ACTIONS: Record<TechTalkModalAction, ActionCopy> = {
     successMessage: 'Tech Talk unpublished successfully',
     run: unpublishTechTalk,
   },
-  delete: {
+  [TechTalkStatus.deleted]: {
     title: 'Delete Tech Talk?',
     message:
       'Are you sure you want to delete this Tech Talk? This action cannot be undone.',
@@ -117,7 +117,7 @@ export function useTechTalkActions(
     toast,
     requestPublish: request(TechTalkStatus.published),
     requestUnpublish: request(TechTalkStatus.unpublished),
-    requestDelete: request('delete'),
+    requestDelete: request(TechTalkStatus.deleted),
     modal: {
       isOpen: action !== null,
       title: copy?.title ?? '',

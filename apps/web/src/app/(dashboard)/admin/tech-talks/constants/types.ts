@@ -10,7 +10,6 @@ export type StatusFilter = TechTalkStatus;
 
 /** Actions that require confirmation before they are applied. */
 export type TechTalkModalAction =
-  typeof TechTalkStatus.all
   | typeof TechTalkStatus.published
   | typeof TechTalkStatus.unpublished
   | typeof TechTalkStatus.deleted;

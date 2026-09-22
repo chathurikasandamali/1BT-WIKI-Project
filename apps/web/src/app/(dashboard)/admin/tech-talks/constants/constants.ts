@@ -6,18 +6,22 @@ export const PAGE_SIZE = 12;
 /** Delay before a typed search term triggers a refetch. */
 export const SEARCH_DEBOUNCE_MS = 400;
 
+// Only the filterable statuses are offered as chips — `deleted` is a
+// UI sentinel reused from TechTalkStatus for the delete-confirmation action,
+// not a real record status, so it's deliberately excluded here.
 export const STATUS_FILTERS: StatusFilter[] = [
-  'All',
+  TechTalkStatus.all,
   TechTalkStatus.draft,
   TechTalkStatus.published,
   TechTalkStatus.unpublished,
 ];
 
 export const STATUS_FILTER_LABELS: Record<StatusFilter, string> = {
-  All: 'All statuses',
+  [TechTalkStatus.all]: 'All statuses',
   [TechTalkStatus.draft]: 'Draft',
   [TechTalkStatus.published]: 'Published',
   [TechTalkStatus.unpublished]: 'Unpublished',
+  [TechTalkStatus.deleted]: 'Deleted',
 };
 
 // ── Actions menu DOM ids ──────────────────────────────────────────────────────
