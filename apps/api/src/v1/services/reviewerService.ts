@@ -31,17 +31,23 @@ export class ReviewerService {
       limit
     );
 
-    // TODO: batch via a findManyByIds if UserRepository adds one, to avoid N+1 queries on larger pending lists
-    const enrichedArticles = await Promise.all(
-      articles.map(async (article) => {
-        const author = await this.userRepository.findById(article.authorId);
-        return {
-          ...article,
-          authorName: author?.name ?? 'Unknown',
-          authorEmail: author?.email ?? null,
-        };
-      })
-    );
+    // Batch-resolve author display names in one query instead of firing a
+    // parallel findById per article, mirroring the enrichment pattern
+    // already used by articleService (avoids N+1 queries and the
+    // connection-limit pressure many concurrent requests can put on the
+    // serverless DB driver).
+    const authorIds = articles.map((article) => article.authorId);
+    const authors = await this.userRepository.findManyByIds(authorIds);
+    const authorMap = new Map(authors.map((author) => [author.id, author]));
+
+    const enrichedArticles = articles.map((article) => {
+      const author = authorMap.get(article.authorId);
+      return {
+        ...article,
+        authorName: author?.name ?? 'Unknown',
+        authorEmail: author?.email ?? null,
+      };
+    });
 
     return { articles: enrichedArticles, total, page, limit };
   }
