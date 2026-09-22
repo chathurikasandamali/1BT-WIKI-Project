@@ -50,6 +50,7 @@ export interface UpdateTechTalkInput {
   tags?: string[];
   eventDate?: string; // ISO date string
   youtubeVideoId?: string;
+  removeSlides?: boolean;
 }
 
 export interface TechTalkListQuery extends PaginationParams {
