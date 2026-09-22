@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
     createTechTalk,
     updateTechTalk,
@@ -16,6 +16,7 @@ import { Toast } from '@/components/shared/Toast';
 import { useToast } from '@/lib/hooks/useToast';
 import { ConfirmationModal } from '@/components/shared/ConfirmationModal';
 import { toDateTimeLocalValue } from '@/lib/utils/date';
+import { TrashIcon } from '@/components/shared/icons/TrashIcon';
 
 interface TechTalkFormProps {
     initialData?: TechTalkDetail;
@@ -28,6 +29,42 @@ type TechTalkFormErrors = Partial<Record<TechTalkFormField, string>>;
 interface FieldErrorProps {
     fieldId: TechTalkFormField;
     message: string;
+}
+
+/**
+ * Derives a human-readable slide file name from a stored B2 slides URL.
+ *
+ * Uploaded slide files are stored under a key of the form
+ * `tech-talks/{techTalkId}-{sanitizedFileName}` (or a UUID prefix for
+ * newly created talks), so the display name is the last URL path segment
+ * with the id prefix stripped. Prefers the actual tech talk id prefix and
+ * falls back to stripping a UUID-like prefix.
+ */
+function getSlidesFileName(
+    slidesUrl: string | null,
+    techTalkId: string
+): string | null {
+    if (!slidesUrl) {
+        return null;
+    }
+
+    const lastSegment = slidesUrl.split('/').filter(Boolean).pop();
+    if (!lastSegment) {
+        return null;
+    }
+
+    const idPrefix = `${techTalkId}-`;
+
+    if (lastSegment.startsWith(idPrefix)) {
+        return lastSegment.slice(idPrefix.length) || null;
+    }
+
+    const withoutUuidPrefix = lastSegment.replace(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i,
+        ''
+    );
+
+    return withoutUuidPrefix || null;
 }
 
 function FieldError({ fieldId, message }: FieldErrorProps): React.JSX.Element {
@@ -67,7 +104,9 @@ export function TechTalkForm({
         initialData?.youtubeVideoId ?? ''
     );
 
-    const [slidesFile, setSlidesFile] = useState<File | null>(null);
+    const [selectedSlides, setSelectedSlides] = useState<File | null>(null);
+    const [removeExistingSlides, setRemoveExistingSlides] = useState(false);
+    const slidesInputRef = useRef<HTMLInputElement>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [fieldErrors, setFieldErrors] = useState<TechTalkFormErrors>({});
     const { toast, showToast } = useToast();
@@ -75,6 +114,17 @@ export function TechTalkForm({
     const [isPublishing, setIsPublishing] = useState(false);
 
     const isEditMode = Boolean(initialData);
+
+    const existingAttachmentName = getSlidesFileName(
+        initialData?.slidesUrl ?? null,
+        initialData?.id ?? ''
+    );
+    const showSelectedSlides = Boolean(selectedSlides);
+    const showExistingAttachment =
+        isEditMode &&
+        !showSelectedSlides &&
+        existingAttachmentName !== null &&
+        !removeExistingSlides;
 
     //add presenters for this tech talk ( one tech talk have multiple presenters )
     const addPresenter = (presenter: string) => {
@@ -98,6 +148,21 @@ export function TechTalkForm({
     const removeTag = (tagToRemove: string) => {
         setTags(tags.filter((tag) => tag !== tagToRemove));
     };
+
+const handleRemoveSlides = (): void => {
+    if (showSelectedSlides) {
+        setSelectedSlides(null);
+
+        if (slidesInputRef.current) {
+            slidesInputRef.current.value = '';
+        }
+        return;
+    }
+
+    if (showExistingAttachment) {
+        setRemoveExistingSlides(true);
+    }
+};
 
     const clearFieldError = (field: TechTalkFormField): void => {
         setFieldErrors((prev) => {
@@ -155,12 +220,15 @@ export function TechTalkForm({
                     tags,
                     eventDate: new Date(eventDate).toISOString(),
                     youtubeVideoId: youtubeVideoId.trim() || undefined,
+                    ...(removeExistingSlides
+                        ? { removeSlides: true }
+                        : {}),
                 };
 
                 await updateTechTalk(
                     initialData.id,
                     data,
-                    slidesFile ?? undefined
+                    selectedSlides ?? undefined
                 );
 
                 showToast('Tech Talk updated as draft successfully', 'success');
@@ -175,7 +243,7 @@ export function TechTalkForm({
                     publishImmediately: false,
                 };
 
-                await createTechTalk(data, slidesFile ?? undefined);
+                await createTechTalk(data, selectedSlides ?? undefined);
 
                 showToast('Tech Talk saved as draft successfully', 'success');
             }
@@ -213,12 +281,15 @@ export function TechTalkForm({
                     tags,
                     eventDate: new Date(eventDate).toISOString(),
                     youtubeVideoId: youtubeVideoId.trim() || undefined,
+                    ...(removeExistingSlides
+                        ? { removeSlides: true }
+                        : {}),
                 };
 
                 await updateTechTalk(
                     initialData.id,
                     data,
-                    slidesFile ?? undefined
+                    selectedSlides ?? undefined
                 );
 
                 await publishTechTalk(initialData.id);
@@ -235,7 +306,7 @@ export function TechTalkForm({
                     publishImmediately: true,
                 };
 
-                await createTechTalk(data, slidesFile ?? undefined);
+                await createTechTalk(data, selectedSlides ?? undefined);
 
                 showToast('Tech Talk published successfully', 'success');
             }
@@ -405,16 +476,39 @@ export function TechTalkForm({
 
                     <div>
                         <label htmlFor="slides" className="block text-sm font-medium text-brand-text-primary mb-2">Slides (PDF, PPT, PPTX)</label>
-                        <input
-                            id="slides"
-                            type="file"
-                            accept=".pdf,.ppt,.pptx"
-                            onChange={(e) => {
-                                const file = e.target.files?.[0] ?? null;
-                                setSlidesFile(file);
-                            }}
-                            className="w-full px-3 py-2 bg-brand-bg border border-brand-border rounded text-brand-text-secondary focus:outline-none focus:border-brand-red transition-colors text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-brand-red/10 file:text-brand-red hover:file:bg-brand-red/20 cursor-pointer"
-                        />
+                        <div className="flex items-center gap-2">
+                            <input
+                                id="slides"
+                                ref={slidesInputRef}
+                                type="file"
+                                accept=".pdf,.ppt,.pptx"
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0] ?? null;
+                                    setSelectedSlides(file);
+                                }}
+                                className="w-full min-w-0 flex-1 px-3 py-2 bg-brand-bg border border-brand-border rounded text-brand-text-secondary focus:outline-none focus:border-brand-red transition-colors text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-brand-red/10 file:text-brand-red hover:file:bg-brand-red/20 cursor-pointer"
+                            />
+                            {showExistingAttachment && (
+                                <span
+                                    data-testid="slides-filename"
+                                    className="shrink-0 text-sm font-medium text-brand-text-primary truncate max-w-[200px]"
+                                >
+                                    {existingAttachmentName}
+                                </span>
+                            )}
+                            {(showSelectedSlides || showExistingAttachment) && (
+                                <button
+                                    type="button"
+                                    onClick={handleRemoveSlides}
+                                    aria-label="Remove attachment"
+                                    title="Remove attachment"
+                                    className="shrink-0 flex items-center justify-center p-1.5 rounded-full text-brand-text-secondary hover:text-brand-red hover:bg-brand-red/10 focus:outline-none focus:ring-2 focus:ring-brand-red transition-colors"
+                                    data-testid="slides-remove-button"
+                                >
+                                    <TrashIcon className="h-5 w-5" />
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     <div className="pt-6 border-t border-brand-border flex flex-col-reverse sm:flex-row items-center justify-end gap-3">
