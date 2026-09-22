@@ -439,6 +439,20 @@ describe('MyArticlesList', () => {
     expect(screen.queryByTestId('article-card-pub1')).not.toBeInTheDocument();
   });
 
+  it('disables delete for an Admin viewing a Pending article — it is actively under review', async () => {
+    mockUseUser.mockReturnValue({
+      user: ADMIN_USER,
+      loading: false,
+      error: null,
+    });
+    mockArticles([makeArticle({ id: 'a1', status: 'Pending' })]);
+
+    render(<MyArticlesList />);
+    await screen.findByTestId('article-card-a1');
+
+    expect(screen.getByTestId('delete-article-a1')).toBeDisabled();
+  });
+
   it('deletes a draft after confirmation', async () => {
     mockArticles([makeArticle({ id: 'draft1', status: 'Draft' })]);
 

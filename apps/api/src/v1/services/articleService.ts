@@ -299,13 +299,15 @@ export class ArticleService {
 
     let resetToDraft = false;
 
-    if (article.status !== ArticleStatusValue.Draft) {
+    if (article.status === ArticleStatusValue.Unpublished) {
       const latestReview =
         await this.reviewRepository.findLatestByArticleId(id);
       if (!latestReview || latestReview.reviewStatus !== 'Rejected') {
         throw new AppError('Only Draft or Rejected articles can be edited', HttpStatusCode.BAD_REQUEST);
       }
       resetToDraft = true;
+    } else if (article.status !== ArticleStatusValue.Draft) {
+      throw new AppError('Only Draft or Rejected articles can be edited', HttpStatusCode.BAD_REQUEST);
     }
 
     if (
@@ -599,6 +601,13 @@ export class ArticleService {
 
     if (!isAdmin && !isAuthor) {
       throw new AppError('Not authorized', 403);
+    }
+
+    if (article.status === ArticleStatusValue.Pending) {
+      throw new AppError(
+        'Pending articles cannot be deleted while under review',
+        HttpStatusCode.BAD_REQUEST
+      );
     }
 
     if (!isAdmin && article.status !== ArticleStatusValue.Draft) {

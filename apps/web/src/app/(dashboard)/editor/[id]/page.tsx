@@ -41,10 +41,28 @@ export default function EditArticlePage() {
     async function fetchArticle() {
       try {
         const result = await apiFetch<ArticleResponse>(`/articles/${id}`);
-        if (!cancelled) {
-          setArticle(result.data!);
-          setLoading(false);
+        if (cancelled) return;
+
+        const fetchedArticle = result.data!;
+
+        if (
+          fetchedArticle.status !== 'Draft' &&
+          fetchedArticle.status !== 'Unpublished'
+        ) {
+          setToastMessage(
+            'This article is pending review and cannot be edited.'
+          );
+          setToastVisible(true);
+          setTimeout(() => {
+            if (!cancelled) {
+              router.push('/my-articles');
+            }
+          }, 2000);
+          return;
         }
+
+        setArticle(fetchedArticle);
+        setLoading(false);
       } catch (err: unknown) {
         if (cancelled) return;
 
