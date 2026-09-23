@@ -143,7 +143,10 @@ function ArticleCard({
   const dateLabel = article.status === 'Published' ? 'Published' : 'Last updated';
   const dateValue = article.updatedAt;
   const canEdit = article.status === 'Draft' || isRejected;
-  const canDelete = article.status === 'Draft' || isAdmin;
+
+  const canDelete =
+    article.status === 'Draft' ||
+    (isAdmin && article.status !== 'Pending');
 
   let editControl: React.JSX.Element;
   if (canEdit) {
