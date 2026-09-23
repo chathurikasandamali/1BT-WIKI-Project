@@ -322,6 +322,25 @@ describe('TechTalkController', () => {
 
       expect(next).toHaveBeenCalledWith(error);
     });
+
+    it('should read a single uploaded file from req.file for the PATCH route', async () => {
+      const input = { title: 'Updated Title' };
+      req.params = { id: 'tt-42' };
+      req.body = { data: JSON.stringify(input) };
+      const slidesFile = { originalname: 'single-upload.pdf' } as Express.Multer.File;
+      (req as Request & { file?: Express.Multer.File }).file = slidesFile;
+
+      const updatedTalk = createTechTalk({
+        id: 'tt-42',
+        ...input,
+        status: 'draft',
+      });
+      mockService.updateTechTalk.mockResolvedValue(updatedTalk as any);
+
+      await controller.update(req as Request, res as Response, next);
+
+      expect(mockService.updateTechTalk).toHaveBeenCalledWith('tt-42', input, slidesFile);
+    });
   });
 
   describe('getById', () => {

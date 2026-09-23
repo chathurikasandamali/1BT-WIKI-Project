@@ -602,6 +602,46 @@ describe('TechTalkService', () => {
         })
       );
     });
+
+    it('clears slidesUrl when removeSlides is true and no file is uploaded', async () => {
+      mockRepo.findById.mockResolvedValue({
+        ...existingTechTalk,
+        slidesUrl: 'https://b2.example.com/tech-talks/old-slides.pdf',
+      });
+      mockRepo.update.mockResolvedValue({
+        ...existingTechTalk,
+        slidesUrl: null,
+        status: 'draft',
+      });
+
+      await service.updateTechTalk('tt-1', { removeSlides: true });
+
+      expect(b2Client.uploadFile).not.toHaveBeenCalled();
+      expect(mockRepo.update).toHaveBeenCalledWith(
+        'tt-1',
+        expect.objectContaining({ slidesUrl: null })
+      );
+    });
+
+    it('keeps the existing slidesUrl when removeSlides is absent and no file is uploaded', async () => {
+      mockRepo.findById.mockResolvedValue({
+        ...existingTechTalk,
+        slidesUrl: 'https://b2.example.com/tech-talks/old-slides.pdf',
+      });
+      mockRepo.update.mockResolvedValue({
+        ...existingTechTalk,
+        slidesUrl: 'https://b2.example.com/tech-talks/old-slides.pdf',
+        status: 'draft',
+      });
+
+      await service.updateTechTalk('tt-1', {});
+
+      expect(b2Client.uploadFile).not.toHaveBeenCalled();
+      expect(mockRepo.update).toHaveBeenCalledWith(
+        'tt-1',
+        expect.not.objectContaining({ slidesUrl: null })
+      );
+    });
   });
 
   describe('listPublished', () => {

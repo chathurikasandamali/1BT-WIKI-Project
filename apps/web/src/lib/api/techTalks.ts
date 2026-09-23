@@ -75,6 +75,7 @@ export interface UpdateTechTalkData {
     tags?: string[];
     eventDate?: string;
     youtubeVideoId?: string;
+    removeSlides?: boolean;
 }
 
 export async function createTechTalk(

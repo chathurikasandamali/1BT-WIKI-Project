@@ -312,3 +312,292 @@ describe('TechTalkForm field-level validation display', () => {
     expect(createTechTalk).not.toHaveBeenCalled();
   });
 });
+
+describe('TechTalkForm slides attachment', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  function getSlidesInput(): HTMLInputElement {
+    return screen.getByLabelText('Slides (PDF, PPT, PPTX)') as HTMLInputElement;
+  }
+
+  function selectSlidesFile(): File {
+    const file = new File(['slide-content'], 'SRS Document - 1BT WIKI.pdf', {
+      type: 'application/pdf',
+    });
+
+    fireEvent.change(getSlidesInput(), { target: { files: [file] } });
+
+    return file;
+  }
+
+  it('shows the selected filename and a remove attachment button once a file is chosen', () => {
+    render(<TechTalkForm />);
+
+    const file = selectSlidesFile();
+
+    expect(getSlidesInput().files).toHaveLength(1);
+    expect(getSlidesInput().files?.[0]).toBe(file);
+    expect(
+      screen.getByRole('button', { name: /remove attachment/i })
+    ).toBeInTheDocument();
+  });
+
+  it('clears the selected file and returns the input to its no-file state when the remove button is clicked', () => {
+    render(<TechTalkForm />);
+
+    selectSlidesFile();
+
+    const removeButton = screen.getByRole('button', {
+      name: /remove attachment/i,
+    });
+
+    fireEvent.click(removeButton);
+
+    const slidesInput = getSlidesInput();
+
+    expect(slidesInput.value).toBe('');
+    expect(
+      screen.queryByRole('button', { name: /remove attachment/i })
+    ).not.toBeInTheDocument();
+  });
+
+  it('does not submit the removed slides file with the Tech Talk', async () => {
+    mockCreateTechTalk.mockResolvedValue(mockInitialData);
+
+    render(<TechTalkForm />);
+
+    const user = userEvent.setup();
+
+    selectSlidesFile();
+    fireEvent.click(
+      screen.getByRole('button', { name: /remove attachment/i })
+    );
+
+    await fillValidForm(user);
+    await user.click(screen.getByRole('button', { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(createTechTalk).toHaveBeenCalledTimes(1);
+    });
+
+    expect(createTechTalk).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Deploying with confidence' }),
+      undefined
+    );
+  });
+
+  it('still submits an attached slides file when it is not removed', async () => {
+    mockCreateTechTalk.mockResolvedValue(mockInitialData);
+
+    render(<TechTalkForm />);
+
+    const user = userEvent.setup();
+
+    const file = selectSlidesFile();
+
+    await fillValidForm(user);
+    await user.click(screen.getByRole('button', { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(createTechTalk).toHaveBeenCalledTimes(1);
+    });
+
+    expect(createTechTalk).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Deploying with confidence' }),
+      file
+    );
+  });
+
+  it('allows reselecting the same file after it was removed', () => {
+    render(<TechTalkForm />);
+
+    const firstSelection = selectSlidesFile();
+    fireEvent.click(
+      screen.getByRole('button', { name: /remove attachment/i })
+    );
+
+    fireEvent.change(getSlidesInput(), {
+      target: { files: [firstSelection] },
+    });
+
+    expect(getSlidesInput().files).toHaveLength(1);
+    expect(getSlidesInput().files?.[0]).toBe(firstSelection);
+    expect(
+      screen.getByRole('button', { name: /remove attachment/i })
+    ).toBeInTheDocument();
+  });
+
+  it('keeps field validation working independently of the slides attachment', async () => {
+    render(<TechTalkForm />);
+
+    const user = userEvent.setup();
+
+    selectSlidesFile();
+    fireEvent.click(
+      screen.getByRole('button', { name: /remove attachment/i })
+    );
+
+    await user.click(screen.getByRole('button', { name: /save draft/i }));
+
+    expect(screen.getByTestId('title-error')).toBeInTheDocument();
+    expect(createTechTalk).not.toHaveBeenCalled();
+  });
+});
+
+describe('TechTalkForm edit-mode slides attachment', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  const mockInitialDataWithSlides: TechTalkDetail = {
+    ...mockInitialData,
+    slidesUrl:
+      'https://example.com/file/bucket/tech-talks/talk-1-SRS_Document___1BT_WIKI.pdf',
+  };
+
+  function getSlidesInput(): HTMLInputElement {
+    return screen.getByLabelText('Slides (PDF, PPT, PPTX)') as HTMLInputElement;
+  }
+
+  function selectSlidesFile(): File {
+    const file = new File(['slide-content'], 'Renamed Deck.pdf', {
+      type: 'application/pdf',
+    });
+
+    fireEvent.change(getSlidesInput(), { target: { files: [file] } });
+
+    return file;
+  }
+
+  it('does not put the existing attachment into the native file input', () => {
+    render(<TechTalkForm initialData={mockInitialDataWithSlides} />);
+
+    const slidesInput = getSlidesInput();
+
+    expect(slidesInput.value).toBe('');
+    expect(slidesInput.files).toHaveLength(0);
+  });
+
+  it('displays the name of the existing attachment derived from the stored slides URL', () => {
+    render(<TechTalkForm initialData={mockInitialDataWithSlides} />);
+
+    expect(screen.getByTestId('slides-filename')).toHaveTextContent(
+      'SRS_Document___1BT_WIKI.pdf'
+    );
+    expect(
+      screen.getByRole('button', { name: /remove attachment/i })
+    ).toBeInTheDocument();
+  });
+
+  it('shows no-file-chosen state when editing a Tech Talk without an attachment', () => {
+    render(<TechTalkForm initialData={mockInitialData} />);
+
+    const slidesInput = getSlidesInput();
+
+    expect(slidesInput.value).toBe('');
+    expect(slidesInput.files).toHaveLength(0);
+    expect(screen.queryByTestId('slides-filename')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /remove attachment/i })
+    ).not.toBeInTheDocument();
+  });
+
+  it('lets a newly selected file replace the existing attachment while keeping the old name hidden', () => {
+    render(<TechTalkForm initialData={mockInitialDataWithSlides} />);
+
+    const file = selectSlidesFile();
+
+    expect(getSlidesInput().files?.[0]).toBe(file);
+    expect(screen.queryByTestId('slides-filename')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /remove attachment/i })
+    ).toBeInTheDocument();
+  });
+
+  it('removes the newly selected file and restores the existing attachment when trash is clicked with a new file present', () => {
+    render(<TechTalkForm initialData={mockInitialDataWithSlides} />);
+
+    selectSlidesFile();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /remove attachment/i })
+    );
+
+    const slidesInput = getSlidesInput();
+
+    expect(slidesInput.value).toBe('');
+    expect(screen.queryByTestId('slides-filename')).toHaveTextContent(
+      'SRS_Document___1BT_WIKI.pdf'
+    );
+  });
+
+  it('submits an uploaded replacement file and does not send removeSlides', async () => {
+    mockUpdateTechTalk.mockResolvedValue(mockInitialDataWithSlides);
+
+    render(<TechTalkForm initialData={mockInitialDataWithSlides} />);
+
+    const user = userEvent.setup();
+
+    const file = selectSlidesFile();
+
+    await user.click(screen.getByRole('button', { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(updateTechTalk).toHaveBeenCalledTimes(1);
+    });
+
+    expect(updateTechTalk).toHaveBeenCalledWith(
+      'talk-1',
+      expect.not.objectContaining({ removeSlides: true }),
+      file
+    );
+  });
+
+  it('sends removeSlides when the existing attachment is removed', async () => {
+    mockUpdateTechTalk.mockResolvedValue(mockInitialData);
+
+    render(<TechTalkForm initialData={mockInitialDataWithSlides} />);
+
+    const user = userEvent.setup();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /remove attachment/i })
+    );
+
+    expect(screen.queryByTestId('slides-filename')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(updateTechTalk).toHaveBeenCalledTimes(1);
+    });
+
+    expect(updateTechTalk).toHaveBeenCalledWith(
+      'talk-1',
+      expect.objectContaining({ removeSlides: true }),
+      undefined
+    );
+  });
+
+  it('preserves the existing attachment when saving without changes', async () => {
+    mockUpdateTechTalk.mockResolvedValue(mockInitialDataWithSlides);
+
+    render(<TechTalkForm initialData={mockInitialDataWithSlides} />);
+
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(updateTechTalk).toHaveBeenCalledTimes(1);
+    });
+
+    expect(updateTechTalk).toHaveBeenCalledWith(
+      'talk-1',
+      expect.not.objectContaining({ removeSlides: true }),
+      undefined
+    );
+  });
+});

@@ -68,13 +68,13 @@ describe('SignInPage', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('calls the existing Google sign-in flow from the login action', async () => {
+  it('calls the existing Google sign-in flow from the get started action', async () => {
     mockSignInSocial.mockResolvedValueOnce({ error: null });
     const user = userEvent.setup();
 
     render(<SignInPage />);
     await user.click(
-      screen.getByRole('button', { name: /log in with google/i })
+      screen.getByRole('button', { name: /get started with google/i })
     );
 
     expect(mockSignInSocial).toHaveBeenCalledWith({
@@ -94,7 +94,7 @@ describe('SignInPage', () => {
 
     render(<SignInPage />);
     await user.click(
-      screen.getByRole('button', { name: /log in with google/i })
+      screen.getByRole('button', { name: /get started with google/i })
     );
 
     await waitFor(() => expect(mockSignInSocial).toHaveBeenCalledTimes(1));
@@ -112,7 +112,7 @@ describe('SignInPage', () => {
 
     render(<SignInPage />);
     const loginButton = screen.getByRole('button', {
-      name: /log in with google/i,
+      name: /get started with google/i,
     });
     await user.click(loginButton);
 
@@ -129,13 +129,13 @@ describe('SignInPage', () => {
 
     render(<SignInPage />);
     await user.click(
-      screen.getByRole('button', { name: /log in with google/i })
+      screen.getByRole('button', { name: /get started with google/i })
     );
 
     await waitFor(() => expect(mockSignInSocial).toHaveBeenCalledTimes(1));
     expect(mockPush).not.toHaveBeenCalled();
     expect(
-      screen.getByRole('button', { name: /log in with google/i })
+      screen.getByRole('button', { name: /get started with google/i })
     ).toBeEnabled();
   });
 

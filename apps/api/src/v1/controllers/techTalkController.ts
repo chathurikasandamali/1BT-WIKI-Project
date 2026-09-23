@@ -165,7 +165,9 @@ export class TechTalkController {
       } catch {
         throw new AppError('Invalid JSON in "data" field', HttpStatusCode.BAD_REQUEST);
       }
-      const slidesFile = (req.files as Express.Multer.File[])?.[0];
+      const slidesFile =
+        (req.files as Express.Multer.File[] | undefined)?.[0] ??
+        (req as Request & { file?: Express.Multer.File }).file;
       const techTalk = await this.techTalkService.updateTechTalk(id, input, slidesFile);
       res.status(HttpStatusCode.OK).json({ success: true, data: techTalk, message: 'Tech Talk updated successfully' });
     } catch (error) {

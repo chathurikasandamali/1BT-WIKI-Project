@@ -234,6 +234,8 @@ export class TechTalkService {
     }
     if (slidesFile) {
       updateFields.slidesUrl = await this.uploadSlides(id, slidesFile);
+    } else if (input.removeSlides) {
+      updateFields.slidesUrl = null;
     }
 
     // Per SRS 3.5.2: editing always resets status to Draft, regardless of
