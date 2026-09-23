@@ -11,6 +11,11 @@ import { PageLoader } from '@/components/shared/PageLoader';
 import { DashboardWidget } from '@/components/admin/DashboardWidget';
 import { usePendingComments } from '@/lib/hooks/useCommentModeration';
 import { useToast } from '@/lib/hooks/useToast';
+import { useUser } from '@/lib/hooks/useUser';
+import type {
+  CommentModerationRequest,
+  PendingCommentListItem,
+} from '@/lib/api/commentModeration.api';
 import { formatDate } from '@/lib/utils/date';
 import { SearchIcon } from '@/components/shared/icons/SearchIcon';
 import { CommentIcon } from '@/components/shared/icons/CommentIcon';
@@ -19,14 +24,61 @@ import { BanIcon } from '@/components/shared/icons/BanIcon';
 
 const DEFAULT_AVATAR = 'https://i.pravatar.cc/150?u=default';
 
+interface RequestTypeMeta {
+  label: string;
+  badgeClass: string;
+  approveTitle: string;
+  approveMessage: string;
+  approvedToast: string;
+  rejectTitle: string;
+  rejectMessage: string;
+  rejectedToast: string;
+}
+
+const REQUEST_TYPE_META: Record<CommentModerationRequest, RequestTypeMeta> = {
+  New: {
+    label: 'New comment',
+    badgeClass: 'border-amber-200 bg-amber-50 text-amber-700',
+    approveTitle: 'Approve this comment?',
+    approveMessage: 'Approving this comment will make it visible to all readers.',
+    approvedToast: 'Comment approved',
+    rejectTitle: 'Reject this comment?',
+    rejectMessage: 'Rejecting this comment will keep it hidden from other readers.',
+    rejectedToast: 'Comment rejected',
+  },
+  Edit: {
+    label: 'Edit request',
+    badgeClass: 'border-blue-200 bg-blue-50 text-blue-700',
+    approveTitle: 'Approve this edit?',
+    approveMessage: 'The proposed text will replace the current comment for all readers.',
+    approvedToast: 'Edit approved',
+    rejectTitle: 'Reject this edit?',
+    rejectMessage: 'The proposed text will be discarded and the current comment stays visible.',
+    rejectedToast: 'Edit rejected',
+  },
+  Delete: {
+    label: 'Deletion request',
+    badgeClass: 'border-brand-red/20 bg-brand-red/10 text-brand-red',
+    approveTitle: 'Approve this deletion?',
+    approveMessage: 'The comment will be permanently removed for all readers.',
+    approvedToast: 'Deletion approved',
+    rejectTitle: 'Reject this deletion?',
+    rejectMessage: 'The comment will stay visible to all readers.',
+    rejectedToast: 'Deletion rejected',
+  },
+};
+
 function CommentModerationContent(): React.JSX.Element {
   const { comments, loading, error, approveComment, rejectComment } =
     usePendingComments();
   const { toast, showToast } = useToast();
+  const { user } = useUser();
   const [search, setSearch] = useState('');
 
-  const [approveTargetId, setApproveTargetId] = useState<string | null>(null);
-  const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
+  const [approveTarget, setApproveTarget] =
+    useState<PendingCommentListItem | null>(null);
+  const [rejectTarget, setRejectTarget] =
+    useState<PendingCommentListItem | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const visibleComments = useMemo(() => {
@@ -38,17 +90,19 @@ function CommentModerationContent(): React.JSX.Element {
       const authorMatch = comment.authorName.toLowerCase().includes(query);
       const articleMatch = comment.articleTitle.toLowerCase().includes(query);
       const bodyMatch = comment.body.toLowerCase().includes(query);
-      return authorMatch || articleMatch || bodyMatch;
+      const proposedMatch =
+        comment.pendingBody?.toLowerCase().includes(query) ?? false;
+      return authorMatch || articleMatch || bodyMatch || proposedMatch;
     });
   }, [comments, search]);
 
   const handleApproveConfirm = async () => {
-    if (!approveTargetId) return;
+    if (!approveTarget) return;
     setIsProcessing(true);
     try {
-      await approveComment(approveTargetId);
-      showToast('Comment approved', 'success');
-      setApproveTargetId(null);
+      await approveComment(approveTarget.id);
+      showToast(REQUEST_TYPE_META[approveTarget.requestType].approvedToast, 'success');
+      setApproveTarget(null);
     } catch (err) {
       showToast(err instanceof Error ? err.message : String(err), 'error');
     } finally {
@@ -57,12 +111,12 @@ function CommentModerationContent(): React.JSX.Element {
   };
 
   const handleRejectConfirm = async () => {
-    if (!rejectTargetId) return;
+    if (!rejectTarget) return;
     setIsProcessing(true);
     try {
-      await rejectComment(rejectTargetId);
-      showToast('Comment rejected', 'success');
-      setRejectTargetId(null);
+      await rejectComment(rejectTarget.id);
+      showToast(REQUEST_TYPE_META[rejectTarget.requestType].rejectedToast, 'success');
+      setRejectTarget(null);
     } catch (err) {
       showToast(err instanceof Error ? err.message : String(err), 'error');
     } finally {
@@ -88,9 +142,9 @@ function CommentModerationContent(): React.JSX.Element {
   const isListEmpty = comments.length === 0;
   const hasNoMatches = !isListEmpty && visibleComments.length === 0;
 
-  let emptyTitle = 'No comments pending approval.';
+  let emptyTitle = 'No comments or changes pending approval.';
   let emptyDescription =
-    'New comments will appear here when they need a moderation decision.';
+    'New comments, edits and deletion requests will appear here when they need a moderation decision.';
   if (hasNoMatches) {
     emptyTitle = 'No pending comments match your search.';
     emptyDescription = 'Try a different author, article, or comment text.';
@@ -103,7 +157,7 @@ function CommentModerationContent(): React.JSX.Element {
           Comment Moderation
         </h1>
         <p className="mt-1 text-sm text-brand-text-secondary">
-          Review and approve or reject comments awaiting moderation.
+          Review and approve or reject new comments, edits and deletion requests.
         </p>
       </div>
 
@@ -157,7 +211,14 @@ function CommentModerationContent(): React.JSX.Element {
 
         {!isListEmpty && !hasNoMatches && (
           <div className="flex flex-col gap-3 p-4" data-testid="pending-comments-list">
-            {visibleComments.map((comment) => (
+            {visibleComments.map((comment) => {
+              const meta = REQUEST_TYPE_META[comment.requestType];
+              // The API rejects self-moderation too; this just explains it up front.
+              const isOwnComment = comment.createdBy === user?.id;
+              const ownCommentTitle = isOwnComment
+                ? 'Another admin must moderate your own comment'
+                : undefined;
+              return (
               <div
                 key={comment.id}
                 className="flex flex-col gap-3 rounded border border-brand-border bg-brand-surface p-4"
@@ -174,65 +235,97 @@ function CommentModerationContent(): React.JSX.Element {
                       <span className="font-semibold text-brand-text-primary">
                         {comment.authorName}
                       </span>
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-xs font-medium ${meta.badgeClass}`}
+                        data-testid={`comment-request-type-${comment.id}`}
+                      >
+                        {meta.label}
+                      </span>
                       <span className="text-xs text-brand-text-secondary">
-                        Submitted: {formatDate(comment.createdAt)}
+                        Submitted: {formatDate(comment.requestType === 'New' ? comment.createdAt : comment.updatedAt)}
                       </span>
                     </div>
                     <p className="mt-0.5 truncate text-xs text-brand-text-secondary">
                       On: <span className="font-medium">{comment.articleTitle}</span>
                     </p>
-                    <p className="mt-2 whitespace-pre-wrap text-sm text-brand-text-primary">
-                      {comment.body}
-                    </p>
+                    {comment.requestType === 'Edit' ? (
+                      <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+                        <div className="rounded border border-brand-border bg-brand-bg/40 p-2">
+                          <p className="text-xs font-medium text-brand-text-secondary">Current</p>
+                          <p className="mt-1 whitespace-pre-wrap text-sm text-brand-text-primary">
+                            {comment.body}
+                          </p>
+                        </div>
+                        <div
+                          className="rounded border border-blue-200 bg-blue-50 p-2"
+                          data-testid={`comment-proposed-body-${comment.id}`}
+                        >
+                          <p className="text-xs font-medium text-blue-700">Proposed</p>
+                          <p className="mt-1 whitespace-pre-wrap text-sm text-brand-text-primary">
+                            {comment.pendingBody}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-brand-text-primary">
+                        {comment.body}
+                      </p>
+                    )}
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-2">
+                <div
+                  className="flex items-center justify-end gap-2"
+                  title={ownCommentTitle}
+                >
                   <button
                     type="button"
-                    onClick={() => setApproveTargetId(comment.id)}
+                    onClick={() => setApproveTarget(comment)}
+                    disabled={isOwnComment}
                     data-testid={`approve-comment-${comment.id}`}
-                    className="flex items-center gap-1.5 rounded bg-green-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-green-700"
+                    className="flex items-center gap-1.5 rounded bg-green-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-green-600"
                   >
                     <CheckCircleIcon className="h-3.5 w-3.5" />
                     Approve
                   </button>
                   <button
                     type="button"
-                    onClick={() => setRejectTargetId(comment.id)}
+                    onClick={() => setRejectTarget(comment)}
+                    disabled={isOwnComment}
                     data-testid={`reject-comment-${comment.id}`}
-                    className="flex items-center gap-1.5 rounded border border-brand-red px-3 py-1.5 text-xs font-bold text-brand-red transition-colors hover:bg-brand-red hover:text-white"
+                    className="flex items-center gap-1.5 rounded border border-brand-red px-3 py-1.5 text-xs font-bold text-brand-red transition-colors hover:bg-brand-red hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-brand-red"
                   >
                     <BanIcon className="h-3.5 w-3.5" />
                     Reject
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
 
       <ConfirmationModal
-        isOpen={approveTargetId !== null}
-        title="Approve this comment?"
-        message="Approving this comment will make it visible to all readers."
+        isOpen={approveTarget !== null}
+        title={REQUEST_TYPE_META[approveTarget?.requestType ?? 'New'].approveTitle}
+        message={REQUEST_TYPE_META[approveTarget?.requestType ?? 'New'].approveMessage}
         confirmText="Approve"
         cancelText="Cancel"
         isConfirming={isProcessing}
         onConfirm={handleApproveConfirm}
-        onCancel={() => setApproveTargetId(null)}
+        onCancel={() => setApproveTarget(null)}
       />
 
       <ConfirmationModal
-        isOpen={rejectTargetId !== null}
-        title="Reject this comment?"
-        message="Rejecting this comment will keep it hidden from other readers."
+        isOpen={rejectTarget !== null}
+        title={REQUEST_TYPE_META[rejectTarget?.requestType ?? 'New'].rejectTitle}
+        message={REQUEST_TYPE_META[rejectTarget?.requestType ?? 'New'].rejectMessage}
         confirmText="Reject"
         cancelText="Cancel"
         isConfirming={isProcessing}
         onConfirm={handleRejectConfirm}
-        onCancel={() => setRejectTargetId(null)}
+        onCancel={() => setRejectTarget(null)}
       />
 
       <Toast visible={toast.visible} message={toast.message} type={toast.type} />

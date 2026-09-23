@@ -73,13 +73,18 @@ await jest.unstable_mockModule('@repositories/commentRepository.js', () => ({
     create: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
     findByArticleId: jest.fn<() => Promise<unknown>>().mockResolvedValue([]),
     findById: jest.fn<() => Promise<unknown>>().mockResolvedValue(null),
-    update: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
-    remove: jest.fn<() => Promise<unknown>>().mockResolvedValue(undefined),
+    requestEdit: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
+    requestDeletion: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
     findPending: jest
       .fn<() => Promise<unknown>>()
       .mockResolvedValue({ comments: [], total: 0 }),
     approve: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
     reject: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
+    approveEdit: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
+    approveDeletion: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
+    discardPendingChange: jest
+      .fn<() => Promise<unknown>>()
+      .mockResolvedValue({}),
   },
 }));
 
@@ -105,11 +110,14 @@ const mockFindById = ArticleRepository.findById as jest.Mock<any>;
 const mockCreateComment = CommentRepository.create as jest.Mock<any>;
 const mockFindByArticleId = CommentRepository.findByArticleId as jest.Mock<any>;
 const mockFindCommentById = CommentRepository.findById as jest.Mock<any>;
-const mockUpdateComment = CommentRepository.update as jest.Mock<any>;
-const mockRemoveComment = CommentRepository.remove as jest.Mock<any>;
+const mockRequestEdit = CommentRepository.requestEdit as jest.Mock<any>;
+const mockRequestDeletion = CommentRepository.requestDeletion as jest.Mock<any>;
 const mockFindPendingComments = CommentRepository.findPending as jest.Mock<any>;
 const mockApproveComment = CommentRepository.approve as jest.Mock<any>;
 const mockRejectComment = CommentRepository.reject as jest.Mock<any>;
+const mockApproveEdit = CommentRepository.approveEdit as jest.Mock<any>;
+const mockDiscardPendingChange =
+  CommentRepository.discardPendingChange as jest.Mock<any>;
 const mockCreateNotification = NotificationRepository.create as jest.Mock<any>;
 
 const userHeaders = {
@@ -376,19 +384,49 @@ describe('Comments API Integration', () => {
       expect(response.status).toBe(403);
     });
 
-    it('should update the comment when requester is its owner', async () => {
+    it.each(['Pending', 'Rejected'])(
+      'should return 409 and not edit a %s comment',
+      async (status) => {
+        mockFindCommentById.mockResolvedValueOnce({
+          id: commentId,
+          articleId,
+          createdBy: 'user-123',
+          body: 'Original body',
+          status,
+          pendingChange: null,
+          pendingBody: null,
+        });
+
+        const response = await request(app)
+          .patch(`/api/v1/articles/${articleId}/comments/${commentId}`)
+          .set(userHeaders)
+          .send({ body: 'Updated body' });
+
+        expect(response.status).toBe(409);
+        expect(mockRequestEdit).not.toHaveBeenCalled();
+      }
+    );
+
+    it('should submit an edit request that keeps the original body live', async () => {
       const existingComment = {
         id: commentId,
         articleId,
         createdBy: 'user-123',
         body: 'Original body',
+        status: 'Approved',
+        pendingChange: null,
+        pendingBody: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      const updatedComment = { ...existingComment, body: 'Updated body' };
+      const requestedComment = {
+        ...existingComment,
+        pendingChange: 'Edit',
+        pendingBody: 'Updated body',
+      };
 
       mockFindCommentById.mockResolvedValueOnce(existingComment);
-      mockUpdateComment.mockResolvedValueOnce(updatedComment);
+      mockRequestEdit.mockResolvedValueOnce(requestedComment);
 
       const response = await request(app)
         .patch(`/api/v1/articles/${articleId}/comments/${commentId}`)
@@ -397,8 +435,11 @@ describe('Comments API Integration', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
-      expect(response.body.data.body).toBe('Updated body');
-      expect(mockUpdateComment).toHaveBeenCalledWith(commentId, 'Updated body');
+      expect(response.body.message).toBe('Comment edit submitted for approval');
+      expect(response.body.data.body).toBe('Original body');
+      expect(response.body.data.status).toBe('Approved');
+      expect(response.body.data.pendingBody).toBe('Updated body');
+      expect(mockRequestEdit).toHaveBeenCalledWith(commentId, 'Updated body');
     });
   });
 
@@ -439,17 +480,45 @@ describe('Comments API Integration', () => {
         .set(userHeaders);
 
       expect(response.status).toBe(403);
-      expect(mockRemoveComment).not.toHaveBeenCalled();
+      expect(mockRequestDeletion).not.toHaveBeenCalled();
     });
 
-    it('should delete the comment when requester is its owner', async () => {
-      mockFindCommentById.mockResolvedValueOnce({
+    it.each(['Pending', 'Rejected'])(
+      'should return 409 and not delete a %s comment',
+      async (status) => {
+        mockFindCommentById.mockResolvedValueOnce({
+          id: commentId,
+          articleId,
+          createdBy: 'user-123',
+          body: 'Original body',
+          status,
+          pendingChange: null,
+          pendingBody: null,
+        });
+
+        const response = await request(app)
+          .delete(`/api/v1/articles/${articleId}/comments/${commentId}`)
+          .set(userHeaders);
+
+        expect(response.status).toBe(409);
+        expect(mockRequestDeletion).not.toHaveBeenCalled();
+      }
+    );
+
+    it('should submit a deletion request instead of deleting an Approved comment', async () => {
+      const existingComment = {
         id: commentId,
         articleId,
         createdBy: 'user-123',
         body: 'Original body',
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        status: 'Approved',
+        pendingChange: null,
+        pendingBody: null,
+      };
+      mockFindCommentById.mockResolvedValueOnce(existingComment);
+      mockRequestDeletion.mockResolvedValueOnce({
+        ...existingComment,
+        pendingChange: 'Delete',
       });
 
       const response = await request(app)
@@ -457,12 +526,11 @@ describe('Comments API Integration', () => {
         .set(userHeaders);
 
       expect(response.status).toBe(200);
-      expect(response.body).toEqual({
-        success: true,
-        data: null,
-        message: 'Comment deleted successfully',
-      });
-      expect(mockRemoveComment).toHaveBeenCalledWith(commentId);
+      expect(response.body.message).toBe(
+        'Comment deletion submitted for approval'
+      );
+      expect(response.body.data.pendingChange).toBe('Delete');
+      expect(mockRequestDeletion).toHaveBeenCalledWith(commentId);
     });
   });
 
@@ -532,10 +600,12 @@ describe('Comments API Integration', () => {
       expect(response.status).toBe(403);
     });
 
-    it('should return 400 if comment is not Pending', async () => {
+    it('should return 400 if comment is not awaiting moderation', async () => {
       mockFindCommentById.mockResolvedValueOnce({
         id: commentId,
+        createdBy: 'user-123',
         status: 'Approved',
+        pendingChange: null,
       });
 
       const response = await request(app)
@@ -543,6 +613,53 @@ describe('Comments API Integration', () => {
         .set(adminHeaders);
 
       expect(response.status).toBe(400);
+    });
+
+    it('should return 403 when an Admin approves their own comment', async () => {
+      mockFindCommentById.mockResolvedValueOnce({
+        id: commentId,
+        createdBy: 'admin-1',
+        status: 'Pending',
+        pendingChange: null,
+      });
+
+      const response = await request(app)
+        .patch(`/api/v1/admin/comments/${commentId}/approve`)
+        .set(adminHeaders);
+
+      expect(response.status).toBe(403);
+      expect(mockApproveComment).not.toHaveBeenCalled();
+    });
+
+    it('should apply a pending edit when approved', async () => {
+      const requested = {
+        id: commentId,
+        articleId: 'article-123',
+        createdBy: 'user-123',
+        body: 'Original body',
+        status: 'Approved',
+        pendingChange: 'Edit',
+        pendingBody: 'Updated body',
+      };
+      mockFindCommentById.mockResolvedValueOnce(requested);
+      mockApproveEdit.mockResolvedValueOnce({
+        ...requested,
+        body: 'Updated body',
+        pendingChange: null,
+        pendingBody: null,
+      });
+
+      const response = await request(app)
+        .patch(`/api/v1/admin/comments/${commentId}/approve`)
+        .set(adminHeaders);
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.body).toBe('Updated body');
+      expect(mockApproveEdit).toHaveBeenCalledWith(
+        commentId,
+        'admin-1',
+        'Updated body'
+      );
     });
 
     it('should approve the comment and notify the comment author', async () => {
@@ -611,10 +728,12 @@ describe('Comments API Integration', () => {
       expect(response.status).toBe(403);
     });
 
-    it('should return 400 if comment is not Pending', async () => {
+    it('should return 400 if comment is not awaiting moderation', async () => {
       mockFindCommentById.mockResolvedValueOnce({
         id: commentId,
+        createdBy: 'user-123',
         status: 'Rejected',
+        pendingChange: null,
       });
 
       const response = await request(app)
@@ -622,6 +741,32 @@ describe('Comments API Integration', () => {
         .set(adminHeaders);
 
       expect(response.status).toBe(400);
+    });
+
+    it('should keep the comment Approved when a deletion request is rejected', async () => {
+      const requested = {
+        id: commentId,
+        articleId: 'article-123',
+        createdBy: 'user-123',
+        body: 'Original body',
+        status: 'Approved',
+        pendingChange: 'Delete',
+        pendingBody: null,
+      };
+      mockFindCommentById.mockResolvedValueOnce(requested);
+      mockDiscardPendingChange.mockResolvedValueOnce({
+        ...requested,
+        pendingChange: null,
+      });
+
+      const response = await request(app)
+        .patch(`/api/v1/admin/comments/${commentId}/reject`)
+        .set(adminHeaders);
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.status).toBe('Approved');
+      expect(mockDiscardPendingChange).toHaveBeenCalledWith(commentId);
+      expect(mockRejectComment).not.toHaveBeenCalled();
     });
 
     it('should reject the comment and notify the comment author', async () => {

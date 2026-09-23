@@ -21,13 +21,13 @@ import { requireRole } from '@/middleware/rbac.middleware.js';
 const router = Router();
 const { listPending, approve, reject } = commentController;
 
-// GET /api/v1/admin/comments/pending — List comments awaiting approval
+// GET /api/v1/admin/comments/pending — List new comments and edit/delete requests awaiting approval
 router.get('/pending', authenticate, requireRole('Admin'), listPending);
 
-// PATCH /api/v1/admin/comments/:commentId/approve — Approve a pending comment
+// PATCH /api/v1/admin/comments/:commentId/approve — Approve a new comment, edit or deletion (not your own)
 router.patch('/:commentId/approve', authenticate, requireRole('Admin'), approve);
 
-// PATCH /api/v1/admin/comments/:commentId/reject — Reject a pending comment
+// PATCH /api/v1/admin/comments/:commentId/reject — Reject a new comment, edit or deletion (not your own)
 router.patch('/:commentId/reject', authenticate, requireRole('Admin'), reject);
 
 export default router;

@@ -190,7 +190,7 @@ describe('CommentController.update', () => {
     expect(res.json).toHaveBeenCalledWith({
       success: true,
       data: updatedComment,
-      message: 'Comment updated successfully',
+      message: 'Comment edit submitted for approval',
     });
     expect(next).not.toHaveBeenCalled();
   });
@@ -230,9 +230,15 @@ describe('CommentController.remove', () => {
     jest.clearAllMocks();
   });
 
-  it('should call CommentService.deleteComment and return 200 with success response', async () => {
+  it('should call CommentService.deleteComment and return 200 with the pending deletion request', async () => {
+    const requestedComment = {
+      id: 'comment-123',
+      createdBy: 'user-123',
+      status: 'Approved',
+      pendingChange: 'Delete',
+    };
     (mockCommentService.deleteComment as jest.Mock<any>).mockResolvedValue(
-      undefined
+      requestedComment
     );
 
     await controller.remove(req as Request, res as Response, next);
@@ -244,8 +250,8 @@ describe('CommentController.remove', () => {
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({
       success: true,
-      data: null,
-      message: 'Comment deleted successfully',
+      data: requestedComment,
+      message: 'Comment deletion submitted for approval',
     });
     expect(next).not.toHaveBeenCalled();
   });
@@ -353,7 +359,7 @@ describe('CommentController.approve', () => {
   });
 
   it('should pass errors from CommentService to next', async () => {
-    const error = new AppError('Only Pending comments can be approved', 400);
+    const error = new AppError('Only comments awaiting moderation can be approved', 400);
     (mockCommentService.approveComment as jest.Mock<any>).mockRejectedValue(
       error
     );
@@ -404,7 +410,7 @@ describe('CommentController.reject', () => {
   });
 
   it('should pass errors from CommentService to next', async () => {
-    const error = new AppError('Only Pending comments can be rejected', 400);
+    const error = new AppError('Only comments awaiting moderation can be rejected', 400);
     (mockCommentService.rejectComment as jest.Mock<any>).mockRejectedValue(
       error
     );

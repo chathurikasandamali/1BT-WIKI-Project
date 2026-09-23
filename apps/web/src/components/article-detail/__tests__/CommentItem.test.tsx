@@ -24,6 +24,8 @@ function makeComment(
     status: 'Approved',
     reviewedBy: null,
     reviewedAt: null,
+    pendingChange: null,
+    pendingBody: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     authorName: 'Test User',
@@ -117,6 +119,102 @@ describe('CommentItem', () => {
       expect(screen.getByTestId('comment-status-badge')).toHaveTextContent(
         'Not approved'
       );
+    });
+  });
+
+  describe('locked comments', () => {
+    it.each([
+      [
+        'Pending',
+        { status: 'Pending' as const },
+        'Pending approval',
+        'Awaiting approval — cannot be edited or deleted',
+      ],
+      [
+        'Rejected',
+        { status: 'Rejected' as const },
+        'Not approved',
+        'Rejected comments cannot be edited or deleted',
+      ],
+      [
+        'Approved with a pending edit',
+        { pendingChange: 'Edit' as const, pendingBody: 'Proposed text' },
+        'Edit pending approval',
+        'Your edit is awaiting approval',
+      ],
+      [
+        'Approved with a pending deletion',
+        { pendingChange: 'Delete' as const },
+        'Deletion pending approval',
+        'Your deletion request is awaiting approval',
+      ],
+    ])(
+      'disables edit and delete for an own %s comment',
+      async (_label, overrides, badge, reason) => {
+        const onEdit = jest.fn();
+        const onDelete = jest.fn();
+        const user = userEvent.setup();
+
+        render(
+          <CommentItem
+            comment={makeComment({ createdBy: 'test-user-1', ...overrides })}
+            currentUserId="test-user-1"
+            onDelete={onDelete}
+            onEdit={onEdit}
+          />
+        );
+
+        const editBtn = screen.getByTestId('edit-comment-btn');
+        const deleteBtn = screen.getByTestId('delete-comment-btn');
+        expect(editBtn).toBeDisabled();
+        expect(deleteBtn).toBeDisabled();
+        expect(screen.getByTestId('comment-actions')).toHaveAttribute(
+          'title',
+          reason
+        );
+        expect(screen.getByTestId('comment-status-badge')).toHaveTextContent(
+          badge
+        );
+
+        await user.click(editBtn);
+        expect(
+          screen.queryByTestId('edit-comment-input')
+        ).not.toBeInTheDocument();
+      }
+    );
+
+    it('shows the proposed edit to its author below the live body', () => {
+      render(
+        <CommentItem
+          comment={makeComment({
+            createdBy: 'test-user-1',
+            pendingChange: 'Edit',
+            pendingBody: 'Proposed text',
+          })}
+          currentUserId="test-user-1"
+          onDelete={jest.fn()}
+          onEdit={jest.fn()}
+        />
+      );
+
+      expect(screen.getByText('Great article!')).toBeInTheDocument();
+      expect(screen.getByTestId('comment-proposed-edit')).toHaveTextContent(
+        'Proposed text'
+      );
+    });
+
+    it('enables edit and delete for an own Approved comment with no pending change', () => {
+      render(
+        <CommentItem
+          comment={makeComment({ createdBy: 'test-user-1' })}
+          currentUserId="test-user-1"
+          onDelete={jest.fn()}
+          onEdit={jest.fn()}
+        />
+      );
+
+      expect(screen.getByTestId('edit-comment-btn')).toBeEnabled();
+      expect(screen.getByTestId('delete-comment-btn')).toBeEnabled();
     });
   });
 

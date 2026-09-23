@@ -8,7 +8,10 @@ import type {
   CommentWithAuthor,
   PendingCommentListItem,
 } from '@models/comment.types.js';
-import { CommentStatusValue } from '@models/comment.types.js';
+import {
+  CommentPendingChangeValue,
+  CommentStatusValue,
+} from '@models/comment.types.js';
 
 const validateBody = (body: string | undefined): string => {
   if (!body || body.trim() === '') {
@@ -65,6 +68,32 @@ const listComments = async (
   return CommentRepository.findByArticleId(articleId, requesterId);
 };
 
+/**
+ * Only an Approved comment with no outstanding request can be changed by its
+ * author. Pending/Rejected comments and those already awaiting a moderated
+ * edit/deletion are locked so the moderator always decides on a stable version.
+ */
+const assertCommentIsChangeable = (comment: Comment): void => {
+  if (comment.status === CommentStatusValue.Pending) {
+    throw new AppError('This comment is awaiting approval and cannot be changed', 409);
+  }
+
+  if (comment.status === CommentStatusValue.Rejected) {
+    throw new AppError('A rejected comment cannot be changed', 409);
+  }
+
+  if (comment.pendingChange !== null) {
+    throw new AppError(
+      'This comment already has a change awaiting approval',
+      409
+    );
+  }
+};
+
+/**
+ * Submits an edit to an Approved comment for moderation. The original body
+ * stays publicly visible until a moderator approves the new body.
+ */
 const updateComment = async (
   commentId: string,
   userId: string,
@@ -82,13 +111,23 @@ const updateComment = async (
     throw new AppError('Only the comment owner can edit this comment', 403);
   }
 
-  return CommentRepository.update(commentId, body);
+  assertCommentIsChangeable(comment);
+
+  if (body === comment.body) {
+    throw new AppError('Comment body is unchanged', 400);
+  }
+
+  return CommentRepository.requestEdit(commentId, body);
 };
 
+/**
+ * Submits a deletion of an Approved comment for moderation. The comment stays
+ * publicly visible until a moderator approves the deletion.
+ */
 const deleteComment = async (
   commentId: string,
   userId: string
-): Promise<void> => {
+): Promise<Comment> => {
   const comment = await CommentRepository.findById(commentId);
 
   if (!comment) {
@@ -99,7 +138,51 @@ const deleteComment = async (
     throw new AppError('Only the comment owner can delete this comment', 403);
   }
 
-  await CommentRepository.remove(commentId);
+  assertCommentIsChangeable(comment);
+
+  return CommentRepository.requestDeletion(commentId);
+};
+
+const isAwaitingModeration = (comment: Comment): boolean =>
+  comment.status === CommentStatusValue.Pending ||
+  (comment.status === CommentStatusValue.Approved && comment.pendingChange !== null);
+
+/**
+ * Loads a comment for a moderation decision, enforcing that it is actually in
+ * the queue and that moderators never decide on their own comments.
+ */
+const findModeratableComment = async (
+  commentId: string,
+  reviewerId: string,
+  action: 'approved' | 'rejected'
+): Promise<Comment> => {
+  const comment = await CommentRepository.findById(commentId);
+
+  if (!comment) {
+    throw new AppError('Comment not found', 404);
+  }
+
+  if (!isAwaitingModeration(comment)) {
+    throw new AppError(
+      `Only comments awaiting moderation can be ${action}`,
+      400
+    );
+  }
+
+  if (comment.createdBy === reviewerId) {
+    throw new AppError('You cannot moderate your own comment', 403);
+  }
+
+  return comment;
+};
+
+const notifyCommentAuthor = (
+  builder: NotificationBuilder,
+  context: string
+): void => {
+  NotificationService.send(builder.build()).catch((error: unknown) => {
+    console.error(`Failed to send ${context} notification:`, error);
+  });
 };
 
 const listPendingComments = async (
@@ -115,14 +198,42 @@ const approveComment = async (
   commentId: string,
   reviewerId: string
 ): Promise<Comment> => {
-  const comment = await CommentRepository.findById(commentId);
+  const comment = await findModeratableComment(commentId, reviewerId, 'approved');
 
-  if (!comment) {
-    throw new AppError('Comment not found', 404);
+  if (comment.pendingChange === CommentPendingChangeValue.Edit) {
+    if (comment.pendingBody === null) {
+      throw new AppError('Pending edit has no body to apply', 409);
+    }
+
+    const edited = await CommentRepository.approveEdit(
+      commentId,
+      reviewerId,
+      comment.pendingBody
+    );
+
+    notifyCommentAuthor(
+      new NotificationBuilder()
+        .forUser(edited.createdBy)
+        .regardingComment(edited.id)
+        .withSuccess('Comment Edit Approved', 'Your comment edit has been approved and is now visible.'),
+      'comment-edit-approved'
+    );
+
+    return edited;
   }
 
-  if (comment.status !== CommentStatusValue.Pending) {
-    throw new AppError('Only Pending comments can be approved', 400);
+  if (comment.pendingChange === CommentPendingChangeValue.Delete) {
+    const deleted = await CommentRepository.approveDeletion(commentId, reviewerId);
+
+    notifyCommentAuthor(
+      new NotificationBuilder()
+        .forUser(deleted.createdBy)
+        .regardingComment(deleted.id)
+        .withSuccess('Comment Deletion Approved', 'Your comment has been deleted.'),
+      'comment-deletion-approved'
+    );
+
+    return deleted;
   }
 
   const approved = await CommentRepository.approve(commentId, reviewerId);
@@ -158,14 +269,27 @@ const rejectComment = async (
   commentId: string,
   reviewerId: string
 ): Promise<Comment> => {
-  const comment = await CommentRepository.findById(commentId);
+  const comment = await findModeratableComment(commentId, reviewerId, 'rejected');
 
-  if (!comment) {
-    throw new AppError('Comment not found', 404);
-  }
+  // An Approved comment in the queue is always an edit/delete request.
+  if (comment.status === CommentStatusValue.Approved) {
+    const isEdit = comment.pendingChange === CommentPendingChangeValue.Edit;
+    const restored = await CommentRepository.discardPendingChange(commentId);
 
-  if (comment.status !== CommentStatusValue.Pending) {
-    throw new AppError('Only Pending comments can be rejected', 400);
+    notifyCommentAuthor(
+      new NotificationBuilder()
+        .forUser(restored.createdBy)
+        .regardingComment(restored.id)
+        .withFailure(
+          isEdit ? 'Comment Edit Not Approved' : 'Comment Deletion Not Approved',
+          isEdit
+            ? 'Your comment edit was not approved. The original comment remains visible.'
+            : 'Your request to delete this comment was not approved. The comment remains visible.'
+        ),
+      isEdit ? 'comment-edit-rejected' : 'comment-deletion-rejected'
+    );
+
+    return restored;
   }
 
   const rejected = await CommentRepository.reject(commentId, reviewerId);

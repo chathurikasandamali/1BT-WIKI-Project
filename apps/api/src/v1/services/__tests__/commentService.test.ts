@@ -12,11 +12,14 @@ jest.unstable_mockModule('@repositories/commentRepository.js', () => ({
     create: jest.fn(),
     findByArticleId: jest.fn(),
     findById: jest.fn(),
-    update: jest.fn(),
-    remove: jest.fn(),
+    requestEdit: jest.fn(),
+    requestDeletion: jest.fn(),
     findPending: jest.fn(),
     approve: jest.fn(),
     reject: jest.fn(),
+    approveEdit: jest.fn(),
+    approveDeletion: jest.fn(),
+    discardPendingChange: jest.fn(),
   },
 }));
 
@@ -203,6 +206,21 @@ describe('CommentService.listComments', () => {
   });
 });
 
+const buildComment = (overrides: Record<string, unknown> = {}) => ({
+  id: 'comment-123',
+  articleId: 'article-123',
+  createdBy: 'user-123',
+  body: 'Original body',
+  status: 'Approved',
+  reviewedBy: 'admin-1',
+  reviewedAt: new Date(),
+  pendingChange: null,
+  pendingBody: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  ...overrides,
+});
+
 describe('CommentService.updateComment', () => {
   const commentId = 'comment-123';
   const userId = 'user-123';
@@ -237,17 +255,9 @@ describe('CommentService.updateComment', () => {
   });
 
   it('should throw AppError if requester is not the comment owner', async () => {
-    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue({
-      id: commentId,
-      articleId: 'article-123',
-      createdBy: 'other-user',
-      body: 'Original body',
-      status: 'Approved',
-      reviewedBy: null,
-      reviewedAt: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(
+      buildComment({ createdBy: 'other-user' })
+    );
 
     await expect(
       CommentService.updateComment(commentId, userId, 'Updated body')
@@ -256,31 +266,70 @@ describe('CommentService.updateComment', () => {
     );
   });
 
-  it('should update the comment and reset it to Pending when requester is its owner', async () => {
-    const existingComment = {
-      id: commentId,
-      articleId: 'article-123',
-      createdBy: userId,
-      body: 'Original body',
-      status: 'Approved',
-      reviewedBy: 'admin-1',
-      reviewedAt: new Date(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    const updatedComment = {
+  it('should block editing a Pending comment', async () => {
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(
+      buildComment({ status: 'Pending', reviewedBy: null, reviewedAt: null })
+    );
+
+    await expect(
+      CommentService.updateComment(commentId, userId, 'Updated body')
+    ).rejects.toThrow(
+      new AppError('This comment is awaiting approval and cannot be changed', 409)
+    );
+    expect(CommentRepository.requestEdit).not.toHaveBeenCalled();
+  });
+
+  it('should block editing a Rejected comment', async () => {
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(
+      buildComment({ status: 'Rejected' })
+    );
+
+    await expect(
+      CommentService.updateComment(commentId, userId, 'Updated body')
+    ).rejects.toThrow(new AppError('A rejected comment cannot be changed', 409));
+    expect(CommentRepository.requestEdit).not.toHaveBeenCalled();
+  });
+
+  it.each(['Edit', 'Delete'])(
+    'should block editing an Approved comment that already has a pending %s request',
+    async (pendingChange) => {
+      (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(
+        buildComment({ pendingChange })
+      );
+
+      await expect(
+        CommentService.updateComment(commentId, userId, 'Updated body')
+      ).rejects.toThrow(
+        new AppError('This comment already has a change awaiting approval', 409)
+      );
+      expect(CommentRepository.requestEdit).not.toHaveBeenCalled();
+    }
+  );
+
+  it('should reject an edit that does not change the body', async () => {
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(
+      buildComment()
+    );
+
+    await expect(
+      CommentService.updateComment(commentId, userId, '  Original body  ')
+    ).rejects.toThrow(new AppError('Comment body is unchanged', 400));
+    expect(CommentRepository.requestEdit).not.toHaveBeenCalled();
+  });
+
+  it('should submit an edit request for an Approved comment, keeping it Approved', async () => {
+    const existingComment = buildComment();
+    const requestedComment = {
       ...existingComment,
-      body: 'Updated body',
-      status: 'Pending',
-      reviewedBy: null,
-      reviewedAt: null,
+      pendingChange: 'Edit',
+      pendingBody: 'Updated body',
     };
 
     (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(
       existingComment
     );
-    (CommentRepository.update as jest.Mock<any>).mockResolvedValue(
-      updatedComment
+    (CommentRepository.requestEdit as jest.Mock<any>).mockResolvedValue(
+      requestedComment
     );
 
     const result = await CommentService.updateComment(
@@ -289,11 +338,11 @@ describe('CommentService.updateComment', () => {
       '  Updated body  '
     );
 
-    expect(CommentRepository.update).toHaveBeenCalledWith(
+    expect(CommentRepository.requestEdit).toHaveBeenCalledWith(
       commentId,
       'Updated body'
     );
-    expect(result).toEqual(updatedComment);
+    expect(result).toEqual(requestedComment);
   });
 });
 
@@ -314,17 +363,9 @@ describe('CommentService.deleteComment', () => {
   });
 
   it('should throw AppError if requester is not the comment owner', async () => {
-    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue({
-      id: commentId,
-      articleId: 'article-123',
-      createdBy: 'other-user',
-      body: 'Original body',
-      status: 'Approved',
-      reviewedBy: null,
-      reviewedAt: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(
+      buildComment({ createdBy: 'other-user' })
+    );
 
     await expect(
       CommentService.deleteComment(commentId, userId)
@@ -332,26 +373,59 @@ describe('CommentService.deleteComment', () => {
       new AppError('Only the comment owner can delete this comment', 403)
     );
 
-    expect(CommentRepository.remove).not.toHaveBeenCalled();
+    expect(CommentRepository.requestDeletion).not.toHaveBeenCalled();
   });
 
-  it('should delete the comment when requester is its owner', async () => {
-    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue({
-      id: commentId,
-      articleId: 'article-123',
-      createdBy: userId,
-      body: 'Original body',
-      status: 'Approved',
-      reviewedBy: null,
-      reviewedAt: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-    (CommentRepository.remove as jest.Mock<any>).mockResolvedValue(undefined);
+  it('should block deleting a Pending comment', async () => {
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(
+      buildComment({ status: 'Pending', reviewedBy: null, reviewedAt: null })
+    );
 
-    await CommentService.deleteComment(commentId, userId);
+    await expect(
+      CommentService.deleteComment(commentId, userId)
+    ).rejects.toThrow(
+      new AppError('This comment is awaiting approval and cannot be changed', 409)
+    );
+    expect(CommentRepository.requestDeletion).not.toHaveBeenCalled();
+  });
 
-    expect(CommentRepository.remove).toHaveBeenCalledWith(commentId);
+  it('should block deleting a Rejected comment', async () => {
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(
+      buildComment({ status: 'Rejected' })
+    );
+
+    await expect(
+      CommentService.deleteComment(commentId, userId)
+    ).rejects.toThrow(new AppError('A rejected comment cannot be changed', 409));
+    expect(CommentRepository.requestDeletion).not.toHaveBeenCalled();
+  });
+
+  it('should block deleting an Approved comment that already has a pending request', async () => {
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(
+      buildComment({ pendingChange: 'Delete' })
+    );
+
+    await expect(
+      CommentService.deleteComment(commentId, userId)
+    ).rejects.toThrow(
+      new AppError('This comment already has a change awaiting approval', 409)
+    );
+    expect(CommentRepository.requestDeletion).not.toHaveBeenCalled();
+  });
+
+  it('should submit a deletion request for an Approved comment instead of deleting it', async () => {
+    const requestedComment = buildComment({ pendingChange: 'Delete' });
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(
+      buildComment()
+    );
+    (CommentRepository.requestDeletion as jest.Mock<any>).mockResolvedValue(
+      requestedComment
+    );
+
+    const result = await CommentService.deleteComment(commentId, userId);
+
+    expect(CommentRepository.requestDeletion).toHaveBeenCalledWith(commentId);
+    expect(result).toEqual(requestedComment);
   });
 });
 
@@ -391,24 +465,40 @@ describe('CommentService.approveComment', () => {
     ).rejects.toThrow(new AppError('Comment not found', 404));
   });
 
-  it('should throw AppError if comment is not Pending', async () => {
-    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue({
-      id: commentId,
-      status: 'Approved',
-    });
+  it('should throw AppError if comment is not awaiting moderation', async () => {
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(
+      buildComment({ createdBy: 'comment-author' })
+    );
 
     await expect(
       CommentService.approveComment(commentId, reviewerId)
-    ).rejects.toThrow(new AppError('Only Pending comments can be approved', 400));
+    ).rejects.toThrow(
+      new AppError('Only comments awaiting moderation can be approved', 400)
+    );
+  });
+
+  it.each([
+    ['a new comment', { status: 'Pending' }],
+    ['an edit request', { pendingChange: 'Edit', pendingBody: 'New body' }],
+    ['a deletion request', { pendingChange: 'Delete' }],
+  ])('should block an admin from approving their own %s', async (_label, overrides) => {
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(
+      buildComment({ createdBy: reviewerId, ...overrides })
+    );
+
+    await expect(
+      CommentService.approveComment(commentId, reviewerId)
+    ).rejects.toThrow(new AppError('You cannot moderate your own comment', 403));
+    expect(CommentRepository.approve).not.toHaveBeenCalled();
+    expect(CommentRepository.approveEdit).not.toHaveBeenCalled();
+    expect(CommentRepository.approveDeletion).not.toHaveBeenCalled();
   });
 
   it('should approve the comment and notify the comment author and article author', async () => {
-    const pendingComment = {
-      id: commentId,
-      articleId: 'article-123',
+    const pendingComment = buildComment({
       createdBy: 'comment-author',
       status: 'Pending',
-    };
+    });
     const approvedComment = {
       ...pendingComment,
       status: 'Approved',
@@ -453,12 +543,10 @@ describe('CommentService.approveComment', () => {
   });
 
   it('should not notify the article author when they are also the comment author', async () => {
-    const pendingComment = {
-      id: commentId,
-      articleId: 'article-123',
+    const pendingComment = buildComment({
       createdBy: 'same-user',
       status: 'Pending',
-    };
+    });
     const approvedComment = { ...pendingComment, status: 'Approved' };
     const article = {
       id: 'article-123',
@@ -477,6 +565,61 @@ describe('CommentService.approveComment', () => {
     await CommentService.approveComment(commentId, reviewerId);
 
     expect(NotificationService.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('should apply a pending edit and notify only the comment author', async () => {
+    const requested = buildComment({
+      createdBy: 'comment-author',
+      pendingChange: 'Edit',
+      pendingBody: 'New body',
+    });
+    const edited = {
+      ...requested,
+      body: 'New body',
+      pendingChange: null,
+      pendingBody: null,
+    };
+
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(requested);
+    (CommentRepository.approveEdit as jest.Mock<any>).mockResolvedValue(edited);
+
+    const result = await CommentService.approveComment(commentId, reviewerId);
+
+    expect(CommentRepository.approveEdit).toHaveBeenCalledWith(
+      commentId,
+      reviewerId,
+      'New body'
+    );
+    expect(CommentRepository.approve).not.toHaveBeenCalled();
+    expect(NotificationService.send).toHaveBeenCalledTimes(1);
+    expect(NotificationService.send).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientId: 'comment-author' })
+    );
+    expect(result).toEqual(edited);
+  });
+
+  it('should delete the comment when a pending deletion is approved', async () => {
+    const requested = buildComment({
+      createdBy: 'comment-author',
+      pendingChange: 'Delete',
+    });
+    const deleted = { ...requested, pendingChange: null };
+
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(requested);
+    (CommentRepository.approveDeletion as jest.Mock<any>).mockResolvedValue(
+      deleted
+    );
+
+    const result = await CommentService.approveComment(commentId, reviewerId);
+
+    expect(CommentRepository.approveDeletion).toHaveBeenCalledWith(
+      commentId,
+      reviewerId
+    );
+    expect(NotificationService.send).toHaveBeenCalledWith(
+      expect.objectContaining({ recipientId: 'comment-author' })
+    );
+    expect(result).toEqual(deleted);
   });
 });
 
@@ -497,24 +640,34 @@ describe('CommentService.rejectComment', () => {
     ).rejects.toThrow(new AppError('Comment not found', 404));
   });
 
-  it('should throw AppError if comment is not Pending', async () => {
-    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue({
-      id: commentId,
-      status: 'Rejected',
-    });
+  it('should throw AppError if comment is not awaiting moderation', async () => {
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(
+      buildComment({ createdBy: 'comment-author', status: 'Rejected' })
+    );
 
     await expect(
       CommentService.rejectComment(commentId, reviewerId)
-    ).rejects.toThrow(new AppError('Only Pending comments can be rejected', 400));
+    ).rejects.toThrow(
+      new AppError('Only comments awaiting moderation can be rejected', 400)
+    );
+  });
+
+  it('should block an admin from rejecting their own comment', async () => {
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(
+      buildComment({ createdBy: reviewerId, status: 'Pending' })
+    );
+
+    await expect(
+      CommentService.rejectComment(commentId, reviewerId)
+    ).rejects.toThrow(new AppError('You cannot moderate your own comment', 403));
+    expect(CommentRepository.reject).not.toHaveBeenCalled();
   });
 
   it('should reject the comment and notify the comment author', async () => {
-    const pendingComment = {
-      id: commentId,
-      articleId: 'article-123',
+    const pendingComment = buildComment({
       createdBy: 'comment-author',
       status: 'Pending',
-    };
+    });
     const rejectedComment = {
       ...pendingComment,
       status: 'Rejected',
@@ -544,4 +697,34 @@ describe('CommentService.rejectComment', () => {
     );
     expect(result).toEqual(rejectedComment);
   });
+
+  it.each(['Edit', 'Delete'])(
+    'should discard a pending %s request and keep the comment Approved',
+    async (pendingChange) => {
+      const requested = buildComment({
+        createdBy: 'comment-author',
+        pendingChange,
+        pendingBody: pendingChange === 'Edit' ? 'New body' : null,
+      });
+      const restored = { ...requested, pendingChange: null, pendingBody: null };
+
+      (CommentRepository.findById as jest.Mock<any>).mockResolvedValue(
+        requested
+      );
+      (CommentRepository.discardPendingChange as jest.Mock<any>).mockResolvedValue(
+        restored
+      );
+
+      const result = await CommentService.rejectComment(commentId, reviewerId);
+
+      expect(CommentRepository.discardPendingChange).toHaveBeenCalledWith(
+        commentId
+      );
+      expect(CommentRepository.reject).not.toHaveBeenCalled();
+      expect(NotificationService.send).toHaveBeenCalledWith(
+        expect.objectContaining({ recipientId: 'comment-author' })
+      );
+      expect(result).toEqual(restored);
+    }
+  );
 });

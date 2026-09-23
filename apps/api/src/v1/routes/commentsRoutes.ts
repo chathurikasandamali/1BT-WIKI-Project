@@ -11,10 +11,10 @@ router.post('/', authenticate, create);
 // GET /api/v1/articles/:id/comments — List comments on a published article (or, for its own author, a non-Published article)
 router.get('/', authenticate, list);
 
-// PATCH /api/v1/articles/:id/comments/:commentId — Edit own comment
+// PATCH /api/v1/articles/:id/comments/:commentId — Request an edit to own Approved comment (moderated)
 router.patch('/:commentId', authenticate, update);
 
-// DELETE /api/v1/articles/:id/comments/:commentId — Delete own comment
+// DELETE /api/v1/articles/:id/comments/:commentId — Request deletion of own Approved comment (moderated)
 router.delete('/:commentId', authenticate, remove);
 
 export default router;

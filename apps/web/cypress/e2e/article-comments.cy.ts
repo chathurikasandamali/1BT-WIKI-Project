@@ -9,6 +9,8 @@ function makeComment(overrides: Record<string, unknown> = {}) {
     status: 'Approved',
     reviewedBy: null,
     reviewedAt: null,
+    pendingChange: null,
+    pendingBody: null,
     authorName: 'Other User',
     authorImage: null,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -93,6 +95,8 @@ describe('Article comments', () => {
           status: 'Pending',
           reviewedBy: null,
           reviewedAt: null,
+          pendingChange: null,
+          pendingBody: null,
           createdAt: '2026-01-10T00:00:00.000Z',
           updatedAt: '2026-01-10T00:00:00.000Z',
         },
@@ -128,9 +132,12 @@ describe('Article comments', () => {
       'contain.text',
       'Pending approval'
     );
+    // A Pending comment is locked until it has been moderated.
+    cy.get('[data-testid="edit-comment-btn"]').should('be.disabled');
+    cy.get('[data-testid="delete-comment-btn"]').should('be.disabled');
   });
 
-  it('edits an own comment and shows the updated body', () => {
+  it('submits an edit for approval, keeping the original body live', () => {
     stubAuthSession('User');
 
     cy.intercept('GET', '**/api/v1/articles/a1/comments', {
@@ -156,10 +163,12 @@ describe('Article comments', () => {
           id: 'mine',
           articleId: 'a1',
           createdBy: 'test-user-1',
-          body: 'Updated body',
-          status: 'Pending',
+          body: 'Old body',
+          status: 'Approved',
           reviewedBy: null,
           reviewedAt: null,
+          pendingChange: 'Edit',
+          pendingBody: 'Updated body',
           createdAt: '2026-01-01T00:00:00.000Z',
           updatedAt: '2026-01-02T00:00:00.000Z',
         },
@@ -175,8 +184,18 @@ describe('Article comments', () => {
     cy.get('[data-testid="save-edit-comment-btn"]').click();
 
     cy.wait('@editComment');
-    cy.contains('Updated body').should('be.visible');
     cy.get('[data-testid="edit-comment-input"]').should('not.exist');
+    cy.contains('Old body').should('be.visible');
+    cy.get('[data-testid="comment-proposed-edit"]').should(
+      'contain.text',
+      'Updated body'
+    );
+    cy.get('[data-testid="comment-status-badge"]').should(
+      'contain.text',
+      'Edit pending approval'
+    );
+    cy.get('[data-testid="edit-comment-btn"]').should('be.disabled');
+    cy.get('[data-testid="delete-comment-btn"]').should('be.disabled');
   });
 
   it('keeps the edit form open and shows an error when editing fails', () => {
@@ -224,7 +243,7 @@ describe('Article comments', () => {
     );
   });
 
-  it('deletes an own comment and removes it from the list', () => {
+  it('submits a deletion for approval and keeps the comment visible', () => {
     stubAuthSession('User');
 
     cy.intercept('GET', '**/api/v1/articles/a1/comments', {
@@ -244,7 +263,15 @@ describe('Article comments', () => {
 
     cy.intercept('DELETE', '**/api/v1/articles/a1/comments/mine', {
       statusCode: 200,
-      body: { success: true, data: null },
+      body: {
+        success: true,
+        data: makeComment({
+          id: 'mine',
+          createdBy: 'test-user-1',
+          body: 'Delete me',
+          pendingChange: 'Delete',
+        }),
+      },
     }).as('deleteComment');
 
     cy.visitPage('/articles/a1');
@@ -255,7 +282,12 @@ describe('Article comments', () => {
     cy.contains('button', 'Delete').click();
 
     cy.wait('@deleteComment');
-    cy.get('[data-testid="comments-empty"]').should('be.visible');
+    cy.contains('Delete me').should('be.visible');
+    cy.get('[data-testid="comment-status-badge"]').should(
+      'contain.text',
+      'Deletion pending approval'
+    );
+    cy.get('[data-testid="delete-comment-btn"]').should('be.disabled');
   });
 
   it('keeps the comment and shows an error toast when deleting fails', () => {
