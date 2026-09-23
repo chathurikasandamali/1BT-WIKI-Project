@@ -186,6 +186,29 @@ describe('Edit Article Page', () => {
     expect(screen.queryByDisplayValue('Article A Title')).not.toBeInTheDocument();
   }, 10000);
 
+  test.each(['Pending', 'Approved', 'Published'])(
+    'Locked-status redirect: %s article cannot be opened in the editor',
+    async (status) => {
+      (clientApi.apiFetch as jest.Mock).mockResolvedValue({
+        data: { ...mockArticleA, status },
+      });
+
+      render(<EditArticlePage />);
+
+      expect(screen.getByTestId('page-loader')).toBeInTheDocument();
+
+      await waitFor(
+        () => {
+          expect(mockRouterPush).toHaveBeenCalledWith('/my-articles');
+        },
+        { timeout: 4000 }
+      );
+
+      expect(screen.queryByDisplayValue('Article A Title')).not.toBeInTheDocument();
+    },
+    10000
+  );
+
   test('Sidebar placeholders are absent', () => {
     render(
       <DraftManagerSidebar isOpen={true} toggleSidebar={jest.fn()} />
