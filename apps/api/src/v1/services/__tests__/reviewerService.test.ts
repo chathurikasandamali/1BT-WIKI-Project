@@ -61,6 +61,9 @@ const makeMockReviewRepo = (): jest.Mocked<
 
 const makeMockUserRepo = () => ({
   findById: jest.fn<() => Promise<{ name?: string; email?: string } | null>>(),
+  findManyByIds: jest
+    .fn<() => Promise<{ id: string; name?: string; email?: string }[]>>()
+    .mockResolvedValue([]),
   findActiveByRole: jest.fn<() => Promise<{ id: string }[]>>().mockResolvedValue([]),
 });
 
@@ -106,13 +109,15 @@ describe('ReviewerService.listPending', () => {
     ];
 
     mockArticleRepo.findByStatus.mockResolvedValue({ articles: mockArticles, total: 1 } as never);
-    mockUserRepo.findById.mockResolvedValue({ name: 'Jane Author', email: 'jane@example.com' });
+    mockUserRepo.findManyByIds.mockResolvedValue([
+      { id: 'user-1', name: 'Jane Author', email: 'jane@example.com' },
+    ]);
 
     const result = await service.listPending(2, 10);
 
     expect(mockArticleRepo.findByStatus).toHaveBeenCalledWith('Pending', 2, 10);
     expect(mockArticleRepo.findByStatus).toHaveBeenCalledTimes(1);
-    expect(mockUserRepo.findById).toHaveBeenCalledWith('user-1');
+    expect(mockUserRepo.findManyByIds).toHaveBeenCalledWith(['user-1']);
     expect(result).toEqual({
       articles: [
         {
@@ -139,7 +144,7 @@ describe('ReviewerService.listPending', () => {
     ];
 
     mockArticleRepo.findByStatus.mockResolvedValue({ articles: mockArticles, total: 1 } as never);
-    mockUserRepo.findById.mockResolvedValue(null);
+    mockUserRepo.findManyByIds.mockResolvedValue([]);
 
     const result = await service.listPending();
 

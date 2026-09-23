@@ -473,6 +473,16 @@ describe('Article lifecycle', () => {
 
       // 35. Durable post-approval proof
       cy.location('pathname').should('eq', '/reviewer/approvals');
+
+      // Wait for this page's own data fetch before asserting on its DOM —
+      // matches every other UI assertion in this file, which follows a
+      // cy.wait() for the request that gates that page's render. Without
+      // this, the check below only has Cypress's default 4s timeout to
+      // cover the full router.push -> RoleGuard -> data fetch chain, which
+      // is tight in CI once the dashboard's notification/Pusher provider
+      // adds its own async work to every route mount.
+      cy.wait('@getPendingArticles', { timeout: DEFAULT_TIMEOUT });
+
       cy.get('[data-testid="reviewer-approvals-page"]').should('be.visible');
 
       // Wait for the UI to update and remove the approved article card

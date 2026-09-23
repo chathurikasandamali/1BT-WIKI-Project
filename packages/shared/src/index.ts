@@ -9,9 +9,11 @@ export type UserRole = (typeof UserRoleValue)[keyof typeof UserRoleValue];
 
 /** Runtime object matching the Prisma TechTalkStatus enum values. */
 export const TechTalkStatus = {
+  all: 'all',
   draft: 'draft',
   published: 'published',
   unpublished: 'unpublished',
+  deleted: 'deleted',
 } as const;
 
 /** TypeScript type derived from the TechTalkStatus const. */

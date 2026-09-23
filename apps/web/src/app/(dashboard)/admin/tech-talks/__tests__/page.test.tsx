@@ -249,7 +249,7 @@ describe('AdminTechTalksPage', () => {
     const select = screen.getByTestId('techtalk-status-filter') as HTMLSelectElement;
     expect(select.options.length).toBe(4);
     expect(select.options[0]!.text).toBe('All Statuses');
-    expect(select.options[0]!.value).toBe('All');
+    expect(select.options[0]!.value).toBe(TechTalkStatus.all);
     expect(select.options[1]!.text).toBe('Draft');
     expect(select.options[1]!.value).toBe('draft');
     expect(select.options[2]!.text).toBe('Published');
@@ -303,7 +303,7 @@ describe('AdminTechTalksPage', () => {
     expect(screen.getByTestId('published-techtalks-stat')).toHaveTextContent('1');
     expect(screen.getByTestId('unpublished-techtalks-stat')).toHaveTextContent('1');
 
-    fireEvent.change(select, { target: { value: 'All' } });
+    fireEvent.change(select, { target: { value: TechTalkStatus.all } });
 
     // when reset, status must be omitted / undefined so all entries are returned
     await waitFor(() =>
