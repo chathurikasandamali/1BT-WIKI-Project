@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
     createTechTalk,
     updateTechTalk,
@@ -109,9 +110,11 @@ export function TechTalkForm({
     const slidesInputRef = useRef<HTMLInputElement>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [fieldErrors, setFieldErrors] = useState<TechTalkFormErrors>({});
-    const { toast, showToast } = useToast();
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
     const [isPublishing, setIsPublishing] = useState(false);
+
+    const { toast, showToast } = useToast();
+    const router = useRouter();
 
     const isEditMode = Boolean(initialData);
 
@@ -247,6 +250,8 @@ const handleRemoveSlides = (): void => {
 
                 showToast('Tech Talk saved as draft successfully', 'success');
             }
+
+            router.push('/admin/tech-talks');
         } catch (error) {
             showToast(
                 error instanceof Error ? error.message : 'Failed to save Tech Talk',
@@ -312,6 +317,7 @@ const handleRemoveSlides = (): void => {
             }
 
             setIsConfirmModalOpen(false);
+            router.push('/admin/tech-talks');
         } catch (error) {
             setIsConfirmModalOpen(false);
 
