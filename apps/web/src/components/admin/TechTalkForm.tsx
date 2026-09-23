@@ -110,10 +110,11 @@ export function TechTalkForm({
     const slidesInputRef = useRef<HTMLInputElement>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [fieldErrors, setFieldErrors] = useState<TechTalkFormErrors>({});
-    const { toast, showToast } = useToast();
-    const router = useRouter();
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
     const [isPublishing, setIsPublishing] = useState(false);
+
+    const { toast, showToast } = useToast();
+    const router = useRouter();
 
     const isEditMode = Boolean(initialData);
 
