@@ -64,6 +64,7 @@ const MockArticleRepository = {
     .mockResolvedValue({ articles: [], total: 0 }),
   findById: jest.fn<() => Promise<unknown>>().mockResolvedValue(null),
   updateStatus: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
+  incrementViews: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
 };
 
 const MockArticleReviewRepository = {

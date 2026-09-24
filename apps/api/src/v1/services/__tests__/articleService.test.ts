@@ -26,6 +26,7 @@ jest.unstable_mockModule('@repositories/articleRepository.js', () => {
   const mockFindByStatus = jest.fn();
   const mockSoftDelete = jest.fn();
   const mockHardDelete = jest.fn();
+  const mockIncrementViews = jest.fn();
 
   return {
     default: {
@@ -36,6 +37,7 @@ jest.unstable_mockModule('@repositories/articleRepository.js', () => {
       findByStatus: mockFindByStatus,
       softDelete: mockSoftDelete,
       hardDelete: mockHardDelete,
+      incrementViews: mockIncrementViews,
     },
     ArticleRepository: jest.fn().mockImplementation(() => ({
       create: mockCreate,
@@ -45,6 +47,7 @@ jest.unstable_mockModule('@repositories/articleRepository.js', () => {
       findByStatus: mockFindByStatus,
       softDelete: mockSoftDelete,
       hardDelete: mockHardDelete,
+      incrementViews: mockIncrementViews,
     })),
   };
 });
@@ -127,6 +130,7 @@ const makeRepo = (): jest.Mocked<
     | 'findByAuthor'
     | 'softDelete'
     | 'hardDelete'
+    | 'incrementViews'
   >
 > => ({
   create: jest.fn(),
@@ -137,6 +141,7 @@ const makeRepo = (): jest.Mocked<
   findByAuthor: jest.fn(),
   softDelete: jest.fn(),
   hardDelete: jest.fn(),
+  incrementViews: jest.fn<(articleId: string) => Promise<void>>().mockResolvedValue(undefined),
 });
 
 const makeUserRepo = () => ({
@@ -781,7 +786,7 @@ describe('ArticleService.updateArticle', () => {
   });
 
   it('should reset status to Draft if article was Rejected', async () => {
-    const existingArticle = { id: articleId, authorId, status: 'In Review' };
+    const existingArticle = { id: articleId, authorId, status: 'Unpublished' };
     mockRepo.findById.mockResolvedValue(existingArticle as never);
     (
       ArticleReviewRepository.findLatestByArticleId as jest.Mock<any>
@@ -805,6 +810,23 @@ describe('ArticleService.updateArticle', () => {
       status: 'Draft',
     });
     expect(result).toEqual(updatedArticle);
+  });
+
+  it('should block editing a Pending article even when its latest review is Rejected', async () => {
+    // Regression test: a Pending article that was rejected in an earlier
+    // review cycle, resubmitted, and is now Pending again must stay locked —
+    // the stale "Rejected" review from the previous cycle must not unlock it.
+    const existingArticle = { id: articleId, authorId, status: 'Pending' };
+    mockRepo.findById.mockResolvedValue(existingArticle as never);
+    (
+      ArticleReviewRepository.findLatestByArticleId as jest.Mock<any>
+    ).mockResolvedValue({ reviewStatus: 'Rejected' });
+
+    await expect(
+      service.updateArticle(articleId, { title: 'New Title' }, authorId)
+    ).rejects.toThrow('Only Draft or Rejected articles can be edited');
+
+    expect(mockRepo.update).not.toHaveBeenCalled();
   });
 
   it('should return existing article if no updates and no images provided', async () => {
@@ -1653,6 +1675,63 @@ describe('ArticleService.getArticleById', () => {
       authorEmail: AUTHOR_ALICE.email,
     });
   });
+
+  it('should increment views by 1 and reflect the incremented value when viewing a Published article', async () => {
+    const record = makeArticleRecord({
+      id: articleId,
+      status: ArticleStatusValue.Published,
+      views: 10,
+    });
+    mockRepo.findById.mockResolvedValue(record);
+
+    const result = await service.getArticleById(articleId);
+
+    expect(mockRepo.incrementViews).toHaveBeenCalledTimes(1);
+    expect(mockRepo.incrementViews).toHaveBeenCalledWith(articleId);
+    expect(result.views).toBe(11);
+  });
+
+  it('should increment views again when viewing the same Published article a second time (no deduplication)', async () => {
+    const record1 = makeArticleRecord({
+      id: articleId,
+      status: ArticleStatusValue.Published,
+      views: 10,
+    });
+    const record2 = makeArticleRecord({
+      id: articleId,
+      status: ArticleStatusValue.Published,
+      views: 11,
+    });
+    mockRepo.findById
+      .mockResolvedValueOnce(record1)
+      .mockResolvedValueOnce(record2);
+
+    const result1 = await service.getArticleById(articleId);
+    expect(result1.views).toBe(11);
+
+    const result2 = await service.getArticleById(articleId);
+    expect(result2.views).toBe(12);
+
+    expect(mockRepo.incrementViews).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['Draft', 'Pending', 'Unpublished'] as const)(
+    'should never increment views when viewing a %s article as author or admin',
+    async (status) => {
+      const record = makeArticleRecord({
+        id: articleId,
+        status: status as ArticleStatus,
+        authorId,
+        views: 5,
+      });
+      mockRepo.findById.mockResolvedValue(record);
+
+      const result = await service.getArticleById(articleId, authorId, UserRoleValue.Admin);
+
+      expect(mockRepo.incrementViews).not.toHaveBeenCalled();
+      expect(result.views).toBe(5);
+    }
+  );
 });
 
 describe('ArticleService.deleteArticle', () => {
@@ -1686,7 +1765,7 @@ describe('ArticleService.deleteArticle', () => {
     expect(mockRepo.hardDelete).not.toHaveBeenCalled();
   });
 
-  it.each(['Pending', 'Published', 'Rejected'] as const)(
+  it.each(['Published', 'Rejected'] as const)(
     'should throw 400 when author tries to delete own %s article',
     async (status) => {
       mockRepo.findById.mockResolvedValue({
@@ -1699,6 +1778,29 @@ describe('ArticleService.deleteArticle', () => {
         service.deleteArticle(articleId, authorId, 'User')
       ).rejects.toThrow(
         new AppError('Only Draft articles can be deleted', HttpStatusCode.BAD_REQUEST)
+      );
+
+      expect(mockRepo.softDelete).not.toHaveBeenCalled();
+      expect(mockRepo.hardDelete).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each(['User', 'Admin'] as const)(
+    'should throw 400 when %s tries to delete a Pending article, regardless of role',
+    async (role) => {
+      mockRepo.findById.mockResolvedValue({
+        id: articleId,
+        authorId: role === 'Admin' ? otherUserId : authorId,
+        status: 'Pending',
+      } as never);
+
+      await expect(
+        service.deleteArticle(articleId, authorId, role)
+      ).rejects.toThrow(
+        new AppError(
+          'Pending articles cannot be deleted while under review',
+          HttpStatusCode.BAD_REQUEST
+        )
       );
 
       expect(mockRepo.softDelete).not.toHaveBeenCalled();

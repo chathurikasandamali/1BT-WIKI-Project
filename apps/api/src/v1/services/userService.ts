@@ -11,6 +11,7 @@ import type {
   UpdateUserBanInput,
 } from '@/types/userTypes.js';
 import { UserRoleValue } from '@/types/userTypes.js';
+import NotificationService from './notificationService.js';
 
 // Accepted role values
 const VALID_ROLES: UserRole[] = Object.values(UserRoleValue);
@@ -57,6 +58,22 @@ const updateUserRole = async (
     .catch((error: unknown) => {
       console.error('[Pusher] Failed to trigger role-changed event:', error);
     });
+
+  // Persist a notification so the change is visible in the bell dropdown
+  // (title, message, and created-at timestamp) both live and after the
+  // user signs back in. Reuses the 'review' reference type since the DB
+  // enum has no dedicated "role change" value and the dropdown never
+  // routes/links off this field — see NotificationDropdown.tsx.
+  void NotificationService.send({
+    recipientId: userId,
+    notificationTitle: 'Role updated',
+    notificationReferenceType: 'review',
+    referenceId: userId,
+    notificationType: 'info',
+    message: `Admin has changed your user role to ${role}`,
+  }).catch((error: unknown) => {
+    console.error('[userService] Failed to send role-change notification:', error);
+  });
 
   return updatedUser;
 };

@@ -299,13 +299,15 @@ export class ArticleService {
 
     let resetToDraft = false;
 
-    if (article.status !== ArticleStatusValue.Draft) {
+    if (article.status === ArticleStatusValue.Unpublished) {
       const latestReview =
         await this.reviewRepository.findLatestByArticleId(id);
       if (!latestReview || latestReview.reviewStatus !== 'Rejected') {
         throw new AppError('Only Draft or Rejected articles can be edited', HttpStatusCode.BAD_REQUEST);
       }
       resetToDraft = true;
+    } else if (article.status !== ArticleStatusValue.Draft) {
+      throw new AppError('Only Draft or Rejected articles can be edited', HttpStatusCode.BAD_REQUEST);
     }
 
     if (
@@ -601,6 +603,13 @@ export class ArticleService {
       throw new AppError('Not authorized', 403);
     }
 
+    if (article.status === ArticleStatusValue.Pending) {
+      throw new AppError(
+        'Pending articles cannot be deleted while under review',
+        HttpStatusCode.BAD_REQUEST
+      );
+    }
+
     if (!isAdmin && article.status !== ArticleStatusValue.Draft) {
       throw new AppError('Only Draft articles can be deleted', HttpStatusCode.BAD_REQUEST);
     }
@@ -627,13 +636,21 @@ export class ArticleService {
     }
 
     // Admins may inspect articles in any status (oversight view).
+    const isAdmin = role === UserRoleValue.Admin;
     const isAvailable =
+      isAdmin ||
       articleRecord.status === ArticleStatusValue.Published ||
-      (requesterId && requesterId === articleRecord.authorId) ||
-      role === UserRoleValue.Admin;
+      (requesterId && requesterId === articleRecord.authorId);
 
     if (!isAvailable) {
       throw new AppError('Article not available', HttpStatusCode.FORBIDDEN);
+    }
+
+    // Only count views on genuinely Published articles — never for
+    // Admin/author preview access to Draft/Pending/Unpublished.
+    if (articleRecord.status === ArticleStatusValue.Published) {
+      await this.repository.incrementViews(id);
+      articleRecord.views += 1; // reflect it in this response immediately
     }
 
     const { _count, likes, coverAttachment, ...baseArticle } = articleRecord;

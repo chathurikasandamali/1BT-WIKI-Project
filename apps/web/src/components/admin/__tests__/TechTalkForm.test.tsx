@@ -9,6 +9,12 @@ import {
 } from '@/lib/api/techTalks';
 import type { TechTalkDetail } from '@/lib/api/techTalks';
 
+const mockRouterPush = jest.fn();
+
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({ push: mockRouterPush }),
+}));
+
 jest.mock('@/lib/api/techTalks', () => ({
   createTechTalk: jest.fn(),
   updateTechTalk: jest.fn(),
@@ -599,5 +605,133 @@ describe('TechTalkForm edit-mode slides attachment', () => {
       expect.not.objectContaining({ removeSlides: true }),
       undefined
     );
+  });
+});
+
+describe('TechTalkForm redirect after save', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('redirects to Tech Talk Management after creating with Save Draft', async () => {
+    mockCreateTechTalk.mockResolvedValue(mockInitialData);
+
+    render(<TechTalkForm />);
+
+    const user = userEvent.setup();
+
+    await fillValidForm(user);
+    await user.click(screen.getByRole('button', { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(createTechTalk).toHaveBeenCalledTimes(1);
+    });
+
+    expect(mockRouterPush).toHaveBeenCalledWith('/admin/tech-talks');
+  });
+
+  it('redirects to Tech Talk Management after creating with Save & Publish', async () => {
+    mockCreateTechTalk.mockResolvedValue(mockInitialData);
+
+    render(<TechTalkForm />);
+
+    const user = userEvent.setup();
+
+    await fillValidForm(user);
+    await user.click(screen.getByRole('button', { name: /save & publish/i }));
+    await user.click(screen.getByTestId('confirm-accept'));
+
+    await waitFor(() => {
+      expect(createTechTalk).toHaveBeenCalledTimes(1);
+    });
+
+    expect(mockRouterPush).toHaveBeenCalledWith('/admin/tech-talks');
+  });
+
+  it('redirects to Tech Talk Management after updating with Save Draft', async () => {
+    mockUpdateTechTalk.mockResolvedValue(mockInitialData);
+
+    render(<TechTalkForm initialData={mockInitialData} />);
+
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(updateTechTalk).toHaveBeenCalledTimes(1);
+    });
+
+    expect(mockRouterPush).toHaveBeenCalledWith('/admin/tech-talks');
+  });
+
+  it('redirects to Tech Talk Management after updating with Save & Publish', async () => {
+    mockUpdateTechTalk.mockResolvedValue(mockInitialData);
+    mockPublishTechTalk.mockResolvedValue(mockInitialData);
+
+    render(<TechTalkForm initialData={mockInitialData} />);
+
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: /save & publish/i }));
+    await user.click(screen.getByTestId('confirm-accept'));
+
+    await waitFor(() => {
+      expect(updateTechTalk).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(publishTechTalk).toHaveBeenCalledTimes(1);
+    });
+
+    expect(mockRouterPush).toHaveBeenCalledWith('/admin/tech-talks');
+  });
+
+  it('does not redirect when create fails and keeps the error handling intact', async () => {
+    mockCreateTechTalk.mockRejectedValue(new Error('Save failed'));
+
+    render(<TechTalkForm />);
+
+    const user = userEvent.setup();
+
+    await fillValidForm(user);
+    await user.click(screen.getByRole('button', { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(createTechTalk).toHaveBeenCalledTimes(1);
+    });
+
+    expect(mockRouterPush).not.toHaveBeenCalled();
+    expect(screen.getByTestId('toast')).toBeInTheDocument();
+  });
+
+  it('does not redirect when publish fails and keeps the error handling intact', async () => {
+    mockUpdateTechTalk.mockResolvedValue(mockInitialData);
+    mockPublishTechTalk.mockRejectedValue(new Error('Publish failed'));
+
+    render(<TechTalkForm initialData={mockInitialData} />);
+
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: /save & publish/i }));
+    await user.click(screen.getByTestId('confirm-accept'));
+
+    await waitFor(() => {
+      expect(publishTechTalk).toHaveBeenCalledTimes(1);
+    });
+
+    expect(mockRouterPush).not.toHaveBeenCalled();
+    expect(screen.getByTestId('toast')).toBeInTheDocument();
+  });
+
+  it('does not redirect when validation fails', async () => {
+    render(<TechTalkForm />);
+
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: /save draft/i }));
+
+    expect(screen.getByTestId('title-error')).toBeInTheDocument();
+    expect(createTechTalk).not.toHaveBeenCalled();
+    expect(updateTechTalk).not.toHaveBeenCalled();
+    expect(mockRouterPush).not.toHaveBeenCalled();
   });
 });

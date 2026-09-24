@@ -63,6 +63,7 @@ const MockArticleRepository = {
   softDelete: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
   hardDelete: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
   findByAuthor: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
+  incrementViews: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
 };
 
 await jest.unstable_mockModule('@repositories/articleRepository.js', () => ({
@@ -179,6 +180,7 @@ const mockFindByStatus = MockArticleRepository.findByStatus as jest.Mock<any>;
 const mockSoftDelete = MockArticleRepository.softDelete as jest.Mock<any>;
 const mockHardDelete = MockArticleRepository.hardDelete as jest.Mock<any>;
 const mockFindByAuthor = MockArticleRepository.findByAuthor as jest.Mock<any>;
+const mockIncrementViews = MockArticleRepository.incrementViews as jest.Mock<any>;
 const mockFindLatestByArticleId =
   ArticleReviewRepository.findLatestByArticleId as jest.Mock<any>;
 const mockFindLatestWithComments =
@@ -613,6 +615,45 @@ describe('Articles API Integration', () => {
         .set(userHeaders);
 
       expect(response.status).toBe(HttpStatusCode.FORBIDDEN);
+    });
+
+    it('should increment views by 2 when GET /api/v1/articles/:id is called twice in a row on a Published article, and leave views unchanged for a Draft article', async () => {
+      let currentViews = 10;
+      mockFindById.mockImplementation(async () => ({
+        id: articleId,
+        title: 'Published Article',
+        status: 'Published',
+        views: currentViews,
+        authorId: 'user-123',
+      }));
+      mockIncrementViews.mockImplementation(async () => {
+        currentViews += 1;
+      });
+
+      const res1 = await request(app).get(articlePath).set(userHeaders);
+      expect(res1.status).toBe(HttpStatusCode.OK);
+      expect(res1.body.data.views).toBe(11);
+
+      const res2 = await request(app).get(articlePath).set(userHeaders);
+      expect(res2.status).toBe(HttpStatusCode.OK);
+      expect(res2.body.data.views).toBe(12);
+
+      expect(mockIncrementViews).toHaveBeenCalledTimes(2);
+
+      // Verify Draft article as author doesn't increment views
+      mockIncrementViews.mockClear();
+      mockFindById.mockResolvedValueOnce({
+        id: articleId,
+        title: 'Draft Article',
+        status: 'Draft',
+        views: 0,
+        authorId: 'user-123',
+      });
+
+      const draftRes = await request(app).get(articlePath).set(userHeaders);
+      expect(draftRes.status).toBe(HttpStatusCode.OK);
+      expect(draftRes.body.data.views).toBe(0);
+      expect(mockIncrementViews).not.toHaveBeenCalled();
     });
   });
 

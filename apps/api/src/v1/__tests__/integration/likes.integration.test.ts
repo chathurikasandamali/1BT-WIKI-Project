@@ -55,6 +55,7 @@ const MockArticleRepository = {
   create: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
   findById: jest.fn<() => Promise<unknown>>().mockResolvedValue(null),
   update: jest.fn<() => Promise<unknown>>().mockResolvedValue({}),
+  incrementViews: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
 };
 
 await jest.unstable_mockModule('@repositories/articleRepository.js', () => ({

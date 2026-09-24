@@ -72,6 +72,7 @@ const MockArticleRepository = {
   findByAuthor: jest
     .fn<() => Promise<unknown>>()
     .mockResolvedValue({ articles: [], total: 0 }),
+  incrementViews: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
 };
 
 await jest.unstable_mockModule('@repositories/articleRepository.js', () => ({
