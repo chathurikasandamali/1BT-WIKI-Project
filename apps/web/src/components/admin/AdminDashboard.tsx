@@ -71,7 +71,6 @@ function getDashboardWidgets(summary: DashboardSummary): DashboardWidgetConfig[]
       valueClassName: 'text-amber-600',
       iconClassName: 'bg-amber-50 text-amber-700',
       borderClassName: 'border-amber-200',
-      highlight: summary.pendingReviews > 0,
       testId: 'widget-pending-reviews',
     },
     {

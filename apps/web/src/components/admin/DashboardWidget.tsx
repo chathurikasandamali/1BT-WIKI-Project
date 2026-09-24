@@ -44,15 +44,6 @@ export function DashboardWidget({
 
   const body = (
     <>
-      <span
-        className={cn(
-          'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded',
-          iconClassName
-        )}
-        aria-hidden="true"
-      >
-        {icon}
-      </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
           <span className="text-xs font-medium uppercase tracking-wider text-brand-text-secondary">
@@ -70,6 +61,15 @@ export function DashboardWidget({
         <span className="mt-0.5 block text-xs text-brand-text-secondary">
           {description}
         </span>
+      </span>
+      <span
+        className={cn(
+          'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded',
+          iconClassName
+        )}
+        aria-hidden="true"
+      >
+        {icon}
       </span>
     </>
   );
