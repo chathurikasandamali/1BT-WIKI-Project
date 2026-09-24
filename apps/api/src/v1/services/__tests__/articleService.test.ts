@@ -26,6 +26,7 @@ jest.unstable_mockModule('@repositories/articleRepository.js', () => {
   const mockFindByStatus = jest.fn();
   const mockSoftDelete = jest.fn();
   const mockHardDelete = jest.fn();
+  const mockIncrementViews = jest.fn();
 
   return {
     default: {
@@ -36,6 +37,7 @@ jest.unstable_mockModule('@repositories/articleRepository.js', () => {
       findByStatus: mockFindByStatus,
       softDelete: mockSoftDelete,
       hardDelete: mockHardDelete,
+      incrementViews: mockIncrementViews,
     },
     ArticleRepository: jest.fn().mockImplementation(() => ({
       create: mockCreate,
@@ -45,6 +47,7 @@ jest.unstable_mockModule('@repositories/articleRepository.js', () => {
       findByStatus: mockFindByStatus,
       softDelete: mockSoftDelete,
       hardDelete: mockHardDelete,
+      incrementViews: mockIncrementViews,
     })),
   };
 });
@@ -127,6 +130,7 @@ const makeRepo = (): jest.Mocked<
     | 'findByAuthor'
     | 'softDelete'
     | 'hardDelete'
+    | 'incrementViews'
   >
 > => ({
   create: jest.fn(),
@@ -137,6 +141,7 @@ const makeRepo = (): jest.Mocked<
   findByAuthor: jest.fn(),
   softDelete: jest.fn(),
   hardDelete: jest.fn(),
+  incrementViews: jest.fn<(articleId: string) => Promise<void>>().mockResolvedValue(undefined),
 });
 
 const makeUserRepo = () => ({
@@ -1670,6 +1675,63 @@ describe('ArticleService.getArticleById', () => {
       authorEmail: AUTHOR_ALICE.email,
     });
   });
+
+  it('should increment views by 1 and reflect the incremented value when viewing a Published article', async () => {
+    const record = makeArticleRecord({
+      id: articleId,
+      status: ArticleStatusValue.Published,
+      views: 10,
+    });
+    mockRepo.findById.mockResolvedValue(record);
+
+    const result = await service.getArticleById(articleId);
+
+    expect(mockRepo.incrementViews).toHaveBeenCalledTimes(1);
+    expect(mockRepo.incrementViews).toHaveBeenCalledWith(articleId);
+    expect(result.views).toBe(11);
+  });
+
+  it('should increment views again when viewing the same Published article a second time (no deduplication)', async () => {
+    const record1 = makeArticleRecord({
+      id: articleId,
+      status: ArticleStatusValue.Published,
+      views: 10,
+    });
+    const record2 = makeArticleRecord({
+      id: articleId,
+      status: ArticleStatusValue.Published,
+      views: 11,
+    });
+    mockRepo.findById
+      .mockResolvedValueOnce(record1)
+      .mockResolvedValueOnce(record2);
+
+    const result1 = await service.getArticleById(articleId);
+    expect(result1.views).toBe(11);
+
+    const result2 = await service.getArticleById(articleId);
+    expect(result2.views).toBe(12);
+
+    expect(mockRepo.incrementViews).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['Draft', 'Pending', 'Unpublished'] as const)(
+    'should never increment views when viewing a %s article as author or admin',
+    async (status) => {
+      const record = makeArticleRecord({
+        id: articleId,
+        status: status as ArticleStatus,
+        authorId,
+        views: 5,
+      });
+      mockRepo.findById.mockResolvedValue(record);
+
+      const result = await service.getArticleById(articleId, authorId, UserRoleValue.Admin);
+
+      expect(mockRepo.incrementViews).not.toHaveBeenCalled();
+      expect(result.views).toBe(5);
+    }
+  );
 });
 
 describe('ArticleService.deleteArticle', () => {

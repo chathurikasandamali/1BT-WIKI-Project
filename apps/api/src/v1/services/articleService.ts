@@ -636,13 +636,21 @@ export class ArticleService {
     }
 
     // Admins may inspect articles in any status (oversight view).
+    const isAdmin = role === UserRoleValue.Admin;
     const isAvailable =
+      isAdmin ||
       articleRecord.status === ArticleStatusValue.Published ||
-      (requesterId && requesterId === articleRecord.authorId) ||
-      role === UserRoleValue.Admin;
+      (requesterId && requesterId === articleRecord.authorId);
 
     if (!isAvailable) {
       throw new AppError('Article not available', HttpStatusCode.FORBIDDEN);
+    }
+
+    // Only count views on genuinely Published articles — never for
+    // Admin/author preview access to Draft/Pending/Unpublished.
+    if (articleRecord.status === ArticleStatusValue.Published) {
+      await this.repository.incrementViews(id);
+      articleRecord.views += 1; // reflect it in this response immediately
     }
 
     const { _count, likes, coverAttachment, ...baseArticle } = articleRecord;

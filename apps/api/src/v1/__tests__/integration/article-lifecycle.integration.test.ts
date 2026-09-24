@@ -86,7 +86,14 @@ const MockArticleRepository = {
       (article) => status === undefined || article.status === status
     );
     return { articles, total: articles.length };
-  })
+  }),
+  incrementViews: jest.fn<any>(async (id: string) => {
+    const article = articleStore.get(id);
+    if (article) {
+      article.views = (article.views || 0) + 1;
+      articleStore.set(id, article);
+    }
+  }),
 };
 
 await jest.unstable_mockModule('@repositories/articleRepository.js', () => ({

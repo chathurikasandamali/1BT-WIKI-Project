@@ -7,6 +7,7 @@ import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 const mockFindMany = jest.fn<any>();
 const mockCount = jest.fn<any>();
 const mockFindFirst = jest.fn<any>();
+const mockUpdate = jest.fn<any>();
 
 await jest.unstable_mockModule('@repo/db', () => ({
   TechTalkStatus: { draft: 'draft', published: 'published', unpublished: 'unpublished' },
@@ -15,6 +16,7 @@ await jest.unstable_mockModule('@repo/db', () => ({
       findMany: mockFindMany,
       count: mockCount,
       findFirst: mockFindFirst,
+      update: mockUpdate,
     },
   },
 }));
@@ -311,5 +313,23 @@ describe('ArticleRepository.findByAuthor', () => {
     const result = await ArticleRepository.findByAuthor(authorId, 1, 20);
 
     expect(result).toEqual({ articles: mockArticles, total: 1 });
+  });
+});
+
+describe('ArticleRepository.incrementViews', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should call prisma.article.update with the correct increment: 1 data shape', async () => {
+    mockUpdate.mockResolvedValue({ id: 'article-1', views: 1 });
+
+    await ArticleRepository.incrementViews('article-1');
+
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    expect(mockUpdate).toHaveBeenCalledWith({
+      where: { id: 'article-1' },
+      data: { views: { increment: 1 } },
+    });
   });
 });
