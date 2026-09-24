@@ -105,6 +105,18 @@ export class ArticleRepository {
   }
 
   /**
+   * Increment the views column for an article by 1.
+   *
+   * @param articleId - The article's UUID.
+   */
+  async incrementViews(articleId: string): Promise<void> {
+    await prisma.article.update({
+      where: { id: articleId },
+      data: { views: { increment: 1 } },
+    });
+  }
+
+  /**
    * Partially update an article's mutable fields.
    *
    * Only the keys present in `fields` are written; omitted keys are left unchanged.
