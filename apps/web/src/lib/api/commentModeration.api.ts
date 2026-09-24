@@ -1,12 +1,6 @@
 import { apiFetch } from '@/lib/api/client';
 import { DEFAULT_PAGE, DEFAULT_PAGE_LIMIT } from '@repo/shared';
-import {
-  type CommentPendingChange,
-  type CommentStatus,
-} from '@/lib/api/comments';
-
-/** What the moderator is deciding on: a brand-new comment, or a change to an Approved one. */
-export type CommentModerationRequest = 'New' | 'Edit' | 'Delete';
+import { type CommentStatus } from '@/lib/api/comments';
 
 export interface PendingCommentListItem {
   id: string;
@@ -19,9 +13,6 @@ export interface PendingCommentListItem {
   status: CommentStatus;
   reviewedBy: string | null;
   reviewedAt: string | null;
-  pendingChange: CommentPendingChange | null;
-  pendingBody: string | null;
-  requestType: CommentModerationRequest;
   createdAt: string;
   updatedAt: string;
 }

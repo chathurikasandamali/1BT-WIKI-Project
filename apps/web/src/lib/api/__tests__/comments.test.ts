@@ -21,8 +21,6 @@ const sampleComment: CommentWithAuthor = {
   status: 'Approved',
   reviewedBy: null,
   reviewedAt: null,
-  pendingChange: null,
-  pendingBody: null,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   authorName: 'Test User',
@@ -37,8 +35,6 @@ const sampleCreated: Comment = {
   status: 'Pending',
   reviewedBy: null,
   reviewedAt: null,
-  pendingChange: null,
-  pendingBody: null,
   createdAt: '2026-01-02T00:00:00.000Z',
   updatedAt: '2026-01-02T00:00:00.000Z',
 };
@@ -181,10 +177,8 @@ describe('deleteComment', () => {
     jest.clearAllMocks();
   });
 
-  const requested = { id: 'c1', status: 'Approved', pendingChange: 'Delete' };
-
   it('calls apiFetch with DELETE', async () => {
-    mockApiFetch.mockResolvedValueOnce({ success: true, data: requested });
+    mockApiFetch.mockResolvedValueOnce({ success: true, data: null });
 
     await deleteComment('a1', 'c1');
 
@@ -193,18 +187,10 @@ describe('deleteComment', () => {
     });
   });
 
-  it('resolves with the comment carrying the pending deletion request', async () => {
-    mockApiFetch.mockResolvedValueOnce({ success: true, data: requested });
-
-    await expect(deleteComment('a1', 'c1')).resolves.toEqual(requested);
-  });
-
-  it('throws a fallback message when success is true but data is missing', async () => {
+  it('resolves without throwing on success', async () => {
     mockApiFetch.mockResolvedValueOnce({ success: true, data: null });
 
-    await expect(deleteComment('a1', 'c1')).rejects.toThrow(
-      'Failed to delete comment'
-    );
+    await expect(deleteComment('a1', 'c1')).resolves.toBeUndefined();
   });
 
   it('throws the returned error message when success is false', async () => {

@@ -42,8 +42,6 @@ function makeComment(
     status: 'Approved',
     reviewedBy: null,
     reviewedAt: null,
-    pendingChange: null,
-    pendingBody: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     authorName: 'Other User',
@@ -138,8 +136,6 @@ describe('CommentsSection', () => {
       status: 'Pending',
       reviewedBy: null,
       reviewedAt: null,
-      pendingChange: null,
-      pendingBody: null,
       createdAt: '2026-01-10T00:00:00.000Z',
       updatedAt: '2026-01-10T00:00:00.000Z',
     };
@@ -185,13 +181,11 @@ describe('CommentsSection', () => {
     );
   });
 
-  it('submits a deletion request and keeps the comment visible, now locked', async () => {
-    const mine = makeComment({ id: 'mine', createdBy: 'test-user-1' });
-    mockFetchComments.mockResolvedValueOnce([mine]);
-    mockDeleteComment.mockResolvedValueOnce({
-      ...mine,
-      pendingChange: 'Delete',
-    });
+  it('deletes a comment and removes it from the list on success', async () => {
+    mockFetchComments.mockResolvedValueOnce([
+      makeComment({ id: 'mine', createdBy: 'test-user-1' }),
+    ]);
+    mockDeleteComment.mockResolvedValueOnce(undefined);
     const user = userEvent.setup();
 
     render(<CommentsSection articleId="a1" />);
@@ -203,12 +197,9 @@ describe('CommentsSection', () => {
     await waitFor(() =>
       expect(mockDeleteComment).toHaveBeenCalledWith('a1', 'mine')
     );
-    expect(await screen.findByTestId('comment-status-badge')).toHaveTextContent(
-      'Deletion pending approval'
+    await waitFor(() =>
+      expect(screen.getByTestId('comments-empty')).toBeInTheDocument()
     );
-    expect(screen.getByText('Great article!')).toBeInTheDocument();
-    expect(screen.getByTestId('delete-comment-btn')).toBeDisabled();
-    expect(screen.getByTestId('edit-comment-btn')).toBeDisabled();
   });
 
   it('keeps the comment and shows an error toast when deleting fails', async () => {
@@ -232,7 +223,7 @@ describe('CommentsSection', () => {
     expect(screen.getByTestId('comments-list')).toBeInTheDocument();
   });
 
-  it('submits an edit request, keeping the live body and showing the proposed text', async () => {
+  it('edits a comment and updates its body on success', async () => {
     mockFetchComments.mockResolvedValueOnce([
       makeComment({ id: 'mine', createdBy: 'test-user-1', body: 'Old body' }),
     ]);
@@ -240,12 +231,10 @@ describe('CommentsSection', () => {
       id: 'mine',
       articleId: 'a1',
       createdBy: 'test-user-1',
-      body: 'Old body',
-      status: 'Approved',
+      body: 'New body',
+      status: 'Pending',
       reviewedBy: null,
       reviewedAt: null,
-      pendingChange: 'Edit',
-      pendingBody: 'New body',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-02T00:00:00.000Z',
     };
@@ -264,12 +253,6 @@ describe('CommentsSection', () => {
     await waitFor(() =>
       expect(mockUpdateComment).toHaveBeenCalledWith('a1', 'mine', 'New body')
     );
-    expect(await screen.findByTestId('comment-proposed-edit')).toHaveTextContent(
-      'New body'
-    );
-    expect(screen.getByText('Old body')).toBeInTheDocument();
-    expect(screen.getByTestId('comment-status-badge')).toHaveTextContent(
-      'Edit pending approval'
-    );
+    expect(await screen.findByText('New body')).toBeInTheDocument();
   });
 });

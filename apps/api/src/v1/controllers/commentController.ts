@@ -62,7 +62,7 @@ const update = async (
 
     res
       .status(200)
-      .json(successResponse(comment, 'Comment edit submitted for approval'));
+      .json(successResponse(comment, 'Comment updated successfully'));
   } catch (error) {
     next(error);
   }
@@ -79,11 +79,9 @@ const remove = async (
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const userId = req.user!.userId;
 
-    const comment = await CommentService.deleteComment(commentId, userId);
+    await CommentService.deleteComment(commentId, userId);
 
-    res
-      .status(200)
-      .json(successResponse(comment, 'Comment deletion submitted for approval'));
+    res.status(200).json(successResponse(null, 'Comment deleted successfully'));
   } catch (error) {
     next(error);
   }

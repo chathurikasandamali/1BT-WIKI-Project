@@ -28,30 +28,6 @@ function timeAgo(dateStr: string) {
   return `${days} days ago`;
 }
 
-function getLockReason(comment: CommentWithAuthor): string | null {
-  if (comment.status === 'Pending') {
-    return 'Awaiting approval — cannot be edited or deleted';
-  }
-  if (comment.status === 'Rejected') {
-    return 'Rejected comments cannot be edited or deleted';
-  }
-  if (comment.pendingChange === 'Edit') {
-    return 'Your edit is awaiting approval';
-  }
-  if (comment.pendingChange === 'Delete') {
-    return 'Your deletion request is awaiting approval';
-  }
-  return null;
-}
-
-function getModerationLabel(comment: CommentWithAuthor): string | null {
-  if (comment.status === 'Pending') return 'Pending approval';
-  if (comment.status === 'Rejected') return 'Not approved';
-  if (comment.pendingChange === 'Edit') return 'Edit pending approval';
-  if (comment.pendingChange === 'Delete') return 'Deletion pending approval';
-  return null;
-}
-
 export function CommentItem({
   comment,
   currentUserId,
@@ -69,18 +45,20 @@ export function CommentItem({
 
   const isMine = comment.createdBy === currentUserId;
   const isEdited = comment.updatedAt !== comment.createdAt;
-  const showActions = isMine && !isEditing;
-  // Mirrors the API rule: only an Approved comment with no outstanding
-  // edit/delete request may be changed, so moderators decide on a stable version.
-  const lockReason = getLockReason(comment);
-  const isLocked = lockReason !== null;
-  const moderationLabel = getModerationLabel(comment);
+  const canEditComment = isMine && !isEditing;
+  // Pending comments are locked until moderated so the moderator reviews the
+  // exact text that was submitted.
+  const isLocked = comment.status === 'Pending';
+  const lockedTitle = 'This comment is awaiting approval and cannot be changed';
+  const MODERATION_LABELS: Partial<Record<CommentWithAuthor['status'], string>> = {
+    Pending: 'Pending approval',
+    Rejected: 'Not approved',
+  };
+  const moderationLabel = MODERATION_LABELS[comment.status] ?? null;
   const moderationBadgeClass =
     comment.status === 'Rejected'
       ? 'bg-brand-red/10 text-brand-red border-brand-red/20'
       : 'bg-amber-50 text-amber-700 border-amber-200';
-  const proposedBody =
-    comment.pendingChange === 'Edit' ? comment.pendingBody : null;
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -156,21 +134,14 @@ export function CommentItem({
               </span>
             )}
           </div>
-          {showActions && (
-            // Tooltip lives on the wrapper because disabled buttons don't
-            // reliably show their own title on hover.
-            <div
-              className="flex items-center gap-1"
-              title={lockReason ?? undefined}
-              data-testid="comment-actions"
-            >
+          {canEditComment && (
+            <div className="flex items-center gap-1">
               <button
                 onClick={startEditing}
                 disabled={isLocked}
                 data-testid="edit-comment-btn"
                 className="text-brand-text-secondary hover:text-brand-dark transition-colors p-1 rounded hover:bg-brand-dark/10 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-brand-text-secondary"
-                title={isLocked ? undefined : 'Edit comment'}
-                aria-label={lockReason ?? 'Edit comment'}
+                title={isLocked ? lockedTitle : 'Edit comment'}
               >
                 <Pencil width="16" height="16" />
               </button>
@@ -179,8 +150,7 @@ export function CommentItem({
                 disabled={isLocked}
                 data-testid="delete-comment-btn"
                 className="text-brand-text-secondary hover:text-brand-red transition-colors p-1 rounded hover:bg-brand-red/10 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-brand-text-secondary"
-                title={isLocked ? undefined : 'Delete comment'}
-                aria-label={lockReason ?? 'Delete comment'}
+                title={isLocked ? lockedTitle : 'Delete comment'}
               >
                 <TrashIcon width="16" height="16" />
               </button>
@@ -228,24 +198,9 @@ export function CommentItem({
             </div>
           </div>
         ) : (
-          <>
-            <p className="mt-2 text-brand-text-primary whitespace-pre-wrap">
-              {comment.body}
-            </p>
-            {proposedBody !== null && (
-              <div
-                data-testid="comment-proposed-edit"
-                className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3"
-              >
-                <p className="text-xs font-medium text-amber-700">
-                  Your proposed edit (only visible to you until approved):
-                </p>
-                <p className="mt-1 text-sm text-brand-text-primary whitespace-pre-wrap">
-                  {proposedBody}
-                </p>
-              </div>
-            )}
-          </>
+          <p className="mt-2 text-brand-text-primary whitespace-pre-wrap">
+            {comment.body}
+          </p>
         )}
       </div>
 
@@ -254,7 +209,7 @@ export function CommentItem({
         title="Delete this comment?"
         message={
           deleteError ||
-          'Your deletion request will be sent for approval. The comment stays visible until an admin approves it.'
+          'Are you sure you want to delete this comment? This action cannot be undone.'
         }
         confirmText="Delete"
         cancelText="Cancel"

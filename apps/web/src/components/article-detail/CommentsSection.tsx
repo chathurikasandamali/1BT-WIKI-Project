@@ -3,7 +3,6 @@
 
 import React, { useEffect, useState } from 'react';
 import {
-  Comment,
   CommentWithAuthor,
   fetchComments,
   postComment,
@@ -29,9 +28,7 @@ export function CommentsSection({ articleId }: CommentsSectionProps) {
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
 
-  const [successToastMessage, setSuccessToastMessage] = useState<
-    string | null
-  >(null);
+  const [toastVisible, setToastVisible] = useState(false);
   const [errorToastMessage, setErrorToastMessage] = useState<string | null>(
     null
   );
@@ -70,30 +67,6 @@ export function CommentsSection({ articleId }: CommentsSectionProps) {
     setTimeout(() => setErrorToastMessage(null), 2500);
   };
 
-  const showSuccessToast = (message: string) => {
-    setSuccessToastMessage(message);
-    setTimeout(() => setSuccessToastMessage(null), 2000);
-  };
-
-  // Edit/delete are moderated requests: the comment stays in the list with
-  // its live body, and only the moderation fields change.
-  const applyModerationUpdate = (updated: Comment) => {
-    setComments((prev) =>
-      prev.map((c) =>
-        c.id === updated.id
-          ? {
-              ...c,
-              body: updated.body,
-              status: updated.status,
-              pendingChange: updated.pendingChange,
-              pendingBody: updated.pendingBody,
-              updatedAt: updated.updatedAt,
-            }
-          : c
-      )
-    );
-  };
-
   const handlePostComment = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = newComment.trim();
@@ -112,7 +85,8 @@ export function CommentsSection({ articleId }: CommentsSectionProps) {
       setComments([comment, ...comments]);
       setNewComment('');
 
-      showSuccessToast('Comment posted — pending approval');
+      setToastVisible(true);
+      setTimeout(() => setToastVisible(false), 2000);
     } catch (err) {
       setPostError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -122,9 +96,8 @@ export function CommentsSection({ articleId }: CommentsSectionProps) {
 
   const handleDeleteComment = async (id: string) => {
     try {
-      const updated = await deleteComment(articleId, id);
-      applyModerationUpdate(updated);
-      showSuccessToast('Deletion request submitted — pending approval');
+      await deleteComment(articleId, id);
+      setComments((prev) => prev.filter((c) => c.id !== id));
     } catch (err) {
       showErrorToast(err instanceof Error ? err.message : String(err));
       throw err;
@@ -133,8 +106,18 @@ export function CommentsSection({ articleId }: CommentsSectionProps) {
 
   const handleEditComment = async (id: string, body: string) => {
     const updated = await updateComment(articleId, id, body);
-    applyModerationUpdate(updated);
-    showSuccessToast('Edit submitted — pending approval');
+    setComments((prev) =>
+      prev.map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              body: updated.body,
+              status: updated.status,
+              updatedAt: updated.updatedAt,
+            }
+          : c
+      )
+    );
   };
 
   const showError = !loading && !!error;
@@ -222,8 +205,8 @@ export function CommentsSection({ articleId }: CommentsSectionProps) {
       )}
 
       <Toast
-        visible={!!successToastMessage}
-        message={successToastMessage || ''}
+        visible={toastVisible}
+        message="Comment posted — pending approval"
         type="success"
       />
       <Toast

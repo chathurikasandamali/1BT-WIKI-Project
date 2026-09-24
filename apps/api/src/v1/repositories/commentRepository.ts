@@ -1,16 +1,11 @@
 import { prisma } from '@repo/db';
 import type {
   Comment,
-  CommentModerationRequest,
   CommentWithAuthor,
   CreateCommentInput,
   PendingCommentListItem,
 } from '@models/comment.types.js';
-import {
-  CommentModerationRequestValue,
-  CommentPendingChangeValue,
-  CommentStatusValue,
-} from '@models/comment.types.js';
+import { CommentStatusValue } from '@models/comment.types.js';
 
 const COMMENT_SELECT = {
   id: true,
@@ -20,8 +15,6 @@ const COMMENT_SELECT = {
   status: true,
   reviewedBy: true,
   reviewedAt: true,
-  pendingChange: true,
-  pendingBody: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -52,17 +45,11 @@ const findByArticleId = async (
     orderBy: { createdAt: 'asc' },
   });
 
-  return results.map(({ createdByUser, ...rest }) => {
-    // A requested edit/deletion is unmoderated content — only its author may see it.
-    const isOwner = rest.createdBy === viewerId;
-    return {
-      ...rest,
-      pendingChange: isOwner ? rest.pendingChange : null,
-      pendingBody: isOwner ? rest.pendingBody : null,
-      authorName: createdByUser.name,
-      authorImage: createdByUser.image,
-    };
-  }) as unknown as CommentWithAuthor[];
+  return results.map(({ createdByUser, ...rest }) => ({
+    ...rest,
+    authorName: createdByUser.name,
+    authorImage: createdByUser.image,
+  })) as unknown as CommentWithAuthor[];
 };
 
 const findById = async (id: string): Promise<Comment | null> => {
@@ -74,12 +61,14 @@ const findById = async (id: string): Promise<Comment | null> => {
   return result as unknown as Comment | null;
 };
 
-const requestEdit = async (id: string, body: string): Promise<Comment> => {
+const update = async (id: string, body: string): Promise<Comment> => {
   const result = await prisma.comment.update({
     where: { id },
     data: {
-      pendingChange: CommentPendingChangeValue.Edit,
-      pendingBody: body,
+      body,
+      status: CommentStatusValue.Pending,
+      reviewedBy: null,
+      reviewedAt: null,
     },
     select: COMMENT_SELECT,
   });
@@ -87,29 +76,11 @@ const requestEdit = async (id: string, body: string): Promise<Comment> => {
   return result as unknown as Comment;
 };
 
-const requestDeletion = async (id: string): Promise<Comment> => {
-  const result = await prisma.comment.update({
+const remove = async (id: string): Promise<void> => {
+  await prisma.comment.update({
     where: { id },
-    data: {
-      pendingChange: CommentPendingChangeValue.Delete,
-      pendingBody: null,
-    },
-    select: COMMENT_SELECT,
+    data: { deletedAt: new Date() },
   });
-
-  return result as unknown as Comment;
-};
-
-const toRequestType = (
-  status: string,
-  pendingChange: string | null
-): CommentModerationRequest => {
-  if (status === CommentStatusValue.Pending) {
-    return CommentModerationRequestValue.New;
-  }
-  return pendingChange === CommentPendingChangeValue.Delete
-    ? CommentModerationRequestValue.Delete
-    : CommentModerationRequestValue.Edit;
 };
 
 const findPending = async (
@@ -117,15 +88,9 @@ const findPending = async (
   limit: number
 ): Promise<{ comments: PendingCommentListItem[]; total: number }> => {
   const where = {
+    status: CommentStatusValue.Pending,
     deletedAt: null,
-    OR: [
-      { status: CommentStatusValue.Pending },
-      {
-        status: CommentStatusValue.Approved,
-        pendingChange: { not: null },
-      },
-    ],
-  };
+  } as const;
 
   const [results, total] = await Promise.all([
     prisma.comment.findMany({
@@ -135,9 +100,7 @@ const findPending = async (
         createdByUser: { select: { name: true, image: true } },
         article: { select: { title: true } },
       },
-      // updatedAt, not createdAt: an edit/delete request on an old comment
-      // should queue behind requests made before it, not jump to the front.
-      orderBy: { updatedAt: 'asc' },
+      orderBy: { createdAt: 'asc' },
       skip: (page - 1) * limit,
       take: limit,
     }),
@@ -149,7 +112,6 @@ const findPending = async (
     authorName: createdByUser.name,
     authorImage: createdByUser.image,
     articleTitle: article.title,
-    requestType: toRequestType(rest.status, rest.pendingChange),
   })) as unknown as PendingCommentListItem[];
 
   return { comments, total };
@@ -183,70 +145,13 @@ const reject = async (id: string, reviewerId: string): Promise<Comment> => {
   return result as unknown as Comment;
 };
 
-const approveEdit = async (
-  id: string,
-  reviewerId: string,
-  body: string
-): Promise<Comment> => {
-  const result = await prisma.comment.update({
-    where: { id },
-    data: {
-      body,
-      pendingChange: null,
-      pendingBody: null,
-      reviewedBy: reviewerId,
-      reviewedAt: new Date(),
-    },
-    select: COMMENT_SELECT,
-  });
-
-  return result as unknown as Comment;
-};
-
-const approveDeletion = async (
-  id: string,
-  reviewerId: string
-): Promise<Comment> => {
-  const result = await prisma.comment.update({
-    where: { id },
-    data: {
-      deletedAt: new Date(),
-      pendingChange: null,
-      pendingBody: null,
-      reviewedBy: reviewerId,
-      reviewedAt: new Date(),
-    },
-    select: COMMENT_SELECT,
-  });
-
-  return result as unknown as Comment;
-};
-
-// Rejecting an edit/delete request leaves the Approved comment exactly as it
-// was, so reviewedBy/reviewedAt keep pointing at the original approval.
-const discardPendingChange = async (id: string): Promise<Comment> => {
-  const result = await prisma.comment.update({
-    where: { id },
-    data: {
-      pendingChange: null,
-      pendingBody: null,
-    },
-    select: COMMENT_SELECT,
-  });
-
-  return result as unknown as Comment;
-};
-
 export default {
   create,
   findByArticleId,
   findById,
-  requestEdit,
-  requestDeletion,
+  update,
+  remove,
   findPending,
   approve,
   reject,
-  approveEdit,
-  approveDeletion,
-  discardPendingChange,
 };

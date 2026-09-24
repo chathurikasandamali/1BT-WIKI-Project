@@ -2,9 +2,6 @@ import { apiFetch } from '@/lib/api/client';
 
 export type CommentStatus = 'Pending' | 'Approved' | 'Rejected';
 
-/** An edit/deletion the author requested on an Approved comment, awaiting moderation. */
-export type CommentPendingChange = 'Edit' | 'Delete';
-
 export interface Comment {
   id: string;
   articleId: string;
@@ -13,10 +10,6 @@ export interface Comment {
   status: CommentStatus;
   reviewedBy: string | null;
   reviewedAt: string | null;
-  /** Only populated for the comment's own author; null for everyone else. */
-  pendingChange: CommentPendingChange | null;
-  /** Proposed body of a pending Edit; only populated for the comment's own author. */
-  pendingBody: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -70,22 +63,17 @@ export async function updateComment(
   return result.data;
 }
 
-/**
- * Requests deletion of an Approved comment. The comment is not removed until an
- * admin approves the request, so this resolves with the comment as it now stands.
- */
 export async function deleteComment(
   articleId: string,
   commentId: string
-): Promise<Comment> {
-  const result = await apiFetch<Comment>(
+): Promise<void> {
+  const result = await apiFetch<null>(
     `/articles/${articleId}/comments/${commentId}`,
     {
       method: 'DELETE',
     }
   );
-  if (!result.success || !result.data) {
+  if (!result.success) {
     throw new Error(result.error || 'Failed to delete comment');
   }
-  return result.data;
 }
