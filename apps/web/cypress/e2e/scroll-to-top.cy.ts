@@ -9,17 +9,31 @@ const TALL_CONTENT_ID = 'e2e-tall-content';
  */
 function addTallContent(selector: string): void {
   cy.get(selector).then(($container) => {
-    const tall = $container[0].ownerDocument.createElement('div');
+    const container = $container[0];
+    if (!container) throw new Error(`No element matches ${selector}`);
+    const tall = container.ownerDocument.createElement('div');
     tall.id = TALL_CONTENT_ID;
     tall.style.height = '3000px';
-    $container[0].appendChild(tall);
+    container.appendChild(tall);
   });
+}
+
+/**
+ * `cy.visit` resolves on the window load event, but React hydrates and runs
+ * effects after that, so on a slow CI runner the page can be scrolled before
+ * ScrollToTopButton has attached its scroll listener. The landing page locks
+ * body overflow from an effect that runs after the root layout (and the button)
+ * has hydrated, so it is a reliable "page is interactive" signal.
+ */
+function visitHydratedSignin(): void {
+  cy.visit('/signin');
+  cy.get('body').should('have.css', 'overflow-y', 'hidden');
 }
 
 describe('Scroll to top button', () => {
   it('appears after scrolling a public page, scrolls back to the top and hides', () => {
     stubAuthSession(null);
-    cy.visit('/signin');
+    visitHydratedSignin();
     addTallContent('body');
 
     cy.get(BUTTON).should('not.exist');
@@ -35,7 +49,7 @@ describe('Scroll to top button', () => {
 
   it('stays hidden for small scrolls near the top of the page', () => {
     stubAuthSession(null);
-    cy.visit('/signin');
+    visitHydratedSignin();
     addTallContent('body');
 
     cy.scrollTo(0, 100);
