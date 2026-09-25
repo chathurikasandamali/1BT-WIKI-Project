@@ -75,6 +75,46 @@ describe('CommentItem', () => {
     expect(screen.getByTestId('delete-comment-btn')).toBeInTheDocument();
   });
 
+  it('disables edit and delete for the owner while the comment is Pending approval', async () => {
+    const onDelete = jest.fn();
+    render(
+      <CommentItem
+        comment={makeComment({ createdBy: 'test-user-1', status: 'Pending' })}
+        currentUserId="test-user-1"
+        onDelete={onDelete}
+        onEdit={jest.fn()}
+      />
+    );
+
+    const editButton = screen.getByTestId('edit-comment-btn');
+    const deleteButton = screen.getByTestId('delete-comment-btn');
+    expect(editButton).toBeDisabled();
+    expect(deleteButton).toBeDisabled();
+
+    await userEvent.click(editButton);
+    await userEvent.click(deleteButton);
+
+    expect(screen.queryByTestId('edit-comment-input')).not.toBeInTheDocument();
+    expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  it.each(['Approved', 'Rejected'] as const)(
+    'keeps edit and delete enabled for the owner when the comment is %s',
+    (status) => {
+      render(
+        <CommentItem
+          comment={makeComment({ createdBy: 'test-user-1', status })}
+          currentUserId="test-user-1"
+          onDelete={jest.fn()}
+          onEdit={jest.fn()}
+        />
+      );
+
+      expect(screen.getByTestId('edit-comment-btn')).toBeEnabled();
+      expect(screen.getByTestId('delete-comment-btn')).toBeEnabled();
+    }
+  );
+
   describe('moderation status badge', () => {
     it('does not show a status badge for an Approved comment', () => {
       render(

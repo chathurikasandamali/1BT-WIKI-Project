@@ -101,6 +101,7 @@ const { default: CommentRepository } =
   await import('@repositories/commentRepository.js');
 const { default: NotificationRepository } =
   await import('@repositories/notificationRepository.js');
+const { prisma } = await import('@repo/db');
 
 const mockFindById = ArticleRepository.findById as jest.Mock<any>;
 const mockCreateComment = CommentRepository.create as jest.Mock<any>;
@@ -112,6 +113,9 @@ const mockFindPendingComments = CommentRepository.findPending as jest.Mock<any>;
 const mockApproveComment = CommentRepository.approve as jest.Mock<any>;
 const mockRejectComment = CommentRepository.reject as jest.Mock<any>;
 const mockCreateNotification = NotificationRepository.create as jest.Mock<any>;
+// UserRepository runs for real on top of the mocked Prisma client.
+const mockFindUsers = prisma.user.findMany as jest.Mock<any>;
+const mockFindUser = prisma.user.findFirst as jest.Mock<any>;
 
 const userHeaders = {
   'x-test-user-id': 'user-123',
@@ -176,7 +180,7 @@ describe('Comments API Integration', () => {
       expect(response.status).toBe(403);
     });
 
-    it('should create the comment as Pending without notifying anyone on a Published article', async () => {
+    it('should create the comment as Pending and notify the Admins to moderate it', async () => {
       const article = {
         id: articleId,
         authorId: 'other-user',
@@ -197,6 +201,8 @@ describe('Comments API Integration', () => {
 
       mockFindById.mockResolvedValueOnce(article);
       mockCreateComment.mockResolvedValueOnce(createdComment);
+      mockFindUsers.mockResolvedValueOnce([{ id: 'admin-1' }]);
+      mockFindUser.mockResolvedValueOnce({ id: 'user-123', name: 'Jane Doe' });
 
       const response = await request(app)
         .post(`/api/v1/articles/${articleId}/comments`)
@@ -213,9 +219,24 @@ describe('Comments API Integration', () => {
         body: 'Nice article',
       });
 
-      // No notification fires at creation time — only once an Admin approves.
+      // Admin notifications are fire-and-forget, so let them settle first.
       await new Promise((resolve) => setImmediate(resolve));
-      expect(mockCreateNotification).not.toHaveBeenCalled();
+      expect(mockFindUsers).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ role: 'Admin' }),
+        })
+      );
+      expect(mockCreateNotification).toHaveBeenCalledTimes(1);
+      expect(mockCreateNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          recipientId: 'admin-1',
+          notificationReferenceType: 'comment',
+          referenceId: 'comment-123',
+          notificationTitle: 'New Comment Awaiting Approval',
+          message:
+            'Jane Doe commented on the article "Test Article". Please approve or reject this comment.',
+        })
+      );
     });
   });
 
@@ -377,6 +398,26 @@ describe('Comments API Integration', () => {
       expect(response.status).toBe(403);
     });
 
+    it('should return 409 and not update if the comment is Pending approval', async () => {
+      mockFindCommentById.mockResolvedValueOnce({
+        id: commentId,
+        articleId,
+        createdBy: 'user-123',
+        body: 'Original body',
+        status: 'Pending',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const response = await request(app)
+        .patch(`/api/v1/articles/${articleId}/comments/${commentId}`)
+        .set(userHeaders)
+        .send({ body: 'Updated body' });
+
+      expect(response.status).toBe(409);
+      expect(mockUpdateComment).not.toHaveBeenCalled();
+    });
+
     it('should update the comment when requester is its owner', async () => {
       const existingComment = {
         id: commentId,
@@ -440,6 +481,25 @@ describe('Comments API Integration', () => {
         .set(userHeaders);
 
       expect(response.status).toBe(403);
+      expect(mockRemoveComment).not.toHaveBeenCalled();
+    });
+
+    it('should return 409 and not delete if the comment is Pending approval', async () => {
+      mockFindCommentById.mockResolvedValueOnce({
+        id: commentId,
+        articleId,
+        createdBy: 'user-123',
+        body: 'Original body',
+        status: 'Pending',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const response = await request(app)
+        .delete(`/api/v1/articles/${articleId}/comments/${commentId}`)
+        .set(userHeaders);
+
+      expect(response.status).toBe(409);
       expect(mockRemoveComment).not.toHaveBeenCalled();
     });
 

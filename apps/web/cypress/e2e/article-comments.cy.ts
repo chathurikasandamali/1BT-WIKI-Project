@@ -128,6 +128,9 @@ describe('Article comments', () => {
       'contain.text',
       'Pending approval'
     );
+    // The author cannot change a comment while it awaits moderation.
+    cy.get('[data-testid="edit-comment-btn"]').should('be.disabled');
+    cy.get('[data-testid="delete-comment-btn"]').should('be.disabled');
   });
 
   it('edits an own comment and shows the updated body', () => {

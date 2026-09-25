@@ -46,6 +46,10 @@ export function CommentItem({
   const isMine = comment.createdBy === currentUserId;
   const isEdited = comment.updatedAt !== comment.createdAt;
   const canEditComment = isMine && !isEditing;
+  // Pending comments are locked until moderated so the moderator reviews the
+  // exact text that was submitted.
+  const isLocked = comment.status === 'Pending';
+  const lockedTitle = 'This comment is awaiting approval and cannot be changed';
   const MODERATION_LABELS: Partial<Record<CommentWithAuthor['status'], string>> = {
     Pending: 'Pending approval',
     Rejected: 'Not approved',
@@ -134,17 +138,19 @@ export function CommentItem({
             <div className="flex items-center gap-1">
               <button
                 onClick={startEditing}
+                disabled={isLocked}
                 data-testid="edit-comment-btn"
-                className="text-brand-text-secondary hover:text-brand-dark transition-colors p-1 rounded hover:bg-brand-dark/10"
-                title="Edit comment"
+                className="text-brand-text-secondary hover:text-brand-dark transition-colors p-1 rounded hover:bg-brand-dark/10 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-brand-text-secondary"
+                title={isLocked ? lockedTitle : 'Edit comment'}
               >
                 <Pencil width="16" height="16" />
               </button>
               <button
                 onClick={() => setIsModalOpen(true)}
+                disabled={isLocked}
                 data-testid="delete-comment-btn"
-                className="text-brand-text-secondary hover:text-brand-red transition-colors p-1 rounded hover:bg-brand-red/10"
-                title="Delete comment"
+                className="text-brand-text-secondary hover:text-brand-red transition-colors p-1 rounded hover:bg-brand-red/10 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-brand-text-secondary"
+                title={isLocked ? lockedTitle : 'Delete comment'}
               >
                 <TrashIcon width="16" height="16" />
               </button>

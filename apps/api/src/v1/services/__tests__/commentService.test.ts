@@ -20,6 +20,13 @@ jest.unstable_mockModule('@repositories/commentRepository.js', () => ({
   },
 }));
 
+jest.unstable_mockModule('@repositories/userRepository.js', () => ({
+  default: {
+    findById: jest.fn(),
+    findActiveByRole: jest.fn(),
+  },
+}));
+
 jest.unstable_mockModule('../notificationService.js', () => ({
   default: {
     send: jest.fn(),
@@ -33,6 +40,26 @@ const { default: CommentRepository } =
   await import('@repositories/commentRepository.js');
 const { default: NotificationService } =
   await import('../notificationService.js');
+const { default: UserRepository } =
+  await import('@repositories/userRepository.js');
+
+// Admin notifications are fire-and-forget, so let them settle before asserting.
+const flushPromises = (): Promise<void> =>
+  new Promise((resolve) => setImmediate(resolve));
+
+const ADMIN_NOTIFICATION_TITLE = 'New Comment Awaiting Approval';
+
+const mockAdminsAndCommenter = (
+  adminIds: string[],
+  commenterName: string | null = 'Jane Doe'
+): void => {
+  (UserRepository.findActiveByRole as jest.Mock<any>).mockResolvedValue(
+    adminIds.map((id) => ({ id }))
+  );
+  (UserRepository.findById as jest.Mock<any>).mockResolvedValue(
+    commenterName === null ? null : { id: 'user-123', name: commenterName }
+  );
+};
 
 describe('CommentService.addComment', () => {
   const articleId = 'article-123';
@@ -84,7 +111,7 @@ describe('CommentService.addComment', () => {
     }
   );
 
-  it('should create the comment as Pending without notifying anyone yet', async () => {
+  describe('when the comment is created on a Published article', () => {
     const article = {
       id: articleId,
       authorId: 'other-user',
@@ -103,24 +130,120 @@ describe('CommentService.addComment', () => {
       updatedAt: new Date(),
     };
 
-    (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(article);
-    (CommentRepository.create as jest.Mock<any>).mockResolvedValue(
-      createdComment
-    );
-
-    const result = await CommentService.addComment(
-      articleId,
-      authorId,
-      '  Nice article  '
-    );
-
-    expect(CommentRepository.create).toHaveBeenCalledWith({
-      articleId,
-      createdBy: authorId,
-      body: 'Nice article',
+    beforeEach(() => {
+      (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue(article);
+      (CommentRepository.create as jest.Mock<any>).mockResolvedValue(
+        createdComment
+      );
     });
-    expect(NotificationService.send).not.toHaveBeenCalled();
-    expect(result).toEqual(createdComment);
+
+    it('should create the comment as Pending', async () => {
+      mockAdminsAndCommenter([]);
+
+      const result = await CommentService.addComment(
+        articleId,
+        authorId,
+        '  Nice article  '
+      );
+
+      expect(CommentRepository.create).toHaveBeenCalledWith({
+        articleId,
+        createdBy: authorId,
+        body: 'Nice article',
+      });
+      expect(result).toEqual(createdComment);
+    });
+
+    it('should notify every active Admin to approve or reject the comment', async () => {
+      mockAdminsAndCommenter(['admin-1', 'admin-2']);
+
+      await CommentService.addComment(articleId, authorId, 'Nice article');
+      await flushPromises();
+
+      expect(UserRepository.findActiveByRole).toHaveBeenCalledWith('Admin');
+      expect(NotificationService.send).toHaveBeenCalledTimes(2);
+      for (const adminId of ['admin-1', 'admin-2']) {
+        expect(NotificationService.send).toHaveBeenCalledWith({
+          recipientId: adminId,
+          notificationReferenceType: 'comment',
+          referenceId: 'comment-123',
+          notificationType: 'info',
+          notificationTitle: ADMIN_NOTIFICATION_TITLE,
+          message:
+            'Jane Doe commented on the article "Test Article". Please approve or reject this comment.',
+        });
+      }
+    });
+
+    it('should not notify the commenter when they are an Admin themselves', async () => {
+      mockAdminsAndCommenter([authorId, 'admin-2']);
+
+      await CommentService.addComment(articleId, authorId, 'Nice article');
+      await flushPromises();
+
+      expect(NotificationService.send).toHaveBeenCalledTimes(1);
+      expect(NotificationService.send).toHaveBeenCalledWith(
+        expect.objectContaining({ recipientId: 'admin-2' })
+      );
+    });
+
+    it('should fall back to a generic name when the commenter cannot be found', async () => {
+      mockAdminsAndCommenter(['admin-1'], null);
+
+      await CommentService.addComment(articleId, authorId, 'Nice article');
+      await flushPromises();
+
+      expect(NotificationService.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message:
+            'A user commented on the article "Test Article". Please approve or reject this comment.',
+        })
+      );
+    });
+
+    it('should still create the comment when notifying the Admins fails', async () => {
+      const consoleError = jest
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined);
+      (UserRepository.findActiveByRole as jest.Mock<any>).mockRejectedValue(
+        new Error('DB down')
+      );
+      (UserRepository.findById as jest.Mock<any>).mockResolvedValue(null);
+
+      const result = await CommentService.addComment(
+        articleId,
+        authorId,
+        'Nice article'
+      );
+      await flushPromises();
+
+      expect(result).toEqual(createdComment);
+      expect(NotificationService.send).not.toHaveBeenCalled();
+      expect(consoleError).toHaveBeenCalled();
+      consoleError.mockRestore();
+    });
+
+    it('should log and carry on when sending to one Admin fails', async () => {
+      const consoleError = jest
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined);
+      mockAdminsAndCommenter(['admin-1', 'admin-2']);
+      (NotificationService.send as jest.Mock<any>)
+        .mockRejectedValueOnce(new Error('send failed'))
+        .mockResolvedValueOnce(undefined);
+
+      const result = await CommentService.addComment(
+        articleId,
+        authorId,
+        'Nice article'
+      );
+      await flushPromises();
+
+      expect(result).toEqual(createdComment);
+      expect(NotificationService.send).toHaveBeenCalledTimes(2);
+      expect(consoleError).toHaveBeenCalledTimes(1);
+      consoleError.mockRestore();
+    });
   });
 });
 
@@ -256,6 +379,28 @@ describe('CommentService.updateComment', () => {
     );
   });
 
+  it('should throw AppError and not update if the comment is Pending approval', async () => {
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue({
+      id: commentId,
+      articleId: 'article-123',
+      createdBy: userId,
+      body: 'Original body',
+      status: 'Pending',
+      reviewedBy: null,
+      reviewedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    await expect(
+      CommentService.updateComment(commentId, userId, 'Updated body')
+    ).rejects.toThrow(
+      new AppError('This comment is awaiting approval and cannot be edited', 409)
+    );
+
+    expect(CommentRepository.update).not.toHaveBeenCalled();
+  });
+
   it('should update the comment and reset it to Pending when requester is its owner', async () => {
     const existingComment = {
       id: commentId,
@@ -282,18 +427,34 @@ describe('CommentService.updateComment', () => {
     (CommentRepository.update as jest.Mock<any>).mockResolvedValue(
       updatedComment
     );
+    (ArticleRepository.findById as jest.Mock<any>).mockResolvedValue({
+      id: 'article-123',
+      title: 'Test Article',
+    });
+    mockAdminsAndCommenter(['admin-1']);
 
     const result = await CommentService.updateComment(
       commentId,
       userId,
       '  Updated body  '
     );
+    await flushPromises();
 
     expect(CommentRepository.update).toHaveBeenCalledWith(
       commentId,
       'Updated body'
     );
     expect(result).toEqual(updatedComment);
+    // Back in the queue, so the Admins must moderate it again.
+    expect(NotificationService.send).toHaveBeenCalledWith({
+      recipientId: 'admin-1',
+      notificationReferenceType: 'comment',
+      referenceId: commentId,
+      notificationType: 'info',
+      notificationTitle: ADMIN_NOTIFICATION_TITLE,
+      message:
+        'Jane Doe edited their comment on the article "Test Article". Please approve or reject this comment.',
+    });
   });
 });
 
@@ -330,6 +491,28 @@ describe('CommentService.deleteComment', () => {
       CommentService.deleteComment(commentId, userId)
     ).rejects.toThrow(
       new AppError('Only the comment owner can delete this comment', 403)
+    );
+
+    expect(CommentRepository.remove).not.toHaveBeenCalled();
+  });
+
+  it('should throw AppError and not delete if the comment is Pending approval', async () => {
+    (CommentRepository.findById as jest.Mock<any>).mockResolvedValue({
+      id: commentId,
+      articleId: 'article-123',
+      createdBy: userId,
+      body: 'Original body',
+      status: 'Pending',
+      reviewedBy: null,
+      reviewedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    await expect(
+      CommentService.deleteComment(commentId, userId)
+    ).rejects.toThrow(
+      new AppError('This comment is awaiting approval and cannot be deleted', 409)
     );
 
     expect(CommentRepository.remove).not.toHaveBeenCalled();
